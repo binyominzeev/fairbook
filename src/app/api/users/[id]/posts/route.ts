@@ -1,0 +1,26 @@
+import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _req: Request,
+  ctx: RouteContext<"/api/users/[id]/posts">
+) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const { id } = await ctx.params;
+  const posts = await prisma.post.findMany({
+    where: { authorId: id },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      community: { select: { id: true, name: true } },
+      _count: { select: { comments: true } },
+    },
+  });
+
+  return Response.json({ posts });
+}

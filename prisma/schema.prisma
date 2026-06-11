@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  bio          String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  posts              Post[]
+  comments           Comment[]
+  following          Connection[]        @relation("follower")
+  followers          Connection[]        @relation("following")
+  steelmanRequests   SteelmanRequest[]   @relation("requester")
+  steelmanTargets    SteelmanRequest[]   @relation("target")
+  communityMemberships CommunityMember[]
+  ownedCommunities   Community[]
+}
+
+model Post {
+  id                 String   @id @default(cuid())
+  authorId           String
+  content            String?
+  sharedUrl          String?
+  sharedTitle        String?
+  sharedDescription  String?
+  sharedSource       String?
+  sharedImageUrl     String?
+  communityId        String?
+  createdAt          DateTime @default(now())
+
+  author     User              @relation(fields: [authorId], references: [id])
+  community  Community?        @relation(fields: [communityId], references: [id])
+  comments   Comment[]
+  reflections ThreadReflection[]
+  steelmanRequests SteelmanRequest[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  content   String
+  createdAt DateTime @default(now())
+
+  post     Post             @relation(fields: [postId], references: [id])
+  author   User             @relation(fields: [authorId], references: [id])
+  parent   Comment?         @relation("replies", fields: [parentId], references: [id])
+  replies  Comment[]        @relation("replies")
+  analysis CommentAnalysis?
+}
+
+model CommentAnalysis {
+  id               String   @id @default(cuid())
+  commentId        String   @unique
+  positiveSignals  String   // JSON array
+  negativeSignals  String   // JSON array
+  neutralSignals   String   // JSON array
+  explanation      String
+  analyzedAt       DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id])
+}
+
+model Connection {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower",  fields: [followerId],  references: [id])
+  following User @relation("following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model SteelmanRequest {
+  id          String   @id @default(cuid())
+  requesterId String
+  targetId    String
+  postId      String
+  summary     String?
+  status      String   @default("pending") // pending | approved | rejected
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  requester User @relation("requester", fields: [requesterId], references: [id])
+  target    User @relation("target",    fields: [targetId],    references: [id])
+  post      Post @relation(fields: [postId], references: [id])
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false)
+  ownerId     String
+  createdAt   DateTime @default(now())
+
+  owner   User              @relation(fields: [ownerId], references: [id])
+  members CommunityMember[]
+  posts   Post[]
+}
+
+model CommunityMember {
+  id          String   @id @default(cuid())
+  communityId String
+  userId      String
+  role        String   @default("member") // member | admin
+  joinedAt    DateTime @default(now())
+
+  community Community @relation(fields: [communityId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([communityId, userId])
+}
+
+model ThreadReflection {
+  id                   String   @id @default(cuid())
+  postId               String
+  agreementAreas       String   // JSON array of strings
+  disagreementAreas    String   // JSON array of strings
+  unresolvedQuestions  String   // JSON array of strings
+  qualityObservations  String   // JSON array of strings
+  createdAt            DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id])
+}
