@@ -1,0 +1,100 @@
+import { NextRequest } from "next/server";
+import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const cursor = searchParams.get("cursor");
+  const limit = 20;
+
+  // Get users I follow
+  const following = await prisma.connection.findMany({
+    where: { followerId: session.userId },
+    select: { followingId: true },
+  });
+  const followingIds = following.map((c) => c.followingId);
+  // Include own posts
+  const authorIds = [...followingIds, session.userId];
+
+  const posts = await prisma.post.findMany({
+    where: {
+      OR: [
+        { authorId: { in: authorIds } },
+        {
+          community: {
+            members: { some: { userId: session.userId } },
+          },
+        },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      community: { select: { id: true, name: true } },
+      _count: { select: { comments: true } },
+    },
+  });
+
+  const hasMore = posts.length > limit;
+  const items = hasMore ? posts.slice(0, limit) : posts;
+  const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+  return Response.json({ posts: items, nextCursor });
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl, communityId } =
+    await request.json();
+
+  if (!content && !sharedUrl) {
+    return Response.json(
+      { error: "Post must have content or a shared URL." },
+      { status: 400 }
+    );
+  }
+
+  // If communityId given, verify membership
+  if (communityId) {
+    const member = await prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId, userId: session.userId } },
+    });
+    if (!member) {
+      return Response.json(
+        { error: "You are not a member of this community." },
+        { status: 403 }
+      );
+    }
+  }
+
+  const post = await prisma.post.create({
+    data: {
+      authorId: session.userId,
+      content,
+      sharedUrl,
+      sharedTitle,
+      sharedDescription,
+      sharedSource,
+      sharedImageUrl,
+      communityId,
+    },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      community: { select: { id: true, name: true } },
+      _count: { select: { comments: true } },
+    },
+  });
+
+  return Response.json({ post }, { status: 201 });
+}
