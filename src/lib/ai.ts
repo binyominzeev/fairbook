@@ -1,8 +1,27 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY ?? "sk-placeholder",
-});
+let _client: OpenAI | null = null;
+
+function getClient(): OpenAI {
+  if (_client) return _client;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "OPENAI_API_KEY environment variable is required in production."
+      );
+    }
+    // Development without a key: API calls will fail gracefully;
+    // all AI functions have try/catch that return empty results.
+    console.warn(
+      "[fairbook] OPENAI_API_KEY is not set. AI features will return empty results."
+    );
+    _client = new OpenAI({ apiKey: "sk-placeholder" });
+  } else {
+    _client = new OpenAI({ apiKey });
+  }
+  return _client;
+}
 
 export type DiscourseSignal =
   // Positive
@@ -81,7 +100,7 @@ export async function analyzeComment(
     : `Comment to analyze:\n${commentContent}`;
 
   try {
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -125,7 +144,7 @@ export async function generateSteelman(
 ): Promise<string> {
   const content = comments.map((c, i) => `[${i + 1}] ${c}`).join("\n");
   try {
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: STEELMAN_PROMPT },
@@ -167,7 +186,7 @@ export async function generateReflection(
   thread: string
 ): Promise<ThreadReflectionData> {
   try {
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: REFLECTION_PROMPT },
