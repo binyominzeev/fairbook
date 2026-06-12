@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import FollowButton from "@/components/FollowButton";
+import Link from "next/link";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
@@ -82,18 +83,36 @@ export default async function ProfilePage(props: {
                     </strong>{" "}
                     posts
                   </span>
-                  <span>
-                    <strong className="text-slate-900">
-                      {profileUser._count.followers}
-                    </strong>{" "}
-                    followers
-                  </span>
-                  <span>
-                    <strong className="text-slate-900">
-                      {profileUser._count.following}
-                    </strong>{" "}
-                    following
-                  </span>
+                  {isOwnProfile ? (
+                    <Link href="/connections?tab=followers" className="hover:text-slate-700">
+                      <strong className="text-slate-900">
+                        {profileUser._count.followers}
+                      </strong>{" "}
+                      followers
+                    </Link>
+                  ) : (
+                    <span>
+                      <strong className="text-slate-900">
+                        {profileUser._count.followers}
+                      </strong>{" "}
+                      followers
+                    </span>
+                  )}
+                  {isOwnProfile ? (
+                    <Link href="/connections?tab=following" className="hover:text-slate-700">
+                      <strong className="text-slate-900">
+                        {profileUser._count.following}
+                      </strong>{" "}
+                      following
+                    </Link>
+                  ) : (
+                    <span>
+                      <strong className="text-slate-900">
+                        {profileUser._count.following}
+                      </strong>{" "}
+                      following
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

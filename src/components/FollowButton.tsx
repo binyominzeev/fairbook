@@ -5,9 +5,14 @@ import { useState } from "react";
 interface Props {
   targetUserId: string;
   initialIsFollowing: boolean;
+  onChange?: (nextIsFollowing: boolean) => void;
 }
 
-export default function FollowButton({ targetUserId, initialIsFollowing }: Props) {
+export default function FollowButton({
+  targetUserId,
+  initialIsFollowing,
+  onChange,
+}: Props) {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +22,9 @@ export default function FollowButton({ targetUserId, initialIsFollowing }: Props
       const method = isFollowing ? "DELETE" : "POST";
       const res = await fetch(`/api/connections/${targetUserId}`, { method });
       if (res.ok) {
-        setIsFollowing(!isFollowing);
+        const nextIsFollowing = !isFollowing;
+        setIsFollowing(nextIsFollowing);
+        onChange?.(nextIsFollowing);
       }
     } finally {
       setLoading(false);
