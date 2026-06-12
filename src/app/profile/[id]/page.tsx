@@ -26,6 +26,7 @@ export default async function ProfilePage(props: {
       name: true,
       bio: true,
       avatarUrl: true,
+      isPage: true,
       createdAt: true,
       _count: {
         select: { followers: true, following: true, posts: true },
@@ -71,6 +72,11 @@ export default async function ProfilePage(props: {
                 <h1 className="text-lg font-bold text-slate-900">
                   {profileUser.name}
                 </h1>
+                {profileUser.isPage && (
+                  <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 mt-1">
+                    Page
+                  </span>
+                )}
                 {profileUser.bio && (
                   <p className="text-sm text-slate-500 mt-0.5">
                     {profileUser.bio}

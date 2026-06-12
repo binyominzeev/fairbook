@@ -14,8 +14,13 @@ model User {
   passwordHash String
   bio          String?
   avatarUrl    String?
+  isPage       Boolean  @default(false)
+  managedById  String?
   createdAt    DateTime @default(now())
 
+  managedBy          User?               @relation("ManagedPages", fields: [managedById], references: [id])
+  managedPages       User[]              @relation("ManagedPages")
+  feedSource         FeedSource?
   posts              Post[]
   comments           Comment[]
   following          Connection[]        @relation("follower")
@@ -29,6 +34,8 @@ model User {
 model Post {
   id                 String   @id @default(cuid())
   authorId           String
+  feedSourceId       String?
+  externalId         String?
   content            String?
   sharedUrl          String?
   sharedTitle        String?
@@ -39,10 +46,30 @@ model Post {
   createdAt          DateTime @default(now())
 
   author     User              @relation(fields: [authorId], references: [id])
+  feedSource FeedSource?       @relation(fields: [feedSourceId], references: [id])
   community  Community?        @relation(fields: [communityId], references: [id])
   comments   Comment[]
   reflections ThreadReflection[]
   steelmanRequests SteelmanRequest[]
+
+  @@unique([feedSourceId, externalId])
+}
+
+model FeedSource {
+  id            String   @id @default(cuid())
+  pageId        String   @unique
+  rssUrl        String   @unique
+  title         String
+  description   String?
+  siteUrl       String?
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  lastFetchedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  page  User   @relation(fields: [pageId], references: [id])
+  posts Post[]
 }
 
 model Comment {

@@ -26,10 +26,18 @@ export default async function ConnectionsPage(props: {
       id: true,
       name: true,
       email: true,
-      _count: { select: { followers: true, following: true } },
     },
   });
   if (!user) redirect("/login");
+
+  const [followingCount, followersCount] = await Promise.all([
+    prisma.connection.count({
+      where: { followerId: session.userId, following: { isPage: false } },
+    }),
+    prisma.connection.count({
+      where: { followingId: session.userId, follower: { isPage: false } },
+    }),
+  ]);
 
   const followingRows = await prisma.connection.findMany({
     where: { followerId: session.userId },
@@ -40,6 +48,7 @@ export default async function ConnectionsPage(props: {
   const searchResults = query
     ? await prisma.user.findMany({
         where: {
+          isPage: false,
           id: { not: session.userId },
           OR: [
             { name: { contains: query } },
@@ -56,7 +65,7 @@ export default async function ConnectionsPage(props: {
     activeTab === "followers"
       ? (
           await prisma.connection.findMany({
-            where: { followingId: session.userId },
+            where: { followingId: session.userId, follower: { isPage: false } },
             include: {
               follower: {
                 select: { id: true, name: true, bio: true, avatarUrl: true },
@@ -67,7 +76,7 @@ export default async function ConnectionsPage(props: {
         ).map((row) => row.follower)
       : (
           await prisma.connection.findMany({
-            where: { followerId: session.userId },
+            where: { followerId: session.userId, following: { isPage: false } },
             include: {
               following: {
                 select: { id: true, name: true, bio: true, avatarUrl: true },
@@ -115,7 +124,7 @@ export default async function ConnectionsPage(props: {
 
               {searchResults.length === 0 ? (
                 <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                  No users found for "{query}".
+                  No users found for &quot;{query}&quot;.
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -162,7 +171,7 @@ export default async function ConnectionsPage(props: {
             <div>
               <h2 className="text-sm font-semibold text-slate-700">Your connections</h2>
               <p className="text-xs text-slate-500 mt-1">
-                {user._count.following} following, {user._count.followers} followers
+                {followingCount} following, {followersCount} followers
               </p>
             </div>
             <div className="flex rounded-lg bg-slate-100 p-1 text-sm">

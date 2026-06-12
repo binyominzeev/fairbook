@@ -47,6 +47,7 @@ export default async function FeedPage() {
   // Suggest users to follow
   const suggestedUsers = await prisma.user.findMany({
     where: {
+      isPage: false,
       id: { notIn: [...authorIds] },
     },
     select: { id: true, name: true, avatarUrl: true, bio: true },
@@ -65,7 +66,7 @@ export default async function FeedPage() {
               <p className="text-2xl mb-3">👋</p>
               <p className="font-medium text-slate-600">Your feed is empty.</p>
               <p className="text-sm mt-1">
-                Follow people or join communities to see posts here.
+                Follow people, pages, or join communities to see posts here.
               </p>
             </div>
           )}

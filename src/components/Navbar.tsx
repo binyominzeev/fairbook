@@ -27,6 +27,7 @@ export default function Navbar({ user }: Props) {
   const navLinks = [
     { href: "/feed", label: "Feed" },
     { href: "/connections", label: "People" },
+    { href: "/pages", label: "Pages" },
     { href: "/communities", label: "Communities" },
     { href: `/profile/${user.id}`, label: "Profile" },
   ];
