@@ -1,5 +1,6 @@
 "use client";
 
+import BrandLink from "@/components/BrandLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
@@ -33,11 +34,9 @@ export default function Navbar({ user }: Props) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
-      <div className="max-w-2xl mx-auto px-3 py-3 flex flex-col items-start gap-3 sm:px-4 sm:h-14 sm:py-0 sm:flex-row sm:items-center sm:justify-between">
-        <Link href="/feed" className="font-bold text-slate-900 text-lg leading-none">
-          fairbook
-        </Link>
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-2xl flex-col items-start gap-3 px-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-0">
+        <BrandLink href="/feed" size="sm" subtitle="Discourse" />
         <nav className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end">
           {navLinks.map((link) => (
             <Link
