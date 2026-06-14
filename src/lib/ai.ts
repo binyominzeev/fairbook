@@ -350,6 +350,38 @@ export interface PostModerationInput {
   sharedContent?: string;
 }
 
+export interface FeedArticleViolenceInput {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  source?: string | null;
+  url?: string | null;
+}
+
+export interface FeedArticleViolenceResult {
+  id: string;
+  mayContainViolence: boolean;
+}
+
+const FEED_VIOLENCE_PROMPT = `You classify RSS news items for whether they may contain violent or fatal real-world events.
+
+You will receive an array of articles. For each article, decide whether it likely contains upsetting real-world violence, death, fatal accidents, killings, assaults, abuse causing injury, war casualties, or similarly graphic harmful events.
+
+Mark mayContainViolence as true when the title or description suggests bodily harm, death, fatality, murder, attack, abuse, collision with deaths or injuries, shooting, stabbing, bombing, or similar events.
+
+Do not mark articles for metaphorical language, sports aggression, market "crashes", political conflict without bodily harm, or ordinary non-violent bad news.
+
+Be conservative but user-protective: if the article plausibly reports real-world death or physical violence, mark it true.
+
+Return valid JSON only in this shape:
+{
+  "articles": [
+    { "id": "...", "mayContainViolence": true }
+  ]
+}
+
+Return every input id exactly once.`;
+
 export async function moderateComment({
   postContent,
   sharedContent,
@@ -417,6 +449,73 @@ export async function moderatePost({
     parentComment: undefined,
     commentContent: postContent?.trim() || "[link-only post]",
   });
+}
+
+export async function classifyFeedArticlesForViolence(
+  articles: FeedArticleViolenceInput[]
+): Promise<FeedArticleViolenceResult[]> {
+  if (articles.length === 0) {
+    return [];
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return articles.map((article) => ({
+      id: article.id,
+      mayContainViolence: false,
+    }));
+  }
+
+  const articleIds = new Set(articles.map((article) => article.id));
+
+  try {
+    const response = await getClient().chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: FEED_VIOLENCE_PROMPT },
+        {
+          role: "user",
+          content: JSON.stringify({
+            articles: articles.map((article) => ({
+              id: article.id,
+              title: article.title ?? null,
+              description: article.description ?? null,
+              source: article.source ?? null,
+              url: article.url ?? null,
+            })),
+          }),
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    });
+
+    const raw = response.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw) as {
+      articles?: Array<{ id?: string; mayContainViolence?: boolean }>;
+    };
+
+    const results = new Map<string, boolean>();
+    for (const item of parsed.articles ?? []) {
+      if (typeof item.id !== "string" || !articleIds.has(item.id)) {
+        continue;
+      }
+
+      results.set(item.id, item.mayContainViolence === true);
+    }
+
+    return articles.map((article) => ({
+      id: article.id,
+      mayContainViolence: results.get(article.id) === true,
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
+    console.error("[fairbook] RSS violence classification failed:", message);
+    return articles.map((article) => ({
+      id: article.id,
+      mayContainViolence: false,
+    }));
+  }
 }
 
 const REFLECTION_PROMPT = `You are a discourse reflection assistant. Given a discussion thread, identify:

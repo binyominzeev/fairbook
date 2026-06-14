@@ -5,6 +5,7 @@ import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import CreatePostForm from "@/components/CreatePostForm";
+import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
 
 export default async function FeedPage() {
   const session = await getSession();
@@ -12,7 +13,13 @@ export default async function FeedPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      avatarUrl: true,
+      hideViolentFeed: true,
+    },
   });
   if (!user) redirect("/login");
 
@@ -25,7 +32,7 @@ export default async function FeedPage() {
     ...following.map((c) => c.followingId),
   ];
 
-  const posts = await prisma.post.findMany({
+  const feedCandidates = await prisma.post.findMany({
     where: {
       AND: [
         { authorId: { in: authorIds } },
@@ -41,7 +48,7 @@ export default async function FeedPage() {
       ],
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-    take: 30,
+    take: 120,
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       sharedPost: {
@@ -66,6 +73,7 @@ export default async function FeedPage() {
       _count: { select: { comments: true, likes: true, sharedBy: true } },
     },
   });
+  const posts = filterViolentFeedPostsForUser(feedCandidates, user.hideViolentFeed).slice(0, 30);
 
   // Suggest users to follow
   const suggestedUsers = await prisma.user.findMany({

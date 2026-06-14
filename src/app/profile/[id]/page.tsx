@@ -10,18 +10,25 @@ import Link from "next/link";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; settings?: string }>;
 }) {
   const { id } = await props.params;
-  const { tab } = await props.searchParams;
+  const { tab, settings } = await props.searchParams;
   const session = await getSession();
   if (!session) redirect("/login");
 
   const activeTab = tab === "likes" || tab === "comments" ? tab : "posts";
+  const showSettings = settings === "1";
 
   const currentUser = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      avatarUrl: true,
+      hideViolentFeed: true,
+    },
   });
   if (!currentUser) redirect("/login");
 
@@ -113,6 +120,21 @@ export default async function ProfilePage(props: {
   });
 
   const isOwnProfile = id === session.userId;
+
+  function buildProfileHref(nextTab?: "posts" | "likes" | "comments", nextShowSettings = showSettings) {
+    const params = new URLSearchParams();
+
+    if (nextTab && nextTab !== "posts") {
+      params.set("tab", nextTab);
+    }
+
+    if (nextShowSettings) {
+      params.set("settings", "1");
+    }
+
+    const query = params.toString();
+    return query ? `/profile/${id}?${query}` : `/profile/${id}`;
+  }
 
   const likedPosts = isOwnProfile
     ? (
@@ -216,39 +238,69 @@ export default async function ProfilePage(props: {
                 </div>
               </div>
             </div>
-            {!isOwnProfile && (
+            {isOwnProfile ? (
+              <Link
+                href={buildProfileHref(activeTab, !showSettings)}
+                aria-label={showSettings ? "Beállítások bezárása" : "Beállítások megnyitása"}
+                title={showSettings ? "Beállítások bezárása" : "Beállítások megnyitása"}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${showSettings ? "border-slate-300 bg-slate-100 text-slate-900" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"}`}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-5 w-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M10.325 4.317a1.724 1.724 0 0 1 3.35 0 1.724 1.724 0 0 0 2.573 1.066 1.724 1.724 0 0 1 2.898 1.676 1.724 1.724 0 0 0 .824 2.43 1.724 1.724 0 0 1 0 3.022 1.724 1.724 0 0 0-.824 2.43 1.724 1.724 0 0 1-2.898 1.676 1.724 1.724 0 0 0-2.573 1.066 1.724 1.724 0 0 1-3.35 0 1.724 1.724 0 0 0-2.573-1.066 1.724 1.724 0 0 1-2.898-1.676 1.724 1.724 0 0 0-.824-2.43 1.724 1.724 0 0 1 0-3.022 1.724 1.724 0 0 0 .824-2.43 1.724 1.724 0 0 1 2.898-1.676 1.724 1.724 0 0 0 2.573-1.066Z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                  />
+                </svg>
+              </Link>
+            ) : (
               <FollowButton
                 targetUserId={id}
                 initialIsFollowing={isFollowing}
               />
             )}
           </div>
-          {isOwnProfile && !profileUser.isPage && (
-            <ProfileAvatarEditor
-              userId={profileUser.id}
-              name={profileUser.name}
-              avatarUrl={profileUser.avatarUrl}
-            />
-          )}
         </div>
 
         {isOwnProfile && !profileUser.isPage ? (
           <>
+            {showSettings && (
+              <ProfileAvatarEditor
+                userId={profileUser.id}
+                name={currentUser.name}
+                email={currentUser.email}
+                avatarUrl={profileUser.avatarUrl}
+                hideViolentFeed={currentUser.hideViolentFeed}
+              />
+            )}
+
             <div className="flex items-center gap-2 px-1 text-sm">
               <Link
-                href={`/profile/${id}`}
+                href={buildProfileHref("posts")}
                 className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "posts" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
               >
                 Posts
               </Link>
               <Link
-                href={`/profile/${id}?tab=likes`}
+                href={buildProfileHref("likes")}
                 className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "likes" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
               >
                 Likes
               </Link>
               <Link
-                href={`/profile/${id}?tab=comments`}
+                href={buildProfileHref("comments")}
                 className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "comments" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
               >
                 Comments

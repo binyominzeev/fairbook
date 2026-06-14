@@ -14,6 +14,7 @@ model User {
   passwordHash String
   bio          String?
   avatarUrl    String?
+  hideViolentFeed Boolean @default(false)
   isPage       Boolean  @default(false)
   managedById  String?
   createdAt    DateTime @default(now())
@@ -55,6 +56,7 @@ model Post {
   moderationReason   String?
   moderationExplanation String?
   moderatedAt        DateTime?
+  mayContainViolence Boolean  @default(false)
   isFeedVisible      Boolean  @default(true)
   fetchedAt          DateTime @default(now())
   lastScoredAt       DateTime?

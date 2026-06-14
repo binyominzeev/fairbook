@@ -76,25 +76,35 @@ export async function PATCH(
   }
 
   const body = await request.json();
+  const shouldUpdateAvatar = Object.hasOwn(body, "avatarUrl");
+  const hideViolentFeed =
+    typeof body.hideViolentFeed === "boolean" ? body.hideViolentFeed : undefined;
 
-  let avatarUrl: string | null;
-  try {
-    avatarUrl = normalizeAvatarUrl(body.avatarUrl);
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Invalid avatar." },
-      { status: 400 }
-    );
+  let avatarUrl: string | null | undefined;
+  if (shouldUpdateAvatar) {
+    try {
+      avatarUrl = normalizeAvatarUrl(body.avatarUrl);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Invalid avatar." },
+        { status: 400 }
+      );
+    }
   }
 
   const user = await prisma.user.update({
     where: { id },
-    data: { avatarUrl },
+    data: {
+      ...(shouldUpdateAvatar ? { avatarUrl } : {}),
+      ...(hideViolentFeed === undefined ? {} : { hideViolentFeed }),
+    },
     select: {
       id: true,
       name: true,
+      email: true,
       bio: true,
       avatarUrl: true,
+      hideViolentFeed: true,
       createdAt: true,
       _count: { select: { followers: true, following: true, posts: true } },
     },

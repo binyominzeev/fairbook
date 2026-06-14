@@ -1,6 +1,7 @@
 import Parser from "rss-parser";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { classifyFeedArticlesForViolence } from "@/lib/ai";
 import {
   calculatePostScore,
   hashFeedValue,
@@ -261,6 +262,29 @@ export async function importFeedPosts(feedSourceId: string) {
   const items = (feed.items ?? []).slice(0, 25);
   let importedCount = 0;
   let skippedCount = 0;
+  const pendingPosts: Array<{
+    batchId: string;
+    data: {
+      authorId: string;
+      feedSourceId: string;
+      externalId: string;
+      urlHash: string | null;
+      titleHash: string | null;
+      content: string | null;
+      sharedUrl: string;
+      sharedTitle: string;
+      sharedDescription: string | null;
+      sharedSource: string;
+      sharedImageUrl: string | null;
+      createdAt: Date;
+      fetchedAt: Date;
+      score: number;
+      freshnessScore: number;
+      sourceScore: number;
+      engagementScore: number;
+      lastScoredAt: Date;
+    };
+  }> = [];
 
   for (const item of items) {
     const externalId = getItemExternalId(item);
@@ -298,7 +322,11 @@ export async function importFeedPosts(feedSourceId: string) {
       commentCount: 0,
     });
 
-    await prisma.post.create({
+    const sharedTitle = item.title?.trim() || meta.title || feedSource.title;
+    const sharedSource = feed.title?.trim() || feedSource.title;
+
+    pendingPosts.push({
+      batchId: `article-${pendingPosts.length + 1}`,
       data: {
         authorId: feedSource.pageId,
         feedSourceId: feedSource.id,
@@ -307,14 +335,38 @@ export async function importFeedPosts(feedSourceId: string) {
         titleHash,
         content: description,
         sharedUrl: normalizedUrl ?? link,
-        sharedTitle: item.title?.trim() || meta.title || feedSource.title,
+        sharedTitle,
         sharedDescription: description,
-        sharedSource: feed.title?.trim() || feedSource.title,
+        sharedSource,
         sharedImageUrl: getItemImage(item) ?? meta.imageUrl ?? feedSource.imageUrl,
         createdAt,
         fetchedAt,
         ...nextScore,
         lastScoredAt: fetchedAt,
+      },
+    });
+  }
+
+  const violenceResults = await classifyFeedArticlesForViolence(
+    pendingPosts.map((post) => ({
+      id: post.batchId,
+      title: post.data.sharedTitle,
+      description: post.data.sharedDescription,
+      source: post.data.sharedSource,
+      url: post.data.sharedUrl,
+    }))
+  );
+  const violentIds = new Set(
+    violenceResults
+      .filter((result) => result.mayContainViolence)
+      .map((result) => result.id)
+  );
+
+  for (const post of pendingPosts) {
+    await prisma.post.create({
+      data: {
+        ...post.data,
+        mayContainViolence: violentIds.has(post.batchId),
       },
     });
     importedCount += 1;
