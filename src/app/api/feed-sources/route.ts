@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    const { rssUrl, name, bio, avatarUrl } = await request.json();
+    const { rssUrl, name, bio, avatarUrl, sourceWeight } = await request.json();
     if (!rssUrl?.trim()) {
       return Response.json({ error: "RSS URL is required." }, { status: 400 });
     }
@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
         description: preview.description,
         siteUrl: preview.siteUrl,
         imageUrl: preview.imageUrl,
+        sourceWeight:
+          typeof sourceWeight === "number" && Number.isFinite(sourceWeight)
+            ? Math.max(0.25, Math.min(5, sourceWeight))
+            : 1,
       },
     });
 

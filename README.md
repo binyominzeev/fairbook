@@ -50,7 +50,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and set your `OPENAI_API_KEY` and `JWT_SECRET`.
+Edit `.env` and set your `OPENAI_API_KEY`, `JWT_SECRET`, and `CRON_SECRET`.
 
 ### 3. Set up the database
 
@@ -82,3 +82,9 @@ Open [http://localhost:3000](http://localhost:3000).
 - AI annotations explain, not adjudicate
 - No addictive UX patterns
 - User control and privacy
+
+## RSS feed jobs
+
+- `GET /api/cron/feed-sync` processes a round-robin batch of 2-4 active feeds per run, using `ETag` and `Last-Modified` request headers.
+- `GET /api/cron/feed-cleanup` rescoring all posts and trims imported feed visibility back to the top ranked ~100-150 items.
+- Authenticate cron calls with the `x-cron-secret` header or `?secret=` query parameter matching `CRON_SECRET`.

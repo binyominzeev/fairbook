@@ -9,6 +9,7 @@ type FeedRow = {
   rssUrl: string;
   siteUrl?: string | null;
   isActive: boolean;
+  sourceWeight: number;
   lastFetchedAt?: string | null;
   page: {
     id: string;
@@ -29,6 +30,7 @@ export default function AdminFeedManager({ feeds }: Props) {
   const [name, setName] = useState("");
   const [rssUrl, setRssUrl] = useState("");
   const [bio, setBio] = useState("");
+  const [sourceWeight, setSourceWeight] = useState("1");
   const [submitting, setSubmitting] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -41,7 +43,12 @@ export default function AdminFeedManager({ feeds }: Props) {
       const res = await fetch("/api/feed-sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, rssUrl, bio }),
+        body: JSON.stringify({
+          name,
+          rssUrl,
+          bio,
+          sourceWeight: Number.parseFloat(sourceWeight) || 1,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -51,6 +58,7 @@ export default function AdminFeedManager({ feeds }: Props) {
       setName("");
       setRssUrl("");
       setBio("");
+      setSourceWeight("1");
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -103,6 +111,16 @@ export default function AdminFeedManager({ feeds }: Props) {
             required
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
           />
+          <input
+            type="number"
+            min="0.25"
+            max="5"
+            step="0.25"
+            value={sourceWeight}
+            onChange={(e) => setSourceWeight(e.target.value)}
+            placeholder="Source weight"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+          />
         </div>
         <textarea
           value={bio}
@@ -135,6 +153,7 @@ export default function AdminFeedManager({ feeds }: Props) {
                   <p className="text-xs text-slate-500 break-all">{feed.rssUrl}</p>
                   <p className="text-xs text-slate-400 mt-1">
                     {feed._count.posts} imported posts
+                    {` · weight ${feed.sourceWeight.toFixed(2)}`}
                     {feed.lastFetchedAt ? ` · synced ${new Date(feed.lastFetchedAt).toLocaleString()}` : " · not synced yet"}
                   </p>
                 </div>

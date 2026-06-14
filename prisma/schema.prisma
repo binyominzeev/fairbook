@@ -36,6 +36,8 @@ model Post {
   authorId           String
   feedSourceId       String?
   externalId         String?
+  urlHash            String?
+  titleHash          String?
   content            String?
   sharedUrl          String?
   sharedTitle        String?
@@ -43,6 +45,13 @@ model Post {
   sharedSource       String?
   sharedImageUrl     String?
   communityId        String?
+  score              Float    @default(0)
+  freshnessScore     Float    @default(0)
+  sourceScore        Float    @default(0)
+  engagementScore    Float    @default(0)
+  isFeedVisible      Boolean  @default(true)
+  fetchedAt          DateTime @default(now())
+  lastScoredAt       DateTime?
   createdAt          DateTime @default(now())
 
   author     User              @relation(fields: [authorId], references: [id])
@@ -53,6 +62,10 @@ model Post {
   steelmanRequests SteelmanRequest[]
 
   @@unique([feedSourceId, externalId])
+  @@index([urlHash])
+  @@index([titleHash])
+  @@index([feedSourceId, isFeedVisible])
+  @@index([score, createdAt])
 }
 
 model FeedSource {
@@ -64,12 +77,26 @@ model FeedSource {
   siteUrl       String?
   imageUrl      String?
   isActive      Boolean  @default(true)
+  sourceWeight  Float    @default(1)
+  etag          String?
+  lastModified  String?
   lastFetchedAt DateTime?
+  lastSuccessAt DateTime?
+  fetchErrorCount Int    @default(0)
+  lastStatusCode Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   page  User   @relation(fields: [pageId], references: [id])
   posts Post[]
+}
+
+model FeedSyncState {
+  id            String   @id
+  nextCursor    Int      @default(0)
+  lastCleanupAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Comment {

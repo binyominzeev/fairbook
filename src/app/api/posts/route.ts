@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -24,7 +25,10 @@ export async function GET(request: NextRequest) {
   const posts = await prisma.post.findMany({
     where: {
       OR: [
-        { authorId: { in: authorIds } },
+        {
+          authorId: { in: authorIds },
+          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
+        },
         {
           community: {
             members: { some: { userId: session.userId } },
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
         },
       ],
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
@@ -78,6 +82,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const createdAt = new Date();
+  const nextScore = calculatePostScore({ createdAt, sourceWeight: 1, commentCount: 0 });
+
   const post = await prisma.post.create({
     data: {
       authorId: session.userId,
@@ -88,6 +95,10 @@ export async function POST(request: NextRequest) {
       sharedSource,
       sharedImageUrl,
       communityId,
+      createdAt,
+      fetchedAt: createdAt,
+      ...nextScore,
+      lastScoredAt: createdAt,
     },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },

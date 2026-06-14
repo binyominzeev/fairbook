@@ -27,7 +27,10 @@ export default async function FeedPage() {
   const posts = await prisma.post.findMany({
     where: {
       OR: [
-        { authorId: { in: authorIds } },
+        {
+          authorId: { in: authorIds },
+          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
+        },
         {
           community: {
             members: { some: { userId: session.userId } },
@@ -35,7 +38,7 @@ export default async function FeedPage() {
         },
       ],
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     take: 30,
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },

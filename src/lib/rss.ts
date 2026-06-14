@@ -1,5 +1,13 @@
 import Parser from "rss-parser";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  calculatePostScore,
+  hashFeedValue,
+  normalizeUrl,
+  recomputePostsForFeedSource,
+  refreshVisibleFeedPosts,
+} from "@/lib/feed-ranking";
 
 type ParsedFeed = {
   title?: string;
@@ -121,6 +129,70 @@ function parsePublishedAt(item: ParsedItem) {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+function resolveBatchSize(activeFeedCount: number) {
+  if (activeFeedCount <= 0) return 0;
+
+  const configured = Number.parseInt(process.env.RSS_SYNC_BATCH_SIZE ?? "", 10);
+  if (Number.isFinite(configured)) {
+    return Math.min(4, Math.max(2, configured));
+  }
+
+  return Math.min(4, Math.max(2, Math.round(activeFeedCount / 4)));
+}
+
+async function fetchFeed(feedSource: {
+  rssUrl: string;
+  etag: string | null;
+  lastModified: string | null;
+}) {
+  const response = await fetch(feedSource.rssUrl, {
+    headers: {
+      "User-Agent": "fairbook-rss-bot/1.0",
+      Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.1",
+      ...(feedSource.etag ? { "If-None-Match": feedSource.etag } : {}),
+      ...(feedSource.lastModified ? { "If-Modified-Since": feedSource.lastModified } : {}),
+    },
+    cache: "no-store",
+  });
+
+  return {
+    response,
+    body: response.status === 304 ? null : await response.text(),
+    etag: response.headers.get("etag"),
+    lastModified: response.headers.get("last-modified"),
+  };
+}
+
+async function findExistingImportedPost(params: {
+  feedSourceId: string;
+  externalId: string;
+  urlHash: string | null;
+  titleHash: string | null;
+}) {
+  const duplicateClauses: Prisma.PostWhereInput[] = [];
+
+  if (params.urlHash) {
+    duplicateClauses.push({ urlHash: params.urlHash, feedSourceId: { not: null } });
+  }
+
+  if (params.titleHash) {
+    duplicateClauses.push({ titleHash: params.titleHash, feedSourceId: { not: null } });
+  }
+
+  return prisma.post.findFirst({
+    where: {
+      OR: [
+        {
+          feedSourceId: params.feedSourceId,
+          externalId: params.externalId,
+        },
+        ...duplicateClauses,
+      ],
+    },
+    select: { id: true },
+  });
+}
+
 export async function previewFeed(rssUrl: string) {
   const feed = await parser.parseURL(rssUrl);
   return {
@@ -141,9 +213,54 @@ export async function importFeedPosts(feedSourceId: string) {
     throw new Error("Feed source not found.");
   }
 
-  const feed = await parser.parseURL(feedSource.rssUrl);
+  const fetchedAt = new Date();
+
+  let fetchedFeed;
+  try {
+    fetchedFeed = await fetchFeed(feedSource);
+  } catch {
+    await prisma.feedSource.update({
+      where: { id: feedSource.id },
+      data: {
+        lastFetchedAt: fetchedAt,
+        fetchErrorCount: { increment: 1 },
+      },
+    });
+    throw new Error("Could not fetch feed.");
+  }
+
+  if (fetchedFeed.response.status === 304) {
+    await prisma.feedSource.update({
+      where: { id: feedSource.id },
+      data: {
+        etag: fetchedFeed.etag ?? feedSource.etag,
+        lastModified: fetchedFeed.lastModified ?? feedSource.lastModified,
+        lastFetchedAt: fetchedAt,
+        lastSuccessAt: fetchedAt,
+        fetchErrorCount: 0,
+        lastStatusCode: 304,
+      },
+    });
+
+    return { importedCount: 0, skippedCount: 0, notModified: true };
+  }
+
+  if (!fetchedFeed.response.ok || !fetchedFeed.body) {
+    await prisma.feedSource.update({
+      where: { id: feedSource.id },
+      data: {
+        lastFetchedAt: fetchedAt,
+        fetchErrorCount: { increment: 1 },
+        lastStatusCode: fetchedFeed.response.status,
+      },
+    });
+    throw new Error(`Feed fetch failed with status ${fetchedFeed.response.status}.`);
+  }
+
+  const feed = await parser.parseString(fetchedFeed.body);
   const items = (feed.items ?? []).slice(0, 25);
   let importedCount = 0;
+  let skippedCount = 0;
 
   for (const item of items) {
     const externalId = getItemExternalId(item);
@@ -153,17 +270,17 @@ export async function importFeedPosts(feedSourceId: string) {
       continue;
     }
 
-    const existing = await prisma.post.findUnique({
-      where: {
-        feedSourceId_externalId: {
-          feedSourceId: feedSource.id,
-          externalId,
-        },
-      },
-      select: { id: true },
+    const normalizedUrl = normalizeUrl(link);
+    const titleHash = hashFeedValue(item.title?.trim());
+    const existing = await findExistingImportedPost({
+      feedSourceId: feedSource.id,
+      externalId,
+      urlHash: hashFeedValue(normalizedUrl),
+      titleHash,
     });
 
     if (existing) {
+      skippedCount += 1;
       continue;
     }
 
@@ -174,18 +291,30 @@ export async function importFeedPosts(feedSourceId: string) {
       meta.description ??
       null;
 
+    const createdAt = parsePublishedAt(item) ?? fetchedAt;
+    const nextScore = calculatePostScore({
+      createdAt,
+      sourceWeight: feedSource.sourceWeight,
+      commentCount: 0,
+    });
+
     await prisma.post.create({
       data: {
         authorId: feedSource.pageId,
         feedSourceId: feedSource.id,
         externalId,
+        urlHash: hashFeedValue(normalizedUrl),
+        titleHash,
         content: description,
-        sharedUrl: link,
+        sharedUrl: normalizedUrl ?? link,
         sharedTitle: item.title?.trim() || meta.title || feedSource.title,
         sharedDescription: description,
         sharedSource: feed.title?.trim() || feedSource.title,
         sharedImageUrl: getItemImage(item) ?? meta.imageUrl ?? feedSource.imageUrl,
-        createdAt: parsePublishedAt(item),
+        createdAt,
+        fetchedAt,
+        ...nextScore,
+        lastScoredAt: fetchedAt,
       },
     });
     importedCount += 1;
@@ -198,9 +327,78 @@ export async function importFeedPosts(feedSourceId: string) {
       description: feed.description?.trim() || feedSource.description,
       siteUrl: feed.link?.trim() || feedSource.siteUrl,
       imageUrl: feed.image?.url?.trim() || feedSource.imageUrl,
+      etag: fetchedFeed.etag ?? feedSource.etag,
+      lastModified: fetchedFeed.lastModified ?? feedSource.lastModified,
       lastFetchedAt: new Date(),
+      lastSuccessAt: fetchedAt,
+      fetchErrorCount: 0,
+      lastStatusCode: fetchedFeed.response.status,
     },
   });
 
-  return { importedCount };
+  await recomputePostsForFeedSource(feedSource.id);
+  await refreshVisibleFeedPosts();
+
+  return { importedCount, skippedCount, notModified: false };
+}
+
+export async function syncFeedBatch() {
+  const activeFeeds = await prisma.feedSource.findMany({
+    where: { isActive: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+
+  if (activeFeeds.length === 0) {
+    return {
+      processedFeedCount: 0,
+      importedCount: 0,
+      skippedCount: 0,
+      notModifiedCount: 0,
+      processedFeedIds: [] as string[],
+    };
+  }
+
+  const state = await prisma.feedSyncState.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
+  });
+
+  const batchSize = Math.min(resolveBatchSize(activeFeeds.length), activeFeeds.length);
+  const startIndex = state.nextCursor % activeFeeds.length;
+  const selectedFeeds = Array.from({ length: batchSize }, (_, offset) => {
+    const index = (startIndex + offset) % activeFeeds.length;
+    return activeFeeds[index];
+  });
+
+  await prisma.feedSyncState.update({
+    where: { id: state.id },
+    data: {
+      nextCursor: (startIndex + batchSize) % activeFeeds.length,
+    },
+  });
+
+  let importedCount = 0;
+  let skippedCount = 0;
+  let notModifiedCount = 0;
+
+  for (const feed of selectedFeeds) {
+    try {
+      const result = await importFeedPosts(feed.id);
+      importedCount += result.importedCount;
+      skippedCount += result.skippedCount;
+      notModifiedCount += result.notModified ? 1 : 0;
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    processedFeedCount: selectedFeeds.length,
+    importedCount,
+    skippedCount,
+    notModifiedCount,
+    processedFeedIds: selectedFeeds.map((feed) => feed.id),
+  };
 }

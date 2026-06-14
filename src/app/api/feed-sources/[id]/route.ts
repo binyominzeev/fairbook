@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { recomputePostsForFeedSource, refreshVisibleFeedPosts } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
@@ -45,6 +46,10 @@ export async function PATCH(
       data: {
         rssUrl: nextRssUrl,
         isActive: typeof body.isActive === "boolean" ? body.isActive : feedSource.isActive,
+        sourceWeight:
+          typeof body.sourceWeight === "number" && Number.isFinite(body.sourceWeight)
+            ? Math.max(0.25, Math.min(5, body.sourceWeight))
+            : feedSource.sourceWeight,
         title: nextPreview?.title || feedSource.title,
         description: nextPreview?.description || feedSource.description,
         siteUrl: nextPreview?.siteUrl || feedSource.siteUrl,
@@ -56,6 +61,9 @@ export async function PATCH(
     if (body.action === "refresh" && updatedFeedSource.isActive) {
       const result = await importFeedPosts(updatedFeedSource.id);
       importedCount = result.importedCount;
+    } else if (updatedFeedSource.sourceWeight !== feedSource.sourceWeight) {
+      await recomputePostsForFeedSource(updatedFeedSource.id);
+      await refreshVisibleFeedPosts();
     }
 
     return Response.json({ feedSource: updatedFeedSource, importedCount });

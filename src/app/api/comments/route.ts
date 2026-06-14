@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
+import { recomputePostScore } from "@/lib/feed-ranking";
 import { prisma } from "@/lib/prisma";
 import { analyzeComment } from "@/lib/ai";
 
@@ -72,6 +73,8 @@ export async function POST(request: NextRequest) {
       analysis: true,
     },
   });
+
+  await recomputePostScore(postId);
 
   // Analyze asynchronously — don't block the response
   (async () => {
