@@ -59,7 +59,7 @@ export default async function FeedPage() {
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="space-y-4">
-          <CreatePostForm currentUserId={user.id} />
+          <CreatePostForm />
 
           {posts.length === 0 && (
             <div className="text-center py-16 text-slate-400">

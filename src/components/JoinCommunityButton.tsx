@@ -15,7 +15,7 @@ export default function JoinCommunityButton({ communityId, isMember, isOwner }: 
 
   if (isOwner) {
     return (
-      <span className="text-xs text-slate-400 px-3 py-1.5 rounded-lg bg-slate-50">
+      <span className="rounded-lg bg-slate-50 px-3 py-1.5 text-center text-xs text-slate-400">
         Owner
       </span>
     );
@@ -36,7 +36,7 @@ export default function JoinCommunityButton({ communityId, isMember, isOwner }: 
     <button
       onClick={toggle}
       disabled={loading}
-      className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+      className={`w-full whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors sm:w-auto ${
         isMember
           ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
           : "bg-blue-600 text-white hover:bg-blue-700"

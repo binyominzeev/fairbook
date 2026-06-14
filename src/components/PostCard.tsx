@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -38,9 +38,18 @@ interface Props {
 export default function PostCard({ post, currentUserId, showDelete }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const timeAgo = (date: string) => {
-    const diff = Date.now() - new Date(date).getTime();
+    const diff = now - new Date(date).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
@@ -63,19 +72,19 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   return (
     <article className="bg-white rounded-xl border border-slate-200 p-4">
       {/* Author row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600 flex-shrink-0">
             {post.author.name[0]?.toUpperCase()}
           </div>
-          <div>
+          <div className="min-w-0">
             <Link
               href={`/profile/${post.author.id}`}
-              className="text-sm font-semibold text-slate-900 hover:underline"
+              className="block truncate text-sm font-semibold text-slate-900 hover:underline"
             >
               {post.author.name}
             </Link>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
               <span>{timeAgo(post.createdAt)}</span>
               {post.community && (
                 <>
@@ -94,7 +103,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         {showDelete && post.author.id === currentUserId && (
           <button
             onClick={handleDelete}
-            className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+            className="shrink-0 text-xs text-slate-400 hover:text-red-500 transition-colors"
           >
             Delete
           </button>
@@ -148,7 +157,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-4 pt-1 border-t border-slate-100 mt-2">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
         <Link
           href={`/post/${post.id}`}
           className="text-xs text-slate-500 hover:text-blue-600 transition-colors"

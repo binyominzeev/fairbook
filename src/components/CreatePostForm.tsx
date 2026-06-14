@@ -4,11 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Props {
-  currentUserId: string;
   communityId?: string;
 }
 
-export default function CreatePostForm({ currentUserId, communityId }: Props) {
+export default function CreatePostForm({ communityId }: Props) {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [sharedUrl, setSharedUrl] = useState("");
@@ -108,18 +107,18 @@ export default function CreatePostForm({ currentUserId, communityId }: Props) {
         <p className="text-xs text-red-600 mt-2">{error}</p>
       )}
 
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+      <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={() => setShowLinkFields((v) => !v)}
-          className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
+          className="text-left text-xs text-slate-500 hover:text-blue-600 transition-colors"
         >
           🔗 {showLinkFields ? "Hide link fields" : "Add a link"}
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white disabled:text-slate-400 rounded-lg font-medium transition-colors"
+          className="w-full rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
         >
           {submitting ? "Posting…" : "Post"}
         </button>

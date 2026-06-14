@@ -34,11 +34,11 @@ export default function Navbar({ user }: Props) {
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
-      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/feed" className="font-bold text-slate-900 text-lg">
+      <div className="max-w-2xl mx-auto px-3 py-3 flex flex-col items-start gap-3 sm:px-4 sm:h-14 sm:py-0 sm:flex-row sm:items-center sm:justify-between">
+        <Link href="/feed" className="font-bold text-slate-900 text-lg leading-none">
           fairbook
         </Link>
-        <nav className="flex items-center gap-1">
+        <nav className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -54,7 +54,7 @@ export default function Navbar({ user }: Props) {
           ))}
           <button
             onClick={logout}
-            className="ml-2 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors sm:ml-2"
           >
             Sign out
           </button>

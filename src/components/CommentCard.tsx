@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import DiscourseIndicators from "./DiscourseIndicators";
 import type { DiscourseSignal } from "@/lib/ai";
@@ -32,7 +32,6 @@ interface Props {
   postId: string;
   currentUserId: string;
   depth?: number;
-  onReply?: () => void;
 }
 
 export default function CommentCard({
@@ -40,7 +39,6 @@ export default function CommentCard({
   postId,
   currentUserId,
   depth = 0,
-  onReply,
 }: Props) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -48,7 +46,16 @@ export default function CommentCard({
   const [localReplies, setLocalReplies] = useState<CommentData[]>(
     comment.replies ?? []
   );
-  const [analysis, setAnalysis] = useState<Analysis | null>(comment.analysis);
+  const [analysis] = useState<Analysis | null>(comment.analysis);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const submitReply = useCallback(async () => {
     if (!replyText.trim()) return;
@@ -89,7 +96,7 @@ export default function CommentCard({
   }, [replyText, postId, comment.id]);
 
   const timeAgo = (date: string) => {
-    const diff = Date.now() - new Date(date).getTime();
+    const diff = now - new Date(date).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
@@ -99,7 +106,7 @@ export default function CommentCard({
   };
 
   return (
-    <div className={`${depth > 0 ? "ml-6 border-l-2 border-slate-100 pl-4" : ""}`}>
+    <div className={`${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}>
       <div className="flex gap-3 py-3">
         <div className="flex-shrink-0">
           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-600">
@@ -107,7 +114,7 @@ export default function CommentCard({
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <Link
               href={`/profile/${comment.author.id}`}
               className="text-sm font-semibold text-slate-900 hover:underline"
@@ -131,7 +138,7 @@ export default function CommentCard({
             </button>
           )}
           {showReplyForm && (
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
                 className="flex-1 text-sm rounded-lg border border-slate-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Write a reply…"
@@ -147,7 +154,7 @@ export default function CommentCard({
               <button
                 onClick={submitReply}
                 disabled={submitting || !replyText.trim()}
-                className="text-sm px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white disabled:text-slate-400 rounded-lg transition-colors"
+                className="w-full rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
               >
                 Post
               </button>

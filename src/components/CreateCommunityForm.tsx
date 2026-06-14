@@ -76,18 +76,18 @@ export default function CreateCommunityForm() {
         Invite-only (private)
       </label>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="submit"
           disabled={submitting}
-          className="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white disabled:text-slate-400 rounded-lg font-medium transition-colors"
+          className="w-full rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
         >
           {submitting ? "Creating…" : "Create"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-sm px-4 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          className="w-full rounded-lg px-4 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-100 sm:w-auto"
         >
           Cancel
         </button>

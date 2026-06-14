@@ -98,7 +98,7 @@ export default async function ConnectionsPage(props: {
             </p>
           </div>
 
-          <form action="/connections" method="GET" className="flex gap-2">
+          <form action="/connections" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
             <input
               type="search"
@@ -109,7 +109,7 @@ export default async function ConnectionsPage(props: {
             />
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
               Search
             </button>
@@ -117,7 +117,7 @@ export default async function ConnectionsPage(props: {
 
           {query ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-sm font-semibold text-slate-700">Search results</h2>
                 <span className="text-xs text-slate-400">{searchResults.length} result(s)</span>
               </div>
@@ -131,7 +131,7 @@ export default async function ConnectionsPage(props: {
                   {searchResults.map((person) => (
                     <li
                       key={person.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3"
+                      className="flex flex-col gap-3 rounded-lg border border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0 flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600">
@@ -167,17 +167,17 @@ export default async function ConnectionsPage(props: {
         </section>
 
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-700">Your connections</h2>
               <p className="text-xs text-slate-500 mt-1">
                 {followingCount} following, {followersCount} followers
               </p>
             </div>
-            <div className="flex rounded-lg bg-slate-100 p-1 text-sm">
+            <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-auto">
               <Link
                 href={query ? `/connections?tab=following&q=${encodeURIComponent(query)}` : "/connections?tab=following"}
-                className={`rounded-md px-3 py-1.5 transition-colors ${
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeTab === "following"
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-500 hover:text-slate-800"
@@ -187,7 +187,7 @@ export default async function ConnectionsPage(props: {
               </Link>
               <Link
                 href={query ? `/connections?tab=followers&q=${encodeURIComponent(query)}` : "/connections?tab=followers"}
-                className={`rounded-md px-3 py-1.5 transition-colors ${
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeTab === "followers"
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-500 hover:text-slate-800"
@@ -212,7 +212,7 @@ export default async function ConnectionsPage(props: {
                 return (
                   <li
                     key={person.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-3"
+                    className="flex flex-col gap-3 rounded-lg border border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0 flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600">

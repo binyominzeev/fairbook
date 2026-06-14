@@ -35,7 +35,7 @@ export default function FollowButton({
     <button
       onClick={toggle}
       disabled={loading}
-      className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-colors ${
+      className={`w-full whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors sm:w-auto ${
         isFollowing
           ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
           : "bg-blue-600 text-white hover:bg-blue-700"
