@@ -13,6 +13,10 @@ export default function CreatePostForm() {
   const [showLinkFields, setShowLinkFields] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<{
+    kind: "success" | "warning";
+    message: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +25,7 @@ export default function CreatePostForm() {
       return;
     }
     setError("");
+    setNotice(null);
     setSubmitting(true);
     try {
       const res = await fetch("/api/posts", {
@@ -34,6 +39,7 @@ export default function CreatePostForm() {
           sharedSource: sharedSource.trim() || null,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
         setContent("");
         setSharedUrl("");
@@ -41,9 +47,12 @@ export default function CreatePostForm() {
         setSharedSource("");
         setSharedDescription("");
         setShowLinkFields(false);
+        setNotice({
+          kind: data.moderation?.status === "author_only" ? "warning" : "success",
+          message: data.message ?? "Post accepted.",
+        });
         router.refresh();
       } else {
-        const data = await res.json();
         setError(data.error ?? "Failed to post.");
       }
     } finally {
@@ -100,6 +109,11 @@ export default function CreatePostForm() {
 
       {error && (
         <p className="text-xs text-red-600 mt-2">{error}</p>
+      )}
+      {notice && (
+        <p className={`mt-2 text-xs ${notice.kind === "warning" ? "text-amber-700" : "text-emerald-700"}`}>
+          {notice.message}
+        </p>
       )}
 
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">

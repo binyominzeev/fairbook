@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateReflection } from "@/lib/ai";
@@ -22,7 +21,7 @@ export async function POST(
   }
 
   const comments = await prisma.comment.findMany({
-    where: { postId: id },
+    where: { postId: id, moderationStatus: "visible" },
     orderBy: { createdAt: "asc" },
     include: { author: { select: { name: true } } },
   });

@@ -3,6 +3,7 @@
 import Avatar from "@/components/Avatar";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import DiscourseIndicators from "./DiscourseIndicators";
 import type { DiscourseSignal } from "@/lib/ai";
 
@@ -22,6 +23,9 @@ interface Analysis {
 interface CommentData {
   id: string;
   content: string;
+  moderationStatus: string;
+  moderationReason: string | null;
+  moderationExplanation: string | null;
   createdAt: string;
   author: Author;
   analysis: Analysis | null;
@@ -41,14 +45,31 @@ export default function CommentCard({
   currentUserId,
   depth = 0,
 }: Props) {
+  const router = useRouter();
   const [showReplyForm, setShowReplyForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editText, setEditText] = useState(comment.content);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [localComment, setLocalComment] = useState<CommentData>(comment);
   const [localReplies, setLocalReplies] = useState<CommentData[]>(
     comment.replies ?? []
   );
-  const [analysis] = useState<Analysis | null>(comment.analysis);
+  const [analysis, setAnalysis] = useState<Analysis | null>(comment.analysis);
+  const [replyNotice, setReplyNotice] = useState<{
+    kind: "success" | "warning";
+    message: string;
+  } | null>(null);
+  const [actionNotice, setActionNotice] = useState<{
+    kind: "success" | "warning" | "error";
+    message: string;
+  } | null>(null);
+  const [deleted, setDeleted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  const isOwnComment = localComment.author.id === currentUserId;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -74,6 +95,10 @@ export default function CommentCard({
       const data = await res.json();
       if (res.ok) {
         setLocalReplies((prev) => [...prev, { ...data.comment, replies: [] }]);
+        setReplyNotice({
+          kind: data.moderation?.status === "author_only" ? "warning" : "success",
+          message: data.message ?? "Comment accepted.",
+        });
         setReplyText("");
         setShowReplyForm(false);
         // Poll for analysis after a few seconds
@@ -90,11 +115,91 @@ export default function CommentCard({
             );
           }
         }, 5000);
+      } else {
+        setReplyNotice({
+          kind: "warning",
+          message: data.error ?? "Failed to post reply.",
+        });
       }
     } finally {
       setSubmitting(false);
     }
   }, [replyText, postId, comment.id]);
+
+  const submitEdit = useCallback(async () => {
+    if (!editText.trim() || editText.trim() === localComment.content) {
+      setShowEditForm(false);
+      setEditText(localComment.content);
+      return;
+    }
+
+    setSavingEdit(true);
+    setActionNotice(null);
+    try {
+      const res = await fetch(`/api/comments/${localComment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editText }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setLocalComment((prev) => ({
+          ...prev,
+          ...data.comment,
+          replies: prev.replies,
+        }));
+        setAnalysis(null);
+        setActionNotice({
+          kind: data.moderation?.status === "author_only" ? "warning" : "success",
+          message: data.message ?? "Comment updated.",
+        });
+        setShowEditForm(false);
+        setEditText(data.comment.content);
+        router.refresh();
+
+        setTimeout(async () => {
+          const aRes = await fetch(`/api/comments/${localComment.id}/analysis`);
+          const aData = await aRes.json();
+          if (aData.analysis) {
+            setAnalysis(aData.analysis);
+          }
+        }, 5000);
+      } else {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Failed to update comment.",
+        });
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [editText, localComment.content, localComment.id, router]);
+
+  const deleteComment = useCallback(async () => {
+    if (!confirm("Delete this comment? Replies will also be removed.")) return;
+
+    setDeleting(true);
+    setActionNotice(null);
+    try {
+      const res = await fetch(`/api/comments/${localComment.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setDeleted(true);
+        router.refresh();
+      } else {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Failed to delete comment.",
+        });
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }, [localComment.id, router]);
 
   const timeAgo = (date: string) => {
     const diff = now - new Date(date).getTime();
@@ -106,30 +211,102 @@ export default function CommentCard({
     return `${Math.floor(hrs / 24)}d ago`;
   };
 
+  if (deleted) return null;
+
   return (
     <div className={`${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}>
       <div className="flex gap-3 py-3">
         <Avatar
-          name={comment.author.name}
-          avatarUrl={comment.author.avatarUrl}
+          name={localComment.author.name}
+          avatarUrl={localComment.author.avatarUrl}
           sizeClassName="h-8 w-8"
           textClassName="text-sm font-medium"
         />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <Link
-              href={`/profile/${comment.author.id}`}
+              href={`/profile/${localComment.author.id}`}
               className="text-sm font-semibold text-slate-900 hover:underline"
             >
-              {comment.author.name}
+              {localComment.author.name}
             </Link>
             <span className="text-xs text-slate-400">
-              {timeAgo(comment.createdAt)}
+              {timeAgo(localComment.createdAt)}
             </span>
+            {isOwnComment && (
+              <>
+                <button
+                  onClick={() => {
+                    setShowEditForm((value) => !value);
+                    setEditText(localComment.content);
+                    setActionNotice(null);
+                  }}
+                  className="text-xs text-slate-400 hover:text-blue-600"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={deleteComment}
+                  disabled={deleting}
+                  className="text-xs text-slate-400 hover:text-red-600 disabled:text-slate-300"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </>
+            )}
           </div>
-          <p className="text-sm text-slate-800 mt-0.5 whitespace-pre-wrap">
-            {comment.content}
-          </p>
+          {showEditForm ? (
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void submitEdit();
+                  }
+                  if (e.key === "Escape") {
+                    setShowEditForm(false);
+                    setEditText(localComment.content);
+                  }
+                }}
+              />
+              <div className="flex gap-2 sm:w-auto">
+                <button
+                  onClick={() => void submitEdit()}
+                  disabled={savingEdit || !editText.trim()}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                  {savingEdit ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditForm(false);
+                    setEditText(localComment.content);
+                  }}
+                  disabled={savingEdit}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-800 mt-0.5 whitespace-pre-wrap">
+              {localComment.content}
+            </p>
+          )}
+          {localComment.moderationStatus === "author_only" && currentUserId === localComment.author.id && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p className="font-medium">
+                Filtered{localComment.moderationReason ? ` · ${localComment.moderationReason}` : ""}
+              </p>
+              <p className="mt-1 text-amber-800">
+                {localComment.moderationExplanation ?? "Only you can see this comment."}
+              </p>
+            </div>
+          )}
           <DiscourseIndicators analysis={analysis} />
           {depth < 3 && (
             <button
@@ -161,6 +338,20 @@ export default function CommentCard({
                 Post
               </button>
             </div>
+          )}
+          {replyNotice && (
+            <p
+              className={`mt-2 text-xs ${replyNotice.kind === "warning" ? "text-amber-700" : "text-emerald-700"}`}
+            >
+              {replyNotice.message}
+            </p>
+          )}
+          {actionNotice && (
+            <p
+              className={`mt-2 text-xs ${actionNotice.kind === "error" ? "text-red-600" : actionNotice.kind === "warning" ? "text-amber-700" : "text-emerald-700"}`}
+            >
+              {actionNotice.message}
+            </p>
           )}
         </div>
       </div>

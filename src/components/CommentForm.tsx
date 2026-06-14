@@ -12,12 +12,17 @@ export default function CommentForm({ postId }: Props) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<{
+    kind: "success" | "warning";
+    message: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
     setSubmitting(true);
     setError("");
+    setNotice(null);
     try {
       const res = await fetch("/api/comments", {
         method: "POST",
@@ -27,6 +32,10 @@ export default function CommentForm({ postId }: Props) {
       const data = await res.json();
       if (res.ok) {
         setContent("");
+        setNotice({
+          kind: data.moderation?.status === "author_only" ? "warning" : "success",
+          message: data.message ?? "Comment accepted.",
+        });
         router.refresh();
       } else {
         setError(data.error ?? "Failed to post comment.");
@@ -55,6 +64,11 @@ export default function CommentForm({ postId }: Props) {
         </button>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
+      {notice && (
+        <p className={`text-xs ${notice.kind === "warning" ? "text-amber-700" : "text-emerald-700"}`}>
+          {notice.message}
+        </p>
+      )}
     </form>
   );
 }

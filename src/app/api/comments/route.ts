@@ -2,9 +2,22 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { recomputePostScore } from "@/lib/feed-ranking";
 import { prisma } from "@/lib/prisma";
-import { analyzeComment } from "@/lib/ai";
+import { analyzeComment, moderateComment } from "@/lib/ai";
+
+function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderateComment>>) {
+  if (moderation.source === "fallback") {
+    return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Comment is visible only to you until this is fixed.`;
+  }
+
+  if (moderation.status === "visible") {
+    return "Comment accepted.";
+  }
+
+  return `Comment filtered: ${moderation.reasonShort}. Only you can see it.`;
+}
 
 export async function GET(request: NextRequest) {
+  const session = await getSession();
   const { searchParams } = new URL(request.url);
   const postId = searchParams.get("postId");
 
@@ -12,17 +25,28 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "postId is required." }, { status: 400 });
   }
 
+  const visibilityWhere = session
+    ? {
+        OR: [
+          { moderationStatus: "visible" as const },
+          { authorId: session.userId },
+        ],
+      }
+    : { moderationStatus: "visible" as const };
+
   const comments = await prisma.comment.findMany({
-    where: { postId },
+    where: { postId, ...visibilityWhere },
     orderBy: { createdAt: "asc" },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       analysis: true,
       replies: {
+        where: visibilityWhere,
         include: {
           author: { select: { id: true, name: true, avatarUrl: true } },
           analysis: true,
           replies: {
+            where: visibilityWhere,
             include: {
               author: { select: { id: true, name: true, avatarUrl: true } },
               analysis: true,
@@ -54,20 +78,82 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const post = await prisma.post.findUnique({ where: { id: postId } });
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      authorId: true,
+      moderationStatus: true,
+      content: true,
+      sharedTitle: true,
+      sharedDescription: true,
+      sharedSource: true,
+      sharedUrl: true,
+      sharedPost: {
+        select: {
+          content: true,
+          sharedTitle: true,
+          sharedDescription: true,
+          sharedSource: true,
+          sharedUrl: true,
+        },
+      },
+    },
+  });
   if (!post) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 
+  if (post.moderationStatus === "author_only" && post.authorId !== session.userId) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  let parentContent: string | undefined;
   if (parentId) {
-    const parent = await prisma.comment.findUnique({ where: { id: parentId } });
+    const parent = await prisma.comment.findUnique({
+      where: { id: parentId },
+      select: { postId: true, content: true },
+    });
     if (!parent || parent.postId !== postId) {
       return Response.json({ error: "Parent comment not found." }, { status: 404 });
     }
+    parentContent = parent.content;
   }
 
+  const sharedContent = [
+    post.sharedTitle,
+    post.sharedDescription,
+    post.sharedSource,
+    post.sharedUrl,
+    post.sharedPost?.content,
+    post.sharedPost?.sharedTitle,
+    post.sharedPost?.sharedDescription,
+    post.sharedPost?.sharedSource,
+    post.sharedPost?.sharedUrl,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const moderation = await moderateComment({
+    postContent: post.content ?? undefined,
+    sharedContent: sharedContent || undefined,
+    parentComment: parentContent,
+    commentContent: content,
+  });
+
   const comment = await prisma.comment.create({
-    data: { postId, authorId: session.userId, parentId: parentId ?? null, content },
+    data: {
+      postId,
+      authorId: session.userId,
+      parentId: parentId ?? null,
+      content,
+      moderationStatus: moderation.status,
+      moderationReason:
+        moderation.status === "author_only" ? moderation.reasonShort : null,
+      moderationExplanation:
+        moderation.status === "author_only" ? moderation.explanation : null,
+      moderatedAt: new Date(),
+    },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       analysis: true,
@@ -105,5 +191,12 @@ export async function POST(request: NextRequest) {
     }
   })();
 
-  return Response.json({ comment }, { status: 201 });
+  return Response.json(
+    {
+      comment,
+      moderation,
+      message: buildModerationMessage(moderation),
+    },
+    { status: 201 }
+  );
 }

@@ -13,10 +13,14 @@ export async function POST(
   const { id } = await ctx.params;
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, authorId: true, moderationStatus: true },
   });
 
   if (!post) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (post.moderationStatus === "author_only" && post.authorId !== session.userId) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 

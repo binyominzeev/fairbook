@@ -27,8 +27,18 @@ export default async function FeedPage() {
 
   const posts = await prisma.post.findMany({
     where: {
-      authorId: { in: authorIds },
-      OR: [{ feedSourceId: null }, { isFeedVisible: true }],
+      AND: [
+        { authorId: { in: authorIds } },
+        {
+          OR: [
+            { authorId: session.userId },
+            { moderationStatus: "visible" },
+          ],
+        },
+        {
+          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
+        },
+      ],
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     take: 30,

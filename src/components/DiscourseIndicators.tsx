@@ -24,9 +24,7 @@ export default function DiscourseIndicators({ analysis }: Props) {
   const [tooltip, setTooltip] = useState<DiscourseSignal | null>(null);
 
   if (!analysis) {
-    return (
-      <span className="text-xs text-slate-400 italic">Analyzing…</span>
-    );
+    return null;
   }
 
   const allSignals: DiscourseSignal[] = [

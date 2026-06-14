@@ -50,18 +50,30 @@ export default async function PostPage(props: {
     },
   });
   if (!post) notFound();
+  if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
+    notFound();
+  }
 
   const rawComments = await prisma.comment.findMany({
-    where: { postId: id },
+    where: {
+      postId: id,
+      OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+    },
     orderBy: { createdAt: "asc" },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       analysis: true,
       replies: {
+        where: {
+          OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+        },
         include: {
           author: { select: { id: true, name: true, avatarUrl: true } },
           analysis: true,
           replies: {
+            where: {
+              OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+            },
             include: {
               author: { select: { id: true, name: true, avatarUrl: true } },
               analysis: true,
@@ -96,6 +108,9 @@ export default async function PostPage(props: {
   type RawReply = {
     id: string;
     content: string;
+    moderationStatus: string;
+    moderationReason: string | null;
+    moderationExplanation: string | null;
     createdAt: Date;
     author: { id: string; name: string; avatarUrl: string | null };
     analysis: {

@@ -23,6 +23,10 @@ function getClient(): OpenAI {
   return _client;
 }
 
+function getApiKey() {
+  return process.env.OPENAI_API_KEY?.trim() || null;
+}
+
 export type DiscourseSignal =
   // Positive
   | "answered_question"
@@ -77,6 +81,84 @@ export interface DiscourseAnalysis {
   explanation: string;
 }
 
+export type CommentModerationCategory =
+  | "allowed"
+  | "hate_speech"
+  | "contemptuous"
+  | "verbal_abuse"
+  | "misinformation"
+  | "factual_error"
+  | "inciting_narrative"
+  | "moderation_unavailable";
+
+export type CommentModerationStatus = "visible" | "author_only";
+
+export interface CommentModerationResult {
+  status: CommentModerationStatus;
+  category: CommentModerationCategory;
+  reasonShort: string;
+  explanation: string;
+  source: "rules" | "ai" | "fallback";
+  diagnostic?: string;
+}
+
+const MODERATION_REASON_LABELS: Record<
+  Exclude<CommentModerationCategory, "allowed">,
+  string
+> = {
+  hate_speech: "Hate speech",
+  contemptuous: "Contempt",
+  verbal_abuse: "Verbal abuse",
+  misinformation: "Misinformation",
+  factual_error: "False claim",
+  inciting_narrative: "Biased narrative",
+  moderation_unavailable: "AI issue",
+};
+
+const RULE_BASED_MODERATION: Array<{
+  category: Exclude<
+    CommentModerationCategory,
+    "allowed" | "misinformation" | "factual_error" | "inciting_narrative" | "moderation_unavailable"
+  >;
+  reasonShort: string;
+  explanation: string;
+  patterns: RegExp[];
+}> = [
+  {
+    category: "hate_speech",
+    reasonShort: "Hate speech",
+    explanation:
+      "The comment contains dehumanizing or group-targeted hostile language, so it is held back automatically.",
+    patterns: [
+      /\b(rohad[ée]k\s+(?:zsid[oó]|cig[aá]ny|buzi|buzik|n[eé]ger|migr[aá]ns))/iu,
+      /\b(?:ki\s+kell\s+irtani|meg\s+kell\s+tiszt[ií]tani)\b.{0,40}\b(?:zsid[oó]k?|cig[aá]nyok?|buzik?|melegek?|migr[aá]nsok?)\b/iu,
+      /\b(?:all|every)\s+(?:gays?|jews?|muslims?|immigrants?|romani)\s+(?:are|should)\b/iu,
+    ],
+  },
+  {
+    category: "verbal_abuse",
+    reasonShort: "Verbal abuse",
+    explanation:
+      "The comment contains direct abusive language aimed at a person or group, so it is held back automatically.",
+    patterns: [
+      /\b(?:te|ti|you|they)\b.{0,20}\b(?:kurva|fasz|h[üu]lye|id[ií]ota|barom|nyomor[eé]k|szarh[aá]zi|retard[aá]lt)\b/iu,
+      /\b(?:d[oö]gj(?:e|etek)?\s+meg|rohadj(?:atok)?\s+meg|fuck\s+you|piece\s+of\s+shit)\b/iu,
+      /\b(?:semmirekell[oő]|szaralak|h[üu]lye\s+picsa|h[üu]lye\s+fasz)\b/iu,
+    ],
+  },
+  {
+    category: "contemptuous",
+    reasonShort: "Contempt",
+    explanation:
+      "The comment uses degrading or humiliating wording toward others, so it is held back automatically.",
+    patterns: [
+      /\b(?:undor[ií]t[oó]|sz[ná]nalmas|gusztustalan|patk[aá]ny|cs[uú]sztok-m[aá]sztok)\b/iu,
+      /\b(?:you\s+are\s+disgusting|subhuman|vermin|trash)\b/iu,
+      /\b(?:embernek\s+sem\s+nevezhet[oő]|nem\s+is\s+vagytok\s+emberek)\b/iu,
+    ],
+  },
+];
+
 const SYSTEM_PROMPT = `You are a discourse quality analyzer for a social network that values intellectual honesty, respectful disagreement, and accurate representation of opposing views.
 
 Analyze the given comment and return a JSON object with these fields:
@@ -90,6 +172,134 @@ Neutral signals: partially_answered_question, off_topic
 Negative signals: personal_attack, strawman_argument, motive_attribution, topic_derailment, escalatory_language
 
 Be conservative — only flag a signal when clearly present. Return valid JSON only.`;
+
+const MODERATION_PROMPT = `You are a comment moderation assistant for a social network.
+
+Decide whether the comment should stay visible to everyone or be kept visible only to its author.
+
+You must evaluate the comment using the same context the user sees:
+- the original post text
+- if the post shares an external link or RSS item, that shared content
+- the comment itself
+- if the comment is a reply, the parent comment it replies to
+
+Filter comments when they contain any of the following:
+- hate speech
+- contemptuous wording
+- verbal abuse
+- misinformation
+- quickly checkable factual errors
+- inciting narratives built from selective distortion, where true details are arranged to create a deliberately false overall picture
+
+Mandatory author_only cases:
+- direct insults toward a person or group
+- slurs or dehumanizing labels
+- threats, humiliation, or wishes of harm
+- obvious false factual claims that are easy to verify from common knowledge or the supplied context
+- selective framing that uses true fragments to push a clearly false overall conclusion
+
+When uncertain between allowed and abusive targeted hostility, prefer author_only.
+
+Return valid JSON only with these fields:
+- status: "visible" or "author_only"
+- category: one of "allowed", "hate_speech", "contemptuous", "verbal_abuse", "misinformation", "factual_error", "inciting_narrative"
+- reasonShort: 1-2 words only
+- explanation: one neutral sentence grounded in the provided context
+
+Use "visible" with category "allowed" when the comment should be accepted.
+Examples:
+- "Te egy rohadt hulye vagy" -> author_only, verbal_abuse
+- "Az osszes migrans patkany" -> author_only, hate_speech
+- "Szerintem tevedsz, mert a cikk mast mond" -> visible, allowed
+- "A cikk szerint X tortent, de valojaban az ellenkezoje, ezt direkt elhallgatod" -> author_only if the framing clearly creates a false overall picture
+
+Be conservative about normal disagreement, but strict about targeted abuse, hate, and clear misinformation.`;
+
+function createFallbackModerationResult(
+  reasonShort: string,
+  explanation: string,
+  diagnostic: string
+): CommentModerationResult {
+  return {
+    status: "author_only",
+    category: "moderation_unavailable",
+    reasonShort,
+    explanation,
+    source: "fallback",
+    diagnostic,
+  };
+}
+
+function runRuleBasedModeration(
+  input: CommentModerationInput
+): CommentModerationResult | null {
+  const haystack = input.commentContent;
+
+  for (const rule of RULE_BASED_MODERATION) {
+    if (rule.patterns.some((pattern) => pattern.test(haystack))) {
+      return {
+        status: "author_only",
+        category: rule.category,
+        reasonShort: rule.reasonShort,
+        explanation: rule.explanation,
+        source: "rules",
+      };
+    }
+  }
+
+  return null;
+}
+
+function normalizeModerationResult(
+  parsed: Partial<CommentModerationResult> | null | undefined
+): CommentModerationResult {
+  const category = parsed?.category;
+  const allowedCategories: CommentModerationCategory[] = [
+    "allowed",
+    "hate_speech",
+    "contemptuous",
+    "verbal_abuse",
+    "misinformation",
+    "factual_error",
+    "inciting_narrative",
+    "moderation_unavailable",
+  ];
+
+  const safeCategory = allowedCategories.includes(
+    category as CommentModerationCategory
+  )
+    ? (category as CommentModerationCategory)
+    : "allowed";
+  const safeStatus =
+    parsed?.status === "author_only" && safeCategory !== "allowed"
+      ? "author_only"
+      : "visible";
+
+  const fallbackReason =
+    safeCategory === "allowed"
+      ? "Accepted"
+      : MODERATION_REASON_LABELS[safeCategory];
+
+  return {
+    status: safeStatus,
+    category: safeCategory,
+    reasonShort:
+      typeof parsed?.reasonShort === "string" && parsed.reasonShort.trim()
+        ? parsed.reasonShort.trim().split(/\s+/).slice(0, 2).join(" ")
+        : fallbackReason,
+    explanation:
+      typeof parsed?.explanation === "string" && parsed.explanation.trim()
+        ? parsed.explanation.trim()
+        : safeStatus === "visible"
+          ? "Comment accepted."
+          : "Comment is visible only to its author because it matched a moderation rule.",
+    source: parsed?.source === "rules" || parsed?.source === "fallback" ? parsed.source : "ai",
+    diagnostic:
+      typeof parsed?.diagnostic === "string" && parsed.diagnostic.trim()
+        ? parsed.diagnostic.trim()
+        : undefined,
+  };
+}
 
 export async function analyzeComment(
   commentContent: string,
@@ -126,6 +336,87 @@ export async function analyzeComment(
       explanation: "Analysis unavailable.",
     };
   }
+}
+
+export interface CommentModerationInput {
+  postContent?: string;
+  sharedContent?: string;
+  parentComment?: string;
+  commentContent: string;
+}
+
+export interface PostModerationInput {
+  postContent?: string;
+  sharedContent?: string;
+}
+
+export async function moderateComment({
+  postContent,
+  sharedContent,
+  parentComment,
+  commentContent,
+}: CommentModerationInput): Promise<CommentModerationResult> {
+  const ruleMatch = runRuleBasedModeration({
+    postContent,
+    sharedContent,
+    parentComment,
+    commentContent,
+  });
+  if (ruleMatch) {
+    return ruleMatch;
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return createFallbackModerationResult(
+      "AI unavailable",
+      "The comment is visible only to you until AI moderation is configured correctly.",
+      "OPENAI_API_KEY is missing or empty, so no moderation API call was made."
+    );
+  }
+
+  const contextParts = [
+    postContent?.trim() ? `Original post:\n${postContent.trim()}` : null,
+    sharedContent?.trim() ? `Shared article or RSS content:\n${sharedContent.trim()}` : null,
+    parentComment?.trim() ? `Parent comment:\n${parentComment.trim()}` : null,
+    `Comment to moderate:\n${commentContent.trim()}`,
+  ].filter(Boolean);
+
+  try {
+    const response = await getClient().chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: MODERATION_PROMPT },
+        { role: "user", content: contextParts.join("\n\n") },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    });
+
+    const raw = response.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw) as Partial<CommentModerationResult>;
+    return normalizeModerationResult({ ...parsed, source: "ai" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
+    console.error("[fairbook] Comment moderation failed:", message);
+    return createFallbackModerationResult(
+      "AI error",
+      "The comment is visible only to you until the moderation error is fixed.",
+      `Moderation request failed before completing: ${message}`
+    );
+  }
+}
+
+export async function moderatePost({
+  postContent,
+  sharedContent,
+}: PostModerationInput): Promise<CommentModerationResult> {
+  return moderateComment({
+    postContent: undefined,
+    sharedContent,
+    parentComment: undefined,
+    commentContent: postContent?.trim() || "[link-only post]",
+  });
 }
 
 const REFLECTION_PROMPT = `You are a discourse reflection assistant. Given a discussion thread, identify:

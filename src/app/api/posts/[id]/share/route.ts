@@ -16,11 +16,20 @@ export async function POST(
     where: { id },
     select: {
       id: true,
+      authorId: true,
+      moderationStatus: true,
       _count: { select: { sharedBy: true } },
     },
   });
 
   if (!sourcePost) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (
+    sourcePost.moderationStatus === "author_only" &&
+    sourcePost.authorId !== session.userId
+  ) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 

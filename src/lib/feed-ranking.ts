@@ -79,13 +79,24 @@ export function calculatePostScore(params: {
 }
 
 async function loadPostScoreContext(postId: string) {
-  return prisma.post.findUnique({
-    where: { id: postId },
-    include: {
-      feedSource: { select: { sourceWeight: true } },
-      _count: { select: { comments: true } },
-    },
-  });
+  const [post, visibleCommentCount] = await Promise.all([
+    prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        feedSource: { select: { sourceWeight: true } },
+      },
+    }),
+    prisma.comment.count({
+      where: { postId, moderationStatus: "visible" },
+    }),
+  ]);
+
+  if (!post) return null;
+
+  return {
+    ...post,
+    visibleCommentCount,
+  };
 }
 
 export async function recomputePostScore(postId: string) {
@@ -95,7 +106,7 @@ export async function recomputePostScore(postId: string) {
   const nextScore = calculatePostScore({
     createdAt: post.createdAt,
     sourceWeight: post.feedSource?.sourceWeight,
-    commentCount: post._count.comments,
+    commentCount: post.visibleCommentCount,
   });
 
   return prisma.post.update({

@@ -51,6 +51,10 @@ model Post {
   freshnessScore     Float    @default(0)
   sourceScore        Float    @default(0)
   engagementScore    Float    @default(0)
+  moderationStatus   String   @default("visible")
+  moderationReason   String?
+  moderationExplanation String?
+  moderatedAt        DateTime?
   isFeedVisible      Boolean  @default(true)
   fetchedAt          DateTime @default(now())
   lastScoredAt       DateTime?
@@ -123,6 +127,10 @@ model Comment {
   authorId  String
   parentId  String?
   content   String
+  moderationStatus String   @default("visible")
+  moderationReason String?
+  moderationExplanation String?
+  moderatedAt DateTime?
   createdAt DateTime @default(now())
 
   post     Post             @relation(fields: [postId], references: [id])

@@ -26,6 +26,9 @@ interface SharedPostData {
 interface PostData {
   id: string;
   content?: string | null;
+  moderationStatus: string;
+  moderationReason?: string | null;
+  moderationExplanation?: string | null;
   sharedUrl?: string | null;
   sharedTitle?: string | null;
   sharedDescription?: string | null;
@@ -164,6 +167,17 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         <p className="text-sm text-slate-800 whitespace-pre-wrap mb-3">
           {post.content}
         </p>
+      )}
+
+      {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="font-medium">
+            Filtered{post.moderationReason ? ` · ${post.moderationReason}` : ""}
+          </p>
+          <p className="mt-1 text-amber-800">
+            {post.moderationExplanation ?? "Only you can see this post."}
+          </p>
+        </div>
       )}
 
       {/* Shared link card */}

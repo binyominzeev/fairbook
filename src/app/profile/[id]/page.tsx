@@ -103,7 +103,10 @@ export default async function ProfilePage(props: {
   });
 
   const posts = await prisma.post.findMany({
-    where: { authorId: id },
+    where:
+      id === session.userId
+        ? { authorId: id }
+        : { authorId: id, moderationStatus: "visible" },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: postInclude,
@@ -322,6 +325,16 @@ export default async function ProfilePage(props: {
                       <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
                         {comment.content}
                       </p>
+                      {comment.moderationStatus === "author_only" && (
+                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          <p className="font-medium">
+                            Filtered{comment.moderationReason ? ` · ${comment.moderationReason}` : ""}
+                          </p>
+                          <p className="mt-1 text-amber-800">
+                            {comment.moderationExplanation ?? "Only you can see this comment."}
+                          </p>
+                        </div>
+                      )}
                       <div className="mt-3">
                         <Link
                           href={`/post/${comment.post.id}`}

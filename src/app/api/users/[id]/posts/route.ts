@@ -12,7 +12,10 @@ export async function GET(
 
   const { id } = await ctx.params;
   const posts = await prisma.post.findMany({
-    where: { authorId: id },
+    where:
+      id === session.userId
+        ? { authorId: id }
+        : { authorId: id, moderationStatus: "visible" },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: {

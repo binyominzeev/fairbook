@@ -44,6 +44,10 @@ export async function GET(
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 
+  if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
   return Response.json({ post });
 }
 
