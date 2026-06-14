@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
   // Include own posts
   const authorIds = [...followingIds, session.userId];
 
-  const baseQuery = {
+  const baseQuery: Pick<Prisma.PostFindManyArgs, "where" | "orderBy" | "include"> = {
     where: {
       AND: [
         { authorId: { in: authorIds } },
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
         },
       ],
     },
-    orderBy: [{ score: "desc" }, { createdAt: "desc" }] as const,
+    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
       sharedPost: {
