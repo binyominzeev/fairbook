@@ -70,7 +70,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   if (deleted) return null;
 
   return (
-    <article className="bg-white rounded-xl border border-slate-200 p-4">
+    <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
       {/* Author row */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -149,7 +149,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                 {post.sharedDescription}
               </p>
             )}
-            <p className="text-xs text-blue-600 mt-1.5 truncate">
+            <p className="text-xs text-blue-600 mt-1.5 break-all hover:underline">
               {post.sharedUrl}
             </p>
           </div>
