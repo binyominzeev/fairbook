@@ -5,6 +5,11 @@ export async function GET(
   _req: Request,
   ctx: RouteContext<"/api/posts/[id]">
 ) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
   const { id } = await ctx.params;
 
   const post = await prisma.post.findUnique({
