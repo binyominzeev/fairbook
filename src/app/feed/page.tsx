@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import CreatePostForm from "@/components/CreatePostForm";
@@ -11,7 +12,7 @@ export default async function FeedPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
 
@@ -26,23 +27,13 @@ export default async function FeedPage() {
 
   const posts = await prisma.post.findMany({
     where: {
-      OR: [
-        {
-          authorId: { in: authorIds },
-          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-        },
-        {
-          community: {
-            members: { some: { userId: session.userId } },
-          },
-        },
-      ],
+      authorId: { in: authorIds },
+      OR: [{ feedSourceId: null }, { isFeedVisible: true }],
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     take: 30,
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true, isPrivate: true } },
       sharedPost: {
         select: {
           id: true,
@@ -54,7 +45,6 @@ export default async function FeedPage() {
           sharedImageUrl: true,
           createdAt: true,
           author: { select: { id: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, name: true, isPrivate: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
@@ -89,7 +79,7 @@ export default async function FeedPage() {
               <p className="text-2xl mb-3">👋</p>
               <p className="font-medium text-slate-600">Your feed is empty.</p>
               <p className="text-sm mt-1">
-                Follow people, pages, or join communities to see posts here.
+                Follow people or pages to see posts here.
               </p>
             </div>
           )}
@@ -124,9 +114,12 @@ export default async function FeedPage() {
               {suggestedUsers.map((u) => (
                 <li key={u.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600">
-                      {u.name[0]?.toUpperCase()}
-                    </div>
+                    <Avatar
+                      name={u.name}
+                      avatarUrl={u.avatarUrl}
+                      sizeClassName="h-8 w-8"
+                      textClassName="text-sm font-semibold"
+                    />
                     <div>
                       <p className="text-sm font-medium text-slate-900">
                         {u.name}

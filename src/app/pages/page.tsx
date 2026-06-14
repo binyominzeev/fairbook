@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminFeedManager from "@/components/AdminFeedManager";
+import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
 import Navbar from "@/components/Navbar";
 import { isAdminEmail } from "@/lib/admin";
@@ -24,7 +25,7 @@ export default async function PagesPage(props: {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
 
@@ -167,14 +168,12 @@ export default async function PagesPage(props: {
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex items-start gap-3">
-                      <div className="h-11 w-11 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0 overflow-hidden">
-                        {page.feedSource?.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={page.feedSource.imageUrl} alt={page.name} className="h-full w-full object-cover" />
-                        ) : (
-                          page.name[0]?.toUpperCase()
-                        )}
-                      </div>
+                      <Avatar
+                        name={page.name}
+                        avatarUrl={page.avatarUrl ?? page.feedSource?.imageUrl}
+                        sizeClassName="h-11 w-11"
+                        textClassName="text-sm font-semibold"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link

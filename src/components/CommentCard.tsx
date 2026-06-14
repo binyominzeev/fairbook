@@ -1,5 +1,6 @@
 "use client";
 
+import Avatar from "@/components/Avatar";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import DiscourseIndicators from "./DiscourseIndicators";
@@ -108,11 +109,12 @@ export default function CommentCard({
   return (
     <div className={`${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}>
       <div className="flex gap-3 py-3">
-        <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-600">
-            {comment.author.name[0]?.toUpperCase()}
-          </div>
-        </div>
+        <Avatar
+          name={comment.author.name}
+          avatarUrl={comment.author.avatarUrl}
+          sizeClassName="h-8 w-8"
+          textClassName="text-sm font-medium"
+        />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <Link

@@ -16,20 +16,12 @@ export async function POST(
     where: { id },
     select: {
       id: true,
-      community: { select: { isPrivate: true } },
       _count: { select: { sharedBy: true } },
     },
   });
 
   if (!sourcePost) {
     return Response.json({ error: "Post not found." }, { status: 404 });
-  }
-
-  if (sourcePost.community?.isPrivate) {
-    return Response.json(
-      { error: "Private community posts cannot be shared to your feed." },
-      { status: 403 }
-    );
   }
 
   const existingShare = await prisma.post.findFirst({

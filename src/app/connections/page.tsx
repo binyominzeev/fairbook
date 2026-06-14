@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import { getSession } from "@/lib/auth";
@@ -26,6 +27,7 @@ export default async function ConnectionsPage(props: {
       id: true,
       name: true,
       email: true,
+      avatarUrl: true,
     },
   });
   if (!user) redirect("/login");
@@ -134,9 +136,12 @@ export default async function ConnectionsPage(props: {
                       className="flex flex-col gap-3 rounded-lg border border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0 flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600">
-                          {person.name[0]?.toUpperCase()}
-                        </div>
+                        <Avatar
+                          name={person.name}
+                          avatarUrl={person.avatarUrl}
+                          sizeClassName="h-10 w-10"
+                          textClassName="text-sm font-semibold"
+                        />
                         <div className="min-w-0">
                           <Link
                             href={`/profile/${person.id}`}
@@ -215,9 +220,12 @@ export default async function ConnectionsPage(props: {
                     className="flex flex-col gap-3 rounded-lg border border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600">
-                        {person.name[0]?.toUpperCase()}
-                      </div>
+                      <Avatar
+                        name={person.name}
+                        avatarUrl={person.avatarUrl}
+                        sizeClassName="h-10 w-10"
+                        textClassName="text-sm font-semibold"
+                      />
                       <div className="min-w-0">
                         <Link
                           href={`/profile/${person.id}`}

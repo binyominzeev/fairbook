@@ -17,7 +17,6 @@ export async function GET(
     take: 20,
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true } },
       _count: { select: { comments: true } },
     },
   });

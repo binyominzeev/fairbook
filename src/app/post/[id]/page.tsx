@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import CommentCard from "@/components/CommentCard";
-import SteelmanSection from "@/components/SteelmanSection";
 import ThreadReflection from "@/components/ThreadReflection";
 import GenerateReflectionButton from "@/components/GenerateReflectionButton";
 import CommentForm from "@/components/CommentForm";
@@ -19,7 +18,7 @@ export default async function PostPage(props: {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
 
@@ -27,7 +26,6 @@ export default async function PostPage(props: {
     where: { id },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true, isPrivate: true } },
       sharedPost: {
         select: {
           id: true,
@@ -39,7 +37,6 @@ export default async function PostPage(props: {
           sharedImageUrl: true,
           createdAt: true,
           author: { select: { id: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, name: true, isPrivate: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
@@ -119,22 +116,6 @@ export default async function PostPage(props: {
 
   const comments = topLevel.map(mapComment);
 
-  // Steelmans for this post
-  const steelmanRows = await prisma.steelmanRequest.findMany({
-    where: { postId: id },
-    include: {
-      requester: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const steelmans = steelmanRows.map((s) => ({
-    id: s.id,
-    summary: s.summary,
-    status: s.status,
-    requester: s.requester,
-  }));
-
   const latestReflection = post.reflections[0]
     ? {
         ...post.reflections[0],
@@ -166,15 +147,6 @@ export default async function PostPage(props: {
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <PostCard post={postForCard} currentUserId={user.id} showDelete />
-
-        {/* Steelman section for post author */}
-        <SteelmanSection
-          postId={id}
-          targetId={post.author.id}
-          targetName={post.author.name}
-          currentUserId={user.id}
-          existingSteelmans={steelmans}
-        />
 
         {/* Thread reflection */}
         {latestReflection ? (

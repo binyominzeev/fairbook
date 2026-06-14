@@ -128,39 +128,6 @@ export async function analyzeComment(
   }
 }
 
-const STEELMAN_PROMPT = `You are a steelman generator. Given a user's comments in a discussion, produce a fair, charitable, and accurate summary of their position — capturing their strongest arguments without distortion or ridicule.
-
-The summary should:
-- Represent the view as the person would ideally state it themselves
-- Be 2–4 sentences
-- Be neutral in tone
-- Avoid strawmanning or weakening the position
-
-Return only the summary text.`;
-
-export async function generateSteelman(
-  authorName: string,
-  comments: string[]
-): Promise<string> {
-  const content = comments.map((c, i) => `[${i + 1}] ${c}`).join("\n");
-  try {
-    const response = await getClient().chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: STEELMAN_PROMPT },
-        {
-          role: "user",
-          content: `Generate a steelman summary of ${authorName}'s position based on these comments:\n\n${content}`,
-        },
-      ],
-      temperature: 0.3,
-    });
-    return response.choices[0]?.message?.content ?? "Unable to generate summary.";
-  } catch {
-    return "Unable to generate summary.";
-  }
-}
-
 const REFLECTION_PROMPT = `You are a discourse reflection assistant. Given a discussion thread, identify:
 1. Areas of agreement between participants
 2. Areas of disagreement

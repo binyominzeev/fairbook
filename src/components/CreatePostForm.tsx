@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-interface Props {
-  communityId?: string;
-}
-
-export default function CreatePostForm({ communityId }: Props) {
+export default function CreatePostForm() {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [sharedUrl, setSharedUrl] = useState("");
@@ -36,7 +32,6 @@ export default function CreatePostForm({ communityId }: Props) {
           sharedTitle: sharedTitle.trim() || null,
           sharedDescription: sharedDescription.trim() || null,
           sharedSource: sharedSource.trim() || null,
-          communityId: communityId ?? null,
         }),
       });
       if (res.ok) {

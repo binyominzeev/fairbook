@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 interface User {
   id: string;
   name: string;
+  avatarUrl?: string | null;
 }
 
 interface Props {
@@ -29,8 +30,6 @@ export default function Navbar({ user }: Props) {
     { href: "/feed", label: "Feed" },
     { href: "/connections", label: "People" },
     { href: "/pages", label: "Pages" },
-    { href: "/communities", label: "Communities" },
-    { href: `/profile/${user.id}`, label: "Profile" },
   ];
 
   return (
@@ -51,9 +50,14 @@ export default function Navbar({ user }: Props) {
               {link.label}
             </Link>
           ))}
+          <Link
+            href={`/profile/${user.id}`}
+            className={`ml-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors sm:ml-2 ${pathname.startsWith(`/profile/${user.id}`) ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+          >Profile
+          </Link>
           <button
             onClick={logout}
-            className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors sm:ml-2"
+            className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors"
           >
             Sign out
           </button>

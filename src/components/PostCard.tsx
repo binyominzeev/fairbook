@@ -1,5 +1,6 @@
 "use client";
 
+import Avatar from "@/components/Avatar";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,12 +9,6 @@ interface Author {
   id: string;
   name: string;
   avatarUrl?: string | null;
-}
-
-interface Community {
-  id: string;
-  name: string;
-  isPrivate?: boolean;
 }
 
 interface SharedPostData {
@@ -26,7 +21,6 @@ interface SharedPostData {
   sharedImageUrl?: string | null;
   createdAt: string;
   author: Author;
-  community?: Community | null;
 }
 
 interface PostData {
@@ -40,7 +34,6 @@ interface PostData {
   sharedPost?: SharedPostData | null;
   createdAt: string;
   author: Author;
-  community?: Community | null;
   likedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
   _count: { comments: number; likes: number; sharedBy: number };
@@ -90,8 +83,6 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
     }
   };
 
-  const canShare = !post.community?.isPrivate;
-
   const handleLike = async () => {
     setPendingAction("like");
     setActionError("");
@@ -140,9 +131,12 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       {/* Author row */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600 flex-shrink-0">
-            {post.author.name[0]?.toUpperCase()}
-          </div>
+          <Avatar
+            name={post.author.name}
+            avatarUrl={post.author.avatarUrl}
+            sizeClassName="h-9 w-9"
+            textClassName="text-sm font-semibold"
+          />
           <div className="min-w-0">
             <Link
               href={`/profile/${post.author.id}`}
@@ -152,17 +146,6 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
             </Link>
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
               <span>{timeAgo(post.createdAt)}</span>
-              {post.community && (
-                <>
-                  <span>·</span>
-                  <Link
-                    href={`/communities`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    {post.community.name}
-                  </Link>
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -286,9 +269,8 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         <button
           type="button"
           onClick={handleShare}
-          disabled={pendingAction !== null || shared || !canShare}
+          disabled={pendingAction !== null || shared}
           className={`text-xs transition-colors ${shared ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
-          title={!canShare ? "Private community posts cannot be shared to your feed." : undefined}
         >
           ↻ {shareCount} share{shareCount !== 1 ? "s" : ""}
           {shared ? "d" : ""}

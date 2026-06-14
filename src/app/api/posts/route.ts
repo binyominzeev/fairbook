@@ -24,24 +24,14 @@ export async function GET(request: NextRequest) {
 
   const posts = await prisma.post.findMany({
     where: {
-      OR: [
-        {
-          authorId: { in: authorIds },
-          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-        },
-        {
-          community: {
-            members: { some: { userId: session.userId } },
-          },
-        },
-      ],
+      authorId: { in: authorIds },
+      OR: [{ feedSourceId: null }, { isFeedVisible: true }],
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true, isPrivate: true } },
       sharedPost: {
         select: {
           id: true,
@@ -53,7 +43,6 @@ export async function GET(request: NextRequest) {
           sharedImageUrl: true,
           createdAt: true,
           author: { select: { id: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, name: true, isPrivate: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
@@ -79,7 +68,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl, communityId } =
+  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl } =
     await request.json();
 
   if (!content && !sharedUrl) {
@@ -87,19 +76,6 @@ export async function POST(request: NextRequest) {
       { error: "Post must have content or a shared URL." },
       { status: 400 }
     );
-  }
-
-  // If communityId given, verify membership
-  if (communityId) {
-    const member = await prisma.communityMember.findUnique({
-      where: { communityId_userId: { communityId, userId: session.userId } },
-    });
-    if (!member) {
-      return Response.json(
-        { error: "You are not a member of this community." },
-        { status: 403 }
-      );
-    }
   }
 
   const createdAt = new Date();
@@ -114,7 +90,6 @@ export async function POST(request: NextRequest) {
       sharedDescription,
       sharedSource,
       sharedImageUrl,
-      communityId,
       createdAt,
       fetchedAt: createdAt,
       ...nextScore,
@@ -122,7 +97,6 @@ export async function POST(request: NextRequest) {
     },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true, isPrivate: true } },
       sharedPost: {
         select: {
           id: true,
@@ -134,7 +108,6 @@ export async function POST(request: NextRequest) {
           sharedImageUrl: true,
           createdAt: true,
           author: { select: { id: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, name: true, isPrivate: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
