@@ -97,23 +97,23 @@ export default async function PagesPage(props: {
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <h1 className="text-lg font-bold text-slate-900">Pages</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Follow RSS-powered pages and their articles will show up in your feed like any other post.
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-right">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
               <p className="text-xs text-slate-400">Following pages</p>
               <p className="text-lg font-semibold text-slate-900">{feedCount}</p>
             </div>
           </div>
 
-          <div className="flex rounded-lg bg-slate-100 p-1 text-sm w-fit">
+          <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
             <Link
               href={query ? `/pages?tab=discover&q=${encodeURIComponent(query)}` : "/pages?tab=discover"}
-              className={`rounded-md px-3 py-1.5 transition-colors ${
+              className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                 activeTab === "discover"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
@@ -123,7 +123,7 @@ export default async function PagesPage(props: {
             </Link>
             <Link
               href={query ? `/pages?tab=following&q=${encodeURIComponent(query)}` : "/pages?tab=following"}
-              className={`rounded-md px-3 py-1.5 transition-colors ${
+              className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                 activeTab === "following"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
@@ -133,7 +133,7 @@ export default async function PagesPage(props: {
             </Link>
           </div>
 
-          <form action="/pages" method="GET" className="flex gap-2">
+          <form action="/pages" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
             <input
               type="search"
@@ -144,7 +144,7 @@ export default async function PagesPage(props: {
             />
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
               Search
             </button>
@@ -165,7 +165,7 @@ export default async function PagesPage(props: {
                   key={page.id}
                   className="rounded-xl border border-slate-200 p-4 space-y-3"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex items-start gap-3">
                       <div className="h-11 w-11 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0 overflow-hidden">
                         {page.feedSource?.imageUrl ? (
@@ -190,7 +190,7 @@ export default async function PagesPage(props: {
                         {page.bio && (
                           <p className="text-sm text-slate-500 mt-1 line-clamp-2">{page.bio}</p>
                         )}
-                        <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
                           <span>{page._count.posts} articles</span>
                           <span>{page._count.followers} followers</span>
                           {page.feedSource?.lastFetchedAt && (

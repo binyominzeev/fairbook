@@ -63,13 +63,13 @@ export default async function ProfilePage(props: {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {/* Profile header */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center text-2xl font-bold text-slate-600">
                 {profileUser.name[0]?.toUpperCase()}
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-bold text-slate-900">
                   {profileUser.name}
                 </h1>
                 {profileUser.isPage && (
@@ -78,11 +78,11 @@ export default async function ProfilePage(props: {
                   </span>
                 )}
                 {profileUser.bio && (
-                  <p className="text-sm text-slate-500 mt-0.5">
+                  <p className="mt-0.5 text-sm text-slate-500">
                     {profileUser.bio}
                   </p>
                 )}
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>
                     <strong className="text-slate-900">
                       {profileUser._count.posts}

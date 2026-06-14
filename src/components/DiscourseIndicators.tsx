@@ -53,7 +53,7 @@ export default function DiscourseIndicators({ analysis }: Props) {
               {SIGNAL_ICONS[signal]} {SIGNAL_LABELS[signal]}
             </button>
             {tooltip === signal && (
-              <div className="absolute bottom-full left-0 mb-1 z-50 w-64 bg-slate-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg pointer-events-none">
+              <div className="absolute bottom-full left-0 z-50 mb-1 w-[min(16rem,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg pointer-events-none sm:w-64">
                 <p className="font-medium mb-1">{SIGNAL_LABELS[signal]}</p>
                 <p className="text-slate-300">{analysis.explanation}</p>
                 <p className="mt-1 text-slate-400 italic text-[10px]">
