@@ -22,6 +22,7 @@ model User {
   managedPages       User[]              @relation("ManagedPages")
   feedSource         FeedSource?
   posts              Post[]
+  likes              PostLike[]
   comments           Comment[]
   following          Connection[]        @relation("follower")
   followers          Connection[]        @relation("following")
@@ -44,6 +45,7 @@ model Post {
   sharedDescription  String?
   sharedSource       String?
   sharedImageUrl     String?
+  sharedPostId       String?
   communityId        String?
   score              Float    @default(0)
   freshnessScore     Float    @default(0)
@@ -56,16 +58,32 @@ model Post {
 
   author     User              @relation(fields: [authorId], references: [id])
   feedSource FeedSource?       @relation(fields: [feedSourceId], references: [id])
+  sharedPost Post?             @relation("PostShares", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  sharedBy   Post[]            @relation("PostShares")
   community  Community?        @relation(fields: [communityId], references: [id])
+  likes      PostLike[]
   comments   Comment[]
   reflections ThreadReflection[]
   steelmanRequests SteelmanRequest[]
 
   @@unique([feedSourceId, externalId])
+  @@unique([authorId, sharedPostId])
   @@index([urlHash])
   @@index([titleHash])
   @@index([feedSourceId, isFeedVisible])
   @@index([score, createdAt])
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
 }
 
 model FeedSource {

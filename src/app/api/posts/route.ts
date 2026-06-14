@@ -41,8 +41,28 @@ export async function GET(request: NextRequest) {
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true } },
-      _count: { select: { comments: true } },
+      community: { select: { id: true, name: true, isPrivate: true } },
+      sharedPost: {
+        select: {
+          id: true,
+          content: true,
+          sharedUrl: true,
+          sharedTitle: true,
+          sharedDescription: true,
+          sharedSource: true,
+          sharedImageUrl: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, avatarUrl: true } },
+          community: { select: { id: true, name: true, isPrivate: true } },
+        },
+      },
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      sharedBy: {
+        where: { authorId: session.userId },
+        select: { id: true },
+        take: 1,
+      },
+      _count: { select: { comments: true, likes: true, sharedBy: true } },
     },
   });
 
@@ -102,8 +122,28 @@ export async function POST(request: NextRequest) {
     },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true } },
-      _count: { select: { comments: true } },
+      community: { select: { id: true, name: true, isPrivate: true } },
+      sharedPost: {
+        select: {
+          id: true,
+          content: true,
+          sharedUrl: true,
+          sharedTitle: true,
+          sharedDescription: true,
+          sharedSource: true,
+          sharedImageUrl: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, avatarUrl: true } },
+          community: { select: { id: true, name: true, isPrivate: true } },
+        },
+      },
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      sharedBy: {
+        where: { authorId: session.userId },
+        select: { id: true },
+        take: 1,
+      },
+      _count: { select: { comments: true, likes: true, sharedBy: true } },
     },
   });
 

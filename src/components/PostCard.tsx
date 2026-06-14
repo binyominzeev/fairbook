@@ -13,9 +13,10 @@ interface Author {
 interface Community {
   id: string;
   name: string;
+  isPrivate?: boolean;
 }
 
-interface PostData {
+interface SharedPostData {
   id: string;
   content?: string | null;
   sharedUrl?: string | null;
@@ -26,7 +27,23 @@ interface PostData {
   createdAt: string;
   author: Author;
   community?: Community | null;
-  _count: { comments: number };
+}
+
+interface PostData {
+  id: string;
+  content?: string | null;
+  sharedUrl?: string | null;
+  sharedTitle?: string | null;
+  sharedDescription?: string | null;
+  sharedSource?: string | null;
+  sharedImageUrl?: string | null;
+  sharedPost?: SharedPostData | null;
+  createdAt: string;
+  author: Author;
+  community?: Community | null;
+  likedByCurrentUser: boolean;
+  sharedByCurrentUser: boolean;
+  _count: { comments: number; likes: number; sharedBy: number };
 }
 
 interface Props {
@@ -39,6 +56,12 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [liked, setLiked] = useState(post.likedByCurrentUser);
+  const [likeCount, setLikeCount] = useState(post._count.likes);
+  const [shared, setShared] = useState(post.sharedByCurrentUser);
+  const [shareCount, setShareCount] = useState(post._count.sharedBy);
+  const [pendingAction, setPendingAction] = useState<"like" | "share" | null>(null);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -64,6 +87,49 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
     if (res.ok) {
       setDeleted(true);
       router.refresh();
+    }
+  };
+
+  const canShare = !post.community?.isPrivate;
+
+  const handleLike = async () => {
+    setPendingAction("like");
+    setActionError("");
+
+    try {
+      const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to update like.");
+        return;
+      }
+
+      setLiked(Boolean(data.liked));
+      setLikeCount(Number(data.likeCount ?? likeCount));
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const handleShare = async () => {
+    setPendingAction("share");
+    setActionError("");
+
+    try {
+      const res = await fetch(`/api/posts/${post.id}/share`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to share post.");
+        return;
+      }
+
+      setShared(true);
+      setShareCount(Number(data.shareCount ?? shareCount));
+      router.refresh();
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -156,6 +222,51 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         </a>
       )}
 
+      {post.sharedPost && (
+        <Link
+          href={`/post/${post.sharedPost.id}`}
+          className="mb-3 block rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300"
+        >
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            <span>Shared from</span>
+            <span className="font-medium text-slate-600">
+              {post.sharedPost.author.name}
+            </span>
+            <span>·</span>
+            <span>{timeAgo(post.sharedPost.createdAt)}</span>
+          </div>
+
+          {post.sharedPost.content && (
+            <p className="whitespace-pre-wrap text-sm text-slate-800">
+              {post.sharedPost.content}
+            </p>
+          )}
+
+          {post.sharedPost.sharedUrl && (
+            <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+              {post.sharedPost.sharedSource && (
+                <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                  {post.sharedPost.sharedSource} · External source
+                </p>
+              )}
+              {post.sharedPost.sharedTitle && (
+                <p className="text-sm font-semibold text-slate-900 leading-snug">
+                  {post.sharedPost.sharedTitle}
+                </p>
+              )}
+              {post.sharedPost.sharedDescription && (
+                <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                  {post.sharedPost.sharedDescription}
+                </p>
+              )}
+              <p className="mt-1.5 break-all text-xs text-blue-600">
+                {post.sharedPost.sharedUrl}
+              </p>
+            </div>
+          )}
+        </Link>
+      )}
+
       {/* Actions */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
         <Link
@@ -164,6 +275,24 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         >
           💬 {post._count.comments} comment{post._count.comments !== 1 ? "s" : ""}
         </Link>
+        <button
+          type="button"
+          onClick={handleLike}
+          disabled={pendingAction !== null}
+          className={`text-xs transition-colors ${liked ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
+        >
+          {liked ? "♥" : "♡"} {likeCount} like{likeCount !== 1 ? "s" : ""}
+        </button>
+        <button
+          type="button"
+          onClick={handleShare}
+          disabled={pendingAction !== null || shared || !canShare}
+          className={`text-xs transition-colors ${shared ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
+          title={!canShare ? "Private community posts cannot be shared to your feed." : undefined}
+        >
+          ↻ {shareCount} share{shareCount !== 1 ? "s" : ""}
+          {shared ? "d" : ""}
+        </button>
         <Link
           href={`/post/${post.id}`}
           className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
@@ -171,6 +300,9 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
           Discuss →
         </Link>
       </div>
+      {actionError && (
+        <p className="mt-2 text-xs text-red-600">{actionError}</p>
+      )}
     </article>
   );
 }

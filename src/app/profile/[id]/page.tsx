@@ -50,8 +50,28 @@ export default async function ProfilePage(props: {
     take: 20,
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      community: { select: { id: true, name: true } },
-      _count: { select: { comments: true } },
+      community: { select: { id: true, name: true, isPrivate: true } },
+      sharedPost: {
+        select: {
+          id: true,
+          content: true,
+          sharedUrl: true,
+          sharedTitle: true,
+          sharedDescription: true,
+          sharedSource: true,
+          sharedImageUrl: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, avatarUrl: true } },
+          community: { select: { id: true, name: true, isPrivate: true } },
+        },
+      },
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      sharedBy: {
+        where: { authorId: session.userId },
+        select: { id: true },
+        take: 1,
+      },
+      _count: { select: { comments: true, likes: true, sharedBy: true } },
     },
   });
 
@@ -141,7 +161,18 @@ export default async function ProfilePage(props: {
         {posts.map((post) => (
           <PostCard
             key={post.id}
-            post={{ ...post, createdAt: post.createdAt.toISOString() }}
+            post={{
+              ...post,
+              createdAt: post.createdAt.toISOString(),
+              likedByCurrentUser: post.likes.length > 0,
+              sharedByCurrentUser: post.sharedBy.length > 0,
+              sharedPost: post.sharedPost
+                ? {
+                    ...post.sharedPost,
+                    createdAt: post.sharedPost.createdAt.toISOString(),
+                  }
+                : null,
+            }}
             currentUserId={currentUser.id}
             showDelete={isOwnProfile}
           />
