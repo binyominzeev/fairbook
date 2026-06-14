@@ -14,7 +14,7 @@ const manifestoParagraphs = [
     terheli azt, aki kimondja őket. A Fairbook ezt az ősi bölcsességet
     alkalmazza a digitális térre.
   </>,
-  "A tiltott tartalmak köre egyértelmű: gyűlöletbeszéd, megvető megfogalmazás, verbális abúzus, félretájékoztatás, gyorsan ellenőrizhető faktikus tévedések, valamint szelektív torzítással uszító narratívák – amelyekben igaz elemek szándékosan hamis összképet alkotnak. Izrael politikájának kritikája nem tiltott. Az uszítás igen.",
+  "A tiltott tartalmak köre egyértelmű: gyűlöletbeszéd, megvető megfogalmazás, verbális abúzus, félretájékoztatás, gyorsan ellenőrizhető, tényszerű tévedések, valamint szelektív torzítással uszító narratívák – amelyekben igaz elemek szándékosan hamis összképet alkotnak. Izrael politikájának kritikája nem tiltott. Az uszítás igen.",
   "A pre-moderáció nevelő jellegű is. Mielőtt egy üzenet megjelenik, a felhasználónak – akár tudatosan, akár nem – szembe kell néznie a kérdéssel: valóban ezt akarom mondani, és így akarom mondani? Ez a megállás maga is érték.",
   "A technológia okozta sebeket a technológia is gyógyíthatja – ha értékek irányítják. A Fairbook erre tesz kísérletet.",
   <>
