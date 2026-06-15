@@ -1,9 +1,10 @@
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
+import { moderatePost } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: RouteContext<"/api/posts/[id]/share">
 ) {
   const session = await getSession();
@@ -11,13 +12,31 @@ export async function POST(
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
+  const payload = await req.json().catch(() => ({}));
+  const shareContent =
+    typeof payload?.content === "string" ? payload.content.trim() : "";
+
   const { id } = await ctx.params;
   const sourcePost = await prisma.post.findUnique({
     where: { id },
     select: {
       id: true,
       authorId: true,
+      content: true,
+      sharedTitle: true,
+      sharedDescription: true,
+      sharedSource: true,
+      sharedUrl: true,
       moderationStatus: true,
+      sharedPost: {
+        select: {
+          content: true,
+          sharedTitle: true,
+          sharedDescription: true,
+          sharedSource: true,
+          sharedUrl: true,
+        },
+      },
       _count: { select: { sharedBy: true } },
     },
   });
@@ -32,6 +51,26 @@ export async function POST(
   ) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
+
+  const sharedContent = [
+    sourcePost.content,
+    sourcePost.sharedTitle,
+    sourcePost.sharedDescription,
+    sourcePost.sharedSource,
+    sourcePost.sharedUrl,
+    sourcePost.sharedPost?.content,
+    sourcePost.sharedPost?.sharedTitle,
+    sourcePost.sharedPost?.sharedDescription,
+    sourcePost.sharedPost?.sharedSource,
+    sourcePost.sharedPost?.sharedUrl,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const moderation = await moderatePost({
+    postContent: shareContent || undefined,
+    sharedContent: sharedContent || undefined,
+  });
 
   const existingShare = await prisma.post.findFirst({
     where: {
@@ -59,7 +98,14 @@ export async function POST(
   const sharedPost = await prisma.post.create({
     data: {
       authorId: session.userId,
+      content: shareContent || null,
       sharedPostId: id,
+      moderationStatus: moderation.status,
+      moderationReason:
+        moderation.status === "author_only" ? moderation.reasonShort : null,
+      moderationExplanation:
+        moderation.status === "author_only" ? moderation.explanation : null,
+      moderatedAt: new Date(),
       createdAt,
       fetchedAt: createdAt,
       ...nextScore,

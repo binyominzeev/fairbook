@@ -58,6 +58,8 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [shared, setShared] = useState(post.sharedByCurrentUser);
   const [shareCount, setShareCount] = useState(post._count.sharedBy);
+  const [shareContent, setShareContent] = useState("");
+  const [shareComposerOpen, setShareComposerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"like" | "share" | null>(null);
   const [actionError, setActionError] = useState("");
 
@@ -108,12 +110,16 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
     }
   };
 
-  const handleShare = async () => {
+  const handleShareSubmit = async () => {
     setPendingAction("share");
     setActionError("");
 
     try {
-      const res = await fetch(`/api/posts/${post.id}/share`, { method: "POST" });
+      const res = await fetch(`/api/posts/${post.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: shareContent }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -123,6 +129,8 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
 
       setShared(true);
       setShareCount(Number(data.shareCount ?? shareCount));
+      setShareComposerOpen(false);
+      setShareContent("");
       router.refresh();
     } finally {
       setPendingAction(null);
@@ -132,7 +140,139 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   if (deleted) return null;
 
   return (
-    <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
+    <>
+      {shareComposerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Share to your feed</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add your own note above the shared post.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pendingAction === null) {
+                    setShareComposerOpen(false);
+                  }
+                }}
+                className="text-sm text-slate-400 transition-colors hover:text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <textarea
+                value={shareContent}
+                onChange={(e) => setShareContent(e.target.value)}
+                placeholder="Say something about this…"
+                rows={4}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                  <span>Sharing from</span>
+                  <span className="font-medium text-slate-600">{post.author.name}</span>
+                  <span>·</span>
+                  <span>{timeAgo(post.createdAt)}</span>
+                </div>
+
+                {post.content && (
+                  <p className="whitespace-pre-wrap text-sm text-slate-800">{post.content}</p>
+                )}
+
+                {post.sharedUrl && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+                    {post.sharedSource && (
+                      <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                        {post.sharedSource} · External source
+                      </p>
+                    )}
+                    {post.sharedTitle && (
+                      <p className="text-sm font-semibold text-slate-900 leading-snug">
+                        {post.sharedTitle}
+                      </p>
+                    )}
+                    {post.sharedDescription && (
+                      <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                        {post.sharedDescription}
+                      </p>
+                    )}
+                    <p className="mt-1.5 break-all text-xs text-blue-600">{post.sharedUrl}</p>
+                  </div>
+                )}
+
+                {post.sharedPost && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                      <span>Includes a shared post from</span>
+                      <span className="font-medium text-slate-600">
+                        {post.sharedPost.author.name}
+                      </span>
+                    </div>
+
+                    {post.sharedPost.content && (
+                      <p className="whitespace-pre-wrap text-sm text-slate-800">
+                        {post.sharedPost.content}
+                      </p>
+                    )}
+
+                    {post.sharedPost.sharedUrl && (
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        {post.sharedPost.sharedSource && (
+                          <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
+                            {post.sharedPost.sharedSource} · External source
+                          </p>
+                        )}
+                        {post.sharedPost.sharedTitle && (
+                          <p className="text-sm font-semibold text-slate-900 leading-snug">
+                            {post.sharedPost.sharedTitle}
+                          </p>
+                        )}
+                        {post.sharedPost.sharedDescription && (
+                          <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                            {post.sharedPost.sharedDescription}
+                          </p>
+                        )}
+                        <p className="mt-1.5 break-all text-xs text-blue-600">
+                          {post.sharedPost.sharedUrl}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {actionError && <p className="mt-3 text-xs text-red-600">{actionError}</p>}
+
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShareComposerOpen(false)}
+                disabled={pendingAction !== null}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:border-slate-100 disabled:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleShareSubmit}
+                disabled={pendingAction !== null}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {pendingAction === "share" ? "Sharing…" : "Share"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
       {/* Author row */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -292,7 +432,10 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         </button>
         <button
           type="button"
-          onClick={handleShare}
+          onClick={() => {
+            setActionError("");
+            setShareComposerOpen(true);
+          }}
           disabled={pendingAction !== null || shared}
           className={`text-xs transition-colors ${shared ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
         >
@@ -309,6 +452,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       {actionError && (
         <p className="mt-2 text-xs text-red-600">{actionError}</p>
       )}
-    </article>
+      </article>
+    </>
   );
 }
