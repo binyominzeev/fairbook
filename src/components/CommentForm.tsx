@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 
 interface Props {
   postId: string;
@@ -47,13 +48,13 @@ export default function CommentForm({ postId }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input
-          type="text"
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <AutoResizeTextarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Add to the discussion…"
-          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          minRows={3}
+          className="min-h-24 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
           type="submit"

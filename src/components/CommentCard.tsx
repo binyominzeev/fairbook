@@ -1,6 +1,7 @@
 "use client";
 
 import Avatar from "@/components/Avatar";
+import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -256,13 +257,14 @@ export default function CommentCard({
             )}
           </div>
           {showEditForm ? (
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <input
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <AutoResizeTextarea
+                className="min-h-20 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={editText}
+                minRows={3}
                 onChange={(e) => setEditText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                     e.preventDefault();
                     void submitEdit();
                   }
@@ -317,14 +319,15 @@ export default function CommentCard({
             </button>
           )}
           {showReplyForm && (
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <input
-                className="flex-1 text-sm rounded-lg border border-slate-200 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <AutoResizeTextarea
+                className="min-h-20 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Write a reply…"
                 value={replyText}
+                minRows={3}
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                     e.preventDefault();
                     submitReply();
                   }
