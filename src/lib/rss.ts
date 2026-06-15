@@ -318,6 +318,7 @@ export async function importFeedPosts(feedSourceId: string) {
     const createdAt = parsePublishedAt(item) ?? fetchedAt;
     const nextScore = calculatePostScore({
       createdAt,
+      freshnessDate: fetchedAt,
       sourceWeight: feedSource.sourceWeight,
       commentCount: 0,
     });

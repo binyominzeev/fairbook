@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
 import {
@@ -8,10 +9,59 @@ import {
 import { prisma } from "@/lib/prisma";
 
 export const FEED_PAGE_SIZE = 20;
+const OWN_POST_PENALTY = 18;
+const REPEATED_AUTHOR_PENALTY = 6;
+const RERANK_JITTER_RANGE = 8;
 
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
 }>;
+
+function seededNormalizedValue(seed: string) {
+  const digest = createHash("sha256").update(seed).digest();
+  const value = digest.readUInt32BE(0);
+  return value / 0xffffffff;
+}
+
+function rerankFirstFeedPage(posts: FeedPostRecord[], viewerId: string) {
+  const remaining = [...posts];
+  const ordered: FeedPostRecord[] = [];
+  const repeatedAuthorCounts = new Map<string, number>();
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (const [index, post] of remaining.entries()) {
+      const repeatCount = repeatedAuthorCounts.get(post.authorId) ?? 0;
+      const ownPenalty = post.authorId === viewerId ? OWN_POST_PENALTY : 0;
+      const repeatPenalty = repeatCount * REPEATED_AUTHOR_PENALTY;
+      const jitter =
+        (seededNormalizedValue(`${viewerId}:${post.id}`) * 2 - 1) * RERANK_JITTER_RANGE;
+      const adjustedScore = (post.score ?? 0) - ownPenalty - repeatPenalty + jitter;
+
+      if (adjustedScore > bestScore) {
+        bestIndex = index;
+        bestScore = adjustedScore;
+        continue;
+      }
+
+      if (
+        adjustedScore === bestScore &&
+        post.createdAt.getTime() > remaining[bestIndex].createdAt.getTime()
+      ) {
+        bestIndex = index;
+      }
+    }
+
+    const [selected] = remaining.splice(bestIndex, 1);
+    ordered.push(selected);
+    const post = selected;
+    repeatedAuthorCounts.set(post.authorId, (repeatedAuthorCounts.get(post.authorId) ?? 0) + 1);
+  }
+
+  return ordered;
+}
 
 export async function getFeedPage({
   viewerId,
@@ -67,9 +117,10 @@ export async function getFeedPage({
 
   const hasMore = collected.length > FEED_PAGE_SIZE;
   const items = hasMore ? collected.slice(0, FEED_PAGE_SIZE) : collected;
+  const orderedItems = cursor ? items : rerankFirstFeedPage(items, viewerId);
 
   return {
-    posts: items.map(serializePost),
+    posts: orderedItems.map(serializePost),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

@@ -59,10 +59,12 @@ export function hashFeedValue(input: string | null | undefined) {
 
 export function calculatePostScore(params: {
   createdAt: Date;
+  freshnessDate?: Date;
   sourceWeight?: number | null;
   commentCount?: number;
 }) {
-  const ageMs = Date.now() - params.createdAt.getTime();
+  const freshnessDate = params.freshnessDate ?? params.createdAt;
+  const ageMs = Date.now() - freshnessDate.getTime();
   const ageHours = Math.max(0, ageMs / (1000 * 60 * 60));
 
   const freshnessScore = roundScore(Math.max(0, 120 - ageHours * 2.5));
@@ -105,6 +107,7 @@ export async function recomputePostScore(postId: string) {
 
   const nextScore = calculatePostScore({
     createdAt: post.createdAt,
+    freshnessDate: post.feedSourceId ? post.fetchedAt : post.createdAt,
     sourceWeight: post.feedSource?.sourceWeight,
     commentCount: post.visibleCommentCount,
   });
