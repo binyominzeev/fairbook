@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
-import { Prisma } from "@/generated/prisma/client";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
+import { getFeedPage } from "@/lib/feed-posts";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
-import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
 
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
   if (moderation.source === "fallback") {
@@ -26,7 +25,6 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const cursor = searchParams.get("cursor");
-  const limit = 20;
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -36,83 +34,13 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  // Get users I follow
-  const following = await prisma.connection.findMany({
-    where: { followerId: session.userId },
-    select: { followingId: true },
+  const page = await getFeedPage({
+    viewerId: session.userId,
+    hideViolentFeed: user.hideViolentFeed,
+    cursor,
   });
-  const followingIds = following.map((c) => c.followingId);
-  // Include own posts
-  const authorIds = [...followingIds, session.userId];
 
-  const baseQuery: Pick<Prisma.PostFindManyArgs, "where" | "orderBy" | "include"> = {
-    where: {
-      AND: [
-        { authorId: { in: authorIds } },
-        {
-          OR: [{ authorId: session.userId }, { moderationStatus: "visible" }],
-        },
-        {
-          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-        },
-      ],
-    },
-    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-    include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
-      sharedPost: {
-        select: {
-          id: true,
-          content: true,
-          sharedUrl: true,
-          sharedTitle: true,
-          sharedDescription: true,
-          sharedSource: true,
-          sharedImageUrl: true,
-          createdAt: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
-        },
-      },
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-      sharedBy: {
-        where: { authorId: session.userId },
-        select: { id: true },
-        take: 1,
-      },
-      _count: { select: { comments: true, likes: true, sharedBy: true } },
-    },
-  };
-
-  const chunkSize = user.hideViolentFeed ? 60 : limit + 1;
-  const collected: Awaited<ReturnType<typeof prisma.post.findMany>> = [];
-  let nextDbCursor = cursor;
-  let exhausted = false;
-
-  while (collected.length < limit + 1 && !exhausted) {
-    const batch = await prisma.post.findMany({
-      ...baseQuery,
-      take: chunkSize,
-      ...(nextDbCursor ? { cursor: { id: nextDbCursor }, skip: 1 } : {}),
-    });
-
-    if (batch.length < chunkSize) {
-      exhausted = true;
-    }
-
-    if (batch.length === 0) {
-      break;
-    }
-
-    const filteredBatch = filterViolentFeedPostsForUser(batch, user.hideViolentFeed);
-    collected.push(...filteredBatch);
-    nextDbCursor = batch[batch.length - 1]?.id ?? null;
-  }
-
-  const hasMore = collected.length > limit;
-  const items = hasMore ? collected.slice(0, limit) : collected;
-  const nextCursor = hasMore ? items[items.length - 1].id : null;
-
-  return Response.json({ posts: items, nextCursor });
+  return Response.json(page);
 }
 
 export async function POST(request: NextRequest) {

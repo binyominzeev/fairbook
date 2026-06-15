@@ -241,6 +241,14 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
 
           {post.sharedPost.sharedUrl && (
             <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+              {post.sharedPost.sharedImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={post.sharedPost.sharedImageUrl}
+                  alt={post.sharedPost.sharedTitle ?? ""}
+                  className="mb-3 h-40 w-full rounded-lg object-cover"
+                />
+              )}
               {post.sharedPost.sharedSource && (
                 <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
                   {post.sharedPost.sharedSource} · External source

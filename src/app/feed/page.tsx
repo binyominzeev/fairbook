@@ -2,10 +2,10 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Avatar from "@/components/Avatar";
+import FeedInfiniteList from "@/components/FeedInfiniteList";
 import Navbar from "@/components/Navbar";
-import PostCard from "@/components/PostCard";
 import CreatePostForm from "@/components/CreatePostForm";
-import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
+import { getFeedPage } from "@/lib/feed-posts";
 
 export default async function FeedPage() {
   const session = await getSession();
@@ -27,53 +27,11 @@ export default async function FeedPage() {
     where: { followerId: session.userId },
     select: { followingId: true },
   });
-  const authorIds = [
-    session.userId,
-    ...following.map((c) => c.followingId),
-  ];
-
-  const feedCandidates = await prisma.post.findMany({
-    where: {
-      AND: [
-        { authorId: { in: authorIds } },
-        {
-          OR: [
-            { authorId: session.userId },
-            { moderationStatus: "visible" },
-          ],
-        },
-        {
-          OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-        },
-      ],
-    },
-    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-    take: 120,
-    include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
-      sharedPost: {
-        select: {
-          id: true,
-          content: true,
-          sharedUrl: true,
-          sharedTitle: true,
-          sharedDescription: true,
-          sharedSource: true,
-          sharedImageUrl: true,
-          createdAt: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
-        },
-      },
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-      sharedBy: {
-        where: { authorId: session.userId },
-        select: { id: true },
-        take: 1,
-      },
-      _count: { select: { comments: true, likes: true, sharedBy: true } },
-    },
+  const authorIds = [session.userId, ...following.map((c) => c.followingId)];
+  const initialFeedPage = await getFeedPage({
+    viewerId: session.userId,
+    hideViolentFeed: user.hideViolentFeed,
   });
-  const posts = filterViolentFeedPostsForUser(feedCandidates, user.hideViolentFeed).slice(0, 30);
 
   // Suggest users to follow
   const suggestedUsers = await prisma.user.findMany({
@@ -92,38 +50,15 @@ export default async function FeedPage() {
         <div className="space-y-4">
           <CreatePostForm />
 
-          {posts.length === 0 && (
-            <div className="text-center py-16 text-slate-400">
-              <p className="text-2xl mb-3">👋</p>
-              <p className="font-medium text-slate-600">Your feed is empty.</p>
-              <p className="text-sm mt-1">
-                Follow people or pages to see posts here.
-              </p>
-            </div>
-          )}
-
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={{
-                ...post,
-                createdAt: post.createdAt.toISOString(),
-                likedByCurrentUser: post.likes.length > 0,
-                sharedByCurrentUser: post.sharedBy.length > 0,
-                sharedPost: post.sharedPost
-                  ? {
-                      ...post.sharedPost,
-                      createdAt: post.sharedPost.createdAt.toISOString(),
-                    }
-                  : null,
-              }}
-              currentUserId={user.id}
-              showDelete
-            />
-          ))}
+          <FeedInfiniteList
+            key={`${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            initialPosts={initialFeedPage.posts}
+            initialNextCursor={initialFeedPage.nextCursor}
+            currentUserId={user.id}
+          />
         </div>
 
-        {suggestedUsers.length > 0 && posts.length === 0 && (
+        {suggestedUsers.length > 0 && initialFeedPage.posts.length === 0 && (
           <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">
               People you might follow
