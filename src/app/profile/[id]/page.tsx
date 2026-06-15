@@ -17,7 +17,7 @@ export default async function ProfilePage(props: {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const activeTab = tab === "likes" || tab === "comments" ? tab : "posts";
+  const requestedTab = tab === "likes" || tab === "comments" ? tab : "posts";
   const showSettings = settings === "1";
 
   const currentUser = await prisma.user.findUnique({
@@ -48,14 +48,31 @@ export default async function ProfilePage(props: {
   });
   if (!profileUser) notFound();
 
-  const isFollowing = !!(await prisma.connection.findUnique({
-    where: {
-      followerId_followingId: {
-        followerId: session.userId,
-        followingId: id,
-      },
-    },
-  }));
+  const isOwnProfile = id === session.userId;
+
+  const [isFollowing, isFollowedBy] = isOwnProfile
+    ? [false, false]
+    : await Promise.all([
+        prisma.connection.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: session.userId,
+              followingId: id,
+            },
+          },
+        }),
+        prisma.connection.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: id,
+              followingId: session.userId,
+            },
+          },
+        }),
+      ]).then(([following, followedBy]) => [!!following, !!followedBy] as const);
+
+  const canViewActivity = !profileUser.isPage && (isOwnProfile || (isFollowing && isFollowedBy));
+  const activeTab = canViewActivity && requestedTab !== "posts" ? requestedTab : "posts";
 
   const postInclude = {
     author: { select: { id: true, name: true, avatarUrl: true } },
@@ -119,13 +136,13 @@ export default async function ProfilePage(props: {
     include: postInclude,
   });
 
-  const isOwnProfile = id === session.userId;
-
   function buildProfileHref(nextTab?: "posts" | "likes" | "comments", nextShowSettings = showSettings) {
     const params = new URLSearchParams();
 
-    if (nextTab && nextTab !== "posts") {
-      params.set("tab", nextTab);
+    const resolvedTab = canViewActivity ? nextTab ?? activeTab : "posts";
+
+    if (resolvedTab !== "posts") {
+      params.set("tab", resolvedTab);
     }
 
     if (nextShowSettings) {
@@ -136,10 +153,20 @@ export default async function ProfilePage(props: {
     return query ? `/profile/${id}?${query}` : `/profile/${id}`;
   }
 
-  const likedPosts = isOwnProfile
+  const likedPosts = canViewActivity
     ? (
         await prisma.postLike.findMany({
-          where: { userId: id },
+          where: isOwnProfile
+            ? { userId: id }
+            : {
+                userId: id,
+                post: {
+                  OR: [
+                    { moderationStatus: "visible" },
+                    { authorId: session.userId },
+                  ],
+                },
+              },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: {
@@ -151,9 +178,20 @@ export default async function ProfilePage(props: {
       ).map((like) => like.post)
     : [];
 
-  const comments = isOwnProfile
+  const comments = canViewActivity
     ? await prisma.comment.findMany({
-        where: { authorId: id },
+        where: isOwnProfile
+          ? { authorId: id }
+          : {
+              authorId: id,
+              moderationStatus: "visible",
+              post: {
+                OR: [
+                  { moderationStatus: "visible" },
+                  { authorId: session.userId },
+                ],
+              },
+            },
         orderBy: { createdAt: "desc" },
         take: 30,
         include: {
@@ -274,9 +312,9 @@ export default async function ProfilePage(props: {
           </div>
         </div>
 
-        {isOwnProfile && !profileUser.isPage ? (
+        {canViewActivity ? (
           <>
-            {showSettings && (
+            {isOwnProfile && showSettings && (
               <ProfileAvatarEditor
                 userId={profileUser.id}
                 name={currentUser.name}
@@ -331,7 +369,9 @@ export default async function ProfilePage(props: {
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Liked posts</h2>
                 {likedPosts.length === 0 && (
                   <p className="py-8 text-center text-sm text-slate-400">
-                    You have not liked any posts yet.
+                    {isOwnProfile
+                      ? "You have not liked any posts yet."
+                      : "No visible liked posts yet."}
                   </p>
                 )}
                 {likedPosts.map((post) => (
@@ -350,7 +390,9 @@ export default async function ProfilePage(props: {
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Recent comments</h2>
                 {comments.length === 0 && (
                   <p className="py-8 text-center text-sm text-slate-400">
-                    You have not commented yet.
+                    {isOwnProfile
+                      ? "You have not commented yet."
+                      : "No public comments yet."}
                   </p>
                 )}
                 <div className="space-y-3">
