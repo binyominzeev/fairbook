@@ -3,6 +3,7 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/Avatar";
+import { buildProfilePath } from "@/lib/profile-path";
 
 const MAX_FILE_SIZE = 1024 * 1024;
 
@@ -17,6 +18,7 @@ function readFileAsDataUrl(file: File) {
 
 interface Props {
   userId: string;
+  slug?: string | null;
   name: string;
   email: string;
   avatarUrl?: string | null;
@@ -25,12 +27,14 @@ interface Props {
 
 export default function ProfileAvatarEditor({
   userId,
+  slug,
   name,
   email,
   avatarUrl,
   hideViolentFeed,
 }: Props) {
   const router = useRouter();
+  const [draftSlug, setDraftSlug] = useState(slug ?? "");
   const [draftAvatarUrl, setDraftAvatarUrl] = useState(avatarUrl ?? null);
   const [draftHideViolentFeed, setDraftHideViolentFeed] = useState(hideViolentFeed);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +43,7 @@ export default function ProfileAvatarEditor({
   const [saveSuccess, setSaveSuccess] = useState("");
 
   const hasChanges =
+    draftSlug.trim() !== (slug ?? "") ||
     (draftAvatarUrl ?? null) !== (avatarUrl ?? null) ||
     draftHideViolentFeed !== hideViolentFeed;
 
@@ -80,6 +85,7 @@ export default function ProfileAvatarEditor({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          slug: draftSlug,
           avatarUrl: nextAvatarUrl,
           hideViolentFeed: draftHideViolentFeed,
         }),
@@ -92,9 +98,11 @@ export default function ProfileAvatarEditor({
       }
 
       setDraftAvatarUrl(data.user.avatarUrl ?? null);
+      setDraftSlug(data.user.slug ?? "");
       setDraftHideViolentFeed(Boolean(data.user.hideViolentFeed));
       setSaveSuccess("Beállítások mentve.");
       startTransition(() => {
+        router.push(buildProfilePath({ id: data.user.id, slug: data.user.slug }));
         router.refresh();
       });
     } catch {
@@ -123,6 +131,22 @@ export default function ProfileAvatarEditor({
               disabled
               readOnly
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-sm font-medium text-slate-900">Slug</span>
+            <input
+              type="text"
+              value={draftSlug}
+              onChange={(event) => {
+                setDraftSlug(event.target.value);
+                setSaveError("");
+                setSaveSuccess("");
+              }}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
             />
           </label>
           <label className="space-y-1.5">

@@ -6,6 +6,7 @@ import FollowButton from "@/components/FollowButton";
 import Navbar from "@/components/Navbar";
 import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
+import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
 
 type SearchParams = {
@@ -25,7 +26,7 @@ export default async function PagesPage(props: {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+    select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
 
@@ -56,6 +57,7 @@ export default async function PagesPage(props: {
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      slug: true,
       name: true,
       bio: true,
       avatarUrl: true,
@@ -86,7 +88,7 @@ export default async function PagesPage(props: {
         orderBy: { createdAt: "desc" },
         include: {
           page: {
-            select: { id: true, name: true, bio: true },
+            select: { id: true, slug: true, name: true, bio: true },
           },
           _count: { select: { posts: true } },
         },
@@ -177,7 +179,7 @@ export default async function PagesPage(props: {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/profile/${page.id}`}
+                            href={buildProfilePath(page)}
                             className="text-sm font-semibold text-slate-900 hover:underline"
                           >
                             {page.name}

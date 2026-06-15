@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       lastScoredAt: createdAt,
     },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       sharedPost: {
         select: {
           id: true,
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
           sharedSource: true,
           sharedImageUrl: true,
           createdAt: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },

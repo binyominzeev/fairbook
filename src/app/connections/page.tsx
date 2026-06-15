@@ -4,6 +4,7 @@ import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import { getSession } from "@/lib/auth";
+import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
 
 type SearchParams = {
@@ -25,6 +26,7 @@ export default async function ConnectionsPage(props: {
     where: { id: session.userId },
     select: {
       id: true,
+      slug: true,
       name: true,
       email: true,
       avatarUrl: true,
@@ -57,7 +59,7 @@ export default async function ConnectionsPage(props: {
             { email: { contains: query } },
           ],
         },
-        select: { id: true, name: true, email: true, bio: true, avatarUrl: true },
+        select: { id: true, slug: true, name: true, email: true, bio: true, avatarUrl: true },
         take: 20,
         orderBy: { name: "asc" },
       })
@@ -70,7 +72,7 @@ export default async function ConnectionsPage(props: {
             where: { followingId: session.userId, follower: { isPage: false } },
             include: {
               follower: {
-                select: { id: true, name: true, bio: true, avatarUrl: true },
+                select: { id: true, slug: true, name: true, bio: true, avatarUrl: true },
               },
             },
             orderBy: { createdAt: "desc" },
@@ -81,7 +83,7 @@ export default async function ConnectionsPage(props: {
             where: { followerId: session.userId, following: { isPage: false } },
             include: {
               following: {
-                select: { id: true, name: true, bio: true, avatarUrl: true },
+                select: { id: true, slug: true, name: true, bio: true, avatarUrl: true },
               },
             },
             orderBy: { createdAt: "desc" },
@@ -144,7 +146,7 @@ export default async function ConnectionsPage(props: {
                         />
                         <div className="min-w-0">
                           <Link
-                            href={`/profile/${person.id}`}
+                            href={buildProfilePath(person)}
                             className="block text-sm font-medium text-slate-900 hover:underline"
                           >
                             {person.name}
@@ -228,7 +230,7 @@ export default async function ConnectionsPage(props: {
                       />
                       <div className="min-w-0">
                         <Link
-                          href={`/profile/${person.id}`}
+                          href={buildProfilePath(person)}
                           className="block text-sm font-medium text-slate-900 hover:underline"
                         >
                           {person.name}

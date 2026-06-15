@@ -2,6 +2,7 @@
 
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
+import { buildProfilePath } from "@/lib/profile-path";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -10,6 +11,7 @@ import type { DiscourseSignal } from "@/lib/ai";
 
 interface Author {
   id: string;
+  slug?: string | null;
   name: string;
   avatarUrl?: string | null;
 }
@@ -226,7 +228,7 @@ export default function CommentCard({
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <Link
-              href={`/profile/${localComment.author.id}`}
+              href={buildProfilePath(localComment.author)}
               className="text-sm font-semibold text-slate-900 hover:underline"
             >
               {localComment.author.name}

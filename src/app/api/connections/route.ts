@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   if (type === "followers") {
     const rows = await prisma.connection.findMany({
       where: { followingId: userId },
-      include: { follower: { select: { id: true, name: true, avatarUrl: true } } },
+      include: { follower: { select: { id: true, slug: true, name: true, avatarUrl: true } } },
       orderBy: { createdAt: "desc" },
     });
     return Response.json({ users: rows.map((r) => r.follower) });
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const rows = await prisma.connection.findMany({
     where: { followerId: userId },
-    include: { following: { select: { id: true, name: true, avatarUrl: true } } },
+    include: { following: { select: { id: true, slug: true, name: true, avatarUrl: true } } },
     orderBy: { createdAt: "desc" },
   });
   return Response.json({ users: rows.map((r) => r.following) });

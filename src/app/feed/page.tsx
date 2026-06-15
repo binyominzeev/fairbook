@@ -6,6 +6,7 @@ import FeedInfiniteList from "@/components/FeedInfiniteList";
 import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import { getFeedPage } from "@/lib/feed-posts";
+import { buildProfilePath } from "@/lib/profile-path";
 
 export default async function FeedPage() {
   const session = await getSession();
@@ -15,6 +16,7 @@ export default async function FeedPage() {
     where: { id: session.userId },
     select: {
       id: true,
+      slug: true,
       name: true,
       email: true,
       avatarUrl: true,
@@ -39,7 +41,7 @@ export default async function FeedPage() {
       isPage: false,
       id: { notIn: [...authorIds] },
     },
-    select: { id: true, name: true, avatarUrl: true, bio: true },
+    select: { id: true, slug: true, name: true, avatarUrl: true, bio: true },
     take: 5,
   });
 
@@ -85,7 +87,7 @@ export default async function FeedPage() {
                     </div>
                   </div>
                   <a
-                    href={`/profile/${u.id}`}
+                    href={buildProfilePath(u)}
                     className="text-xs text-blue-600 hover:underline"
                   >
                     View

@@ -1,12 +1,14 @@
 "use client";
 
 import Avatar from "@/components/Avatar";
+import { buildProfilePath } from "@/lib/profile-path";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface Author {
   id: string;
+  slug?: string | null;
   name: string;
   avatarUrl?: string | null;
 }
@@ -142,7 +144,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
           />
           <div className="min-w-0">
             <Link
-              href={`/profile/${post.author.id}`}
+              href={buildProfilePath(post.author)}
               className="block truncate text-sm font-semibold text-slate-900 hover:underline"
             >
               {post.author.name}

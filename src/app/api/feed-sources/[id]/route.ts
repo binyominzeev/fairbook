@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { importFeedPosts, previewFeed } from "@/lib/rss";
+import { claimRequestedUserSlug } from "@/lib/user-slugs";
 
 export async function PATCH(
   request: NextRequest,
@@ -31,11 +32,15 @@ export async function PATCH(
 
     const nextRssUrl = body.rssUrl?.trim() || feedSource.rssUrl;
     const nextPreview = body.rssUrl?.trim() ? await previewFeed(nextRssUrl) : null;
+    const nextSlug = Object.hasOwn(body, "slug")
+      ? await claimRequestedUserSlug(body.slug, feedSource.pageId)
+      : feedSource.page.slug;
 
     await prisma.user.update({
       where: { id: feedSource.pageId },
       data: {
         name: body.name?.trim() || feedSource.page.name,
+        slug: nextSlug,
         bio: body.bio?.trim() || feedSource.page.bio,
         avatarUrl: body.avatarUrl?.trim() || feedSource.page.avatarUrl,
       },

@@ -15,7 +15,7 @@ export async function GET(
   const post = await prisma.post.findUnique({
     where: { id },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       sharedPost: {
         select: {
           id: true,
@@ -26,7 +26,7 @@ export async function GET(
           sharedSource: true,
           sharedImageUrl: true,
           createdAt: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },

@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 
 export interface SerializedAuthor {
   id: string;
+  slug: string | null;
   name: string;
   avatarUrl: string | null;
 }
@@ -55,7 +56,7 @@ export interface SerializedProfileComment {
 
 export const buildPostInclude = (viewerId: string) =>
   ({
-    author: { select: { id: true, name: true, avatarUrl: true } },
+    author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
     sharedPost: {
       select: {
         id: true,
@@ -66,7 +67,7 @@ export const buildPostInclude = (viewerId: string) =>
         sharedSource: true,
         sharedImageUrl: true,
         createdAt: true,
-        author: { select: { id: true, name: true, avatarUrl: true } },
+        author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       },
     },
     likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },

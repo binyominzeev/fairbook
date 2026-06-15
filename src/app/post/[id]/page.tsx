@@ -18,14 +18,14 @@ export default async function PostPage(props: {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, name: true, email: true, avatarUrl: true },
+    select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
 
   const post = await prisma.post.findUnique({
     where: { id },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       sharedPost: {
         select: {
           id: true,
@@ -36,7 +36,7 @@ export default async function PostPage(props: {
           sharedSource: true,
           sharedImageUrl: true,
           createdAt: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
@@ -61,21 +61,21 @@ export default async function PostPage(props: {
     },
     orderBy: { createdAt: "asc" },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
       replies: {
         where: {
           OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
         },
         include: {
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
           analysis: true,
           replies: {
             where: {
               OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
             },
             include: {
-              author: { select: { id: true, name: true, avatarUrl: true } },
+              author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
               analysis: true,
             },
             orderBy: { createdAt: "asc" },
@@ -112,7 +112,7 @@ export default async function PostPage(props: {
     moderationReason: string | null;
     moderationExplanation: string | null;
     createdAt: Date;
-    author: { id: string; name: string; avatarUrl: string | null };
+    author: { id: string; slug: string | null; name: string; avatarUrl: string | null };
     analysis: {
       positiveSignals: string;
       negativeSignals: string;

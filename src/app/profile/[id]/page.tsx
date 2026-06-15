@@ -13,6 +13,8 @@ import {
   getProfilePostsPage,
 } from "@/lib/profile-activity";
 import Link from "next/link";
+import { buildProfilePath } from "@/lib/profile-path";
+import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
@@ -30,6 +32,7 @@ export default async function ProfilePage(props: {
     where: { id: session.userId },
     select: {
       id: true,
+      slug: true,
       name: true,
       email: true,
       avatarUrl: true,
@@ -38,26 +41,33 @@ export default async function ProfilePage(props: {
   });
   if (!currentUser) redirect("/login");
 
-  const profileUser = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      bio: true,
-      avatarUrl: true,
-      isPage: true,
-      createdAt: true,
-      _count: {
-        select: { followers: true, following: true, posts: true },
-      },
+  const profileUser = await resolveUserByProfileIdentifier(id, {
+    id: true,
+    slug: true,
+    name: true,
+    bio: true,
+    avatarUrl: true,
+    isPage: true,
+    createdAt: true,
+    _count: {
+      select: { followers: true, following: true, posts: true },
     },
   });
   if (!profileUser) notFound();
 
+  const canonicalProfilePath = buildProfilePath(profileUser);
+  if (id !== profileUser.id && id !== profileUser.slug) {
+    const params = new URLSearchParams();
+    if (tab) params.set("tab", tab);
+    if (settings) params.set("settings", settings);
+    const query = params.toString();
+    redirect(query ? `${canonicalProfilePath}?${query}` : canonicalProfilePath);
+  }
+
   const { isOwnProfile, isFollowing, canViewActivity } =
     await getProfileActivityAccess({
       viewerId: session.userId,
-      profileId: id,
+      profileId: profileUser.id,
       isPage: profileUser.isPage,
     });
   const activeTab = canViewActivity && requestedTab !== "posts" ? requestedTab : "posts";
@@ -76,27 +86,27 @@ export default async function ProfilePage(props: {
     }
 
     const query = params.toString();
-    return query ? `/profile/${id}?${query}` : `/profile/${id}`;
+    return query ? `${canonicalProfilePath}?${query}` : canonicalProfilePath;
   }
 
   const initialPostsPage =
     activeTab === "likes"
       ? await getProfileLikedPostsPage({
           viewerId: session.userId,
-          profileId: id,
+          profileId: profileUser.id,
           isOwnProfile,
           canViewActivity,
         })
       : await getProfilePostsPage({
           viewerId: session.userId,
-          profileId: id,
+          profileId: profileUser.id,
           isOwnProfile,
         });
   const initialCommentsPage =
     activeTab === "comments"
       ? await getProfileCommentsPage({
           viewerId: session.userId,
-          profileId: id,
+          profileId: profileUser.id,
           isOwnProfile,
           canViewActivity,
         })
@@ -201,7 +211,7 @@ export default async function ProfilePage(props: {
               </Link>
             ) : (
               <FollowButton
-                targetUserId={id}
+                targetUserId={profileUser.id}
                 initialIsFollowing={isFollowing}
               />
             )}
@@ -213,6 +223,7 @@ export default async function ProfilePage(props: {
             {isOwnProfile && showSettings && (
               <ProfileAvatarEditor
                 userId={profileUser.id}
+                slug={profileUser.slug}
                 name={currentUser.name}
                 email={currentUser.email}
                 avatarUrl={profileUser.avatarUrl}
@@ -246,7 +257,7 @@ export default async function ProfilePage(props: {
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Posts</h2>
                 <ProfileActivitySection
                   key={`${activeTab}:${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? initialCommentsPage.comments[0]?.id ?? "empty"}`}
-                  profileId={id}
+                  profileId={profileUser.id}
                   activeTab={activeTab}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
@@ -262,7 +273,7 @@ export default async function ProfilePage(props: {
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Liked posts</h2>
                 <ProfileActivitySection
                   key={`${activeTab}:${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? initialCommentsPage.comments[0]?.id ?? "empty"}`}
-                  profileId={id}
+                  profileId={profileUser.id}
                   activeTab={activeTab}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
@@ -278,7 +289,7 @@ export default async function ProfilePage(props: {
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Recent comments</h2>
                 <ProfileActivitySection
                   key={`${activeTab}:${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? initialCommentsPage.comments[0]?.id ?? "empty"}`}
-                  profileId={id}
+                  profileId={profileUser.id}
                   activeTab={activeTab}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
@@ -294,7 +305,7 @@ export default async function ProfilePage(props: {
             <h2 className="px-1 text-sm font-semibold text-slate-700">Posts</h2>
             <ProfileActivitySection
               key={`${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? "empty"}`}
-              profileId={id}
+              profileId={profileUser.id}
               activeTab="posts"
               initialPosts={initialPostsPage.posts}
               initialComments={initialCommentsPage.comments}

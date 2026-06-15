@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { claimRequestedUserSlug } from "@/lib/user-slugs";
 
 function normalizeAvatarUrl(value: unknown) {
   if (typeof value !== "string") return null;
@@ -42,6 +43,7 @@ export async function GET(
     where: { id },
     select: {
       id: true,
+      slug: true,
       name: true,
       bio: true,
       avatarUrl: true,
@@ -77,10 +79,12 @@ export async function PATCH(
 
   const body = await request.json();
   const shouldUpdateAvatar = Object.hasOwn(body, "avatarUrl");
+  const shouldUpdateSlug = Object.hasOwn(body, "slug");
   const hideViolentFeed =
     typeof body.hideViolentFeed === "boolean" ? body.hideViolentFeed : undefined;
 
   let avatarUrl: string | null | undefined;
+  let slug: string | undefined;
   if (shouldUpdateAvatar) {
     try {
       avatarUrl = normalizeAvatarUrl(body.avatarUrl);
@@ -92,14 +96,27 @@ export async function PATCH(
     }
   }
 
+  if (shouldUpdateSlug) {
+    try {
+      slug = await claimRequestedUserSlug(body.slug, id);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Invalid slug." },
+        { status: 400 }
+      );
+    }
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {
       ...(shouldUpdateAvatar ? { avatarUrl } : {}),
+      ...(shouldUpdateSlug ? { slug } : {}),
       ...(hideViolentFeed === undefined ? {} : { hideViolentFeed }),
     },
     select: {
       id: true,
+      slug: true,
       name: true,
       email: true,
       bio: true,

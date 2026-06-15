@@ -10,7 +10,7 @@ export default async function AboutPage() {
   const user = session
     ? await prisma.user.findUnique({
         where: { id: session.userId },
-        select: { id: true, name: true, email: true, avatarUrl: true },
+        select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
       })
     : null;
 

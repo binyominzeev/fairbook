@@ -38,17 +38,17 @@ export async function GET(request: NextRequest) {
     where: { postId, ...visibilityWhere },
     orderBy: { createdAt: "asc" },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
       replies: {
         where: visibilityWhere,
         include: {
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
           analysis: true,
           replies: {
             where: visibilityWhere,
             include: {
-              author: { select: { id: true, name: true, avatarUrl: true } },
+              author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
               analysis: true,
             },
           },
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       moderatedAt: new Date(),
     },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
     },
   });

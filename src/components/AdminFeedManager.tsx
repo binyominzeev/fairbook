@@ -15,6 +15,7 @@ type FeedRow = {
     id: string;
     name: string;
     bio?: string | null;
+    slug?: string | null;
   };
   _count: {
     posts: number;
@@ -31,6 +32,7 @@ export default function AdminFeedManager({ feeds }: Props) {
   const [rssUrl, setRssUrl] = useState("");
   const [bio, setBio] = useState("");
   const [sourceWeight, setSourceWeight] = useState("1");
+  const [slug, setSlug] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -48,6 +50,7 @@ export default function AdminFeedManager({ feeds }: Props) {
           rssUrl,
           bio,
           sourceWeight: Number.parseFloat(sourceWeight) || 1,
+          slug,
         }),
       });
       const data = await res.json();
@@ -59,6 +62,7 @@ export default function AdminFeedManager({ feeds }: Props) {
       setRssUrl("");
       setBio("");
       setSourceWeight("1");
+      setSlug("");
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -121,6 +125,16 @@ export default function AdminFeedManager({ feeds }: Props) {
             placeholder="Source weight"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
           />
+          <input
+            type="text"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="Optional slug, e.g. reuters-world"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+          />
         </div>
         <textarea
           value={bio}
@@ -151,6 +165,7 @@ export default function AdminFeedManager({ feeds }: Props) {
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{feed.page.name}</p>
                   <p className="text-xs text-slate-500 break-all">{feed.rssUrl}</p>
+                  <p className="text-xs text-slate-400">/{feed.page.slug ?? feed.page.id}</p>
                   <p className="text-xs text-slate-400 mt-1">
                     {feed._count.posts} imported posts
                     {` · weight ${feed.sourceWeight.toFixed(2)}`}
@@ -165,6 +180,33 @@ export default function AdminFeedManager({ feeds }: Props) {
                   {feed.isActive ? "Active" : "Paused"}
                 </span>
               </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const formData = new FormData(event.currentTarget);
+                  void updateFeed(feed.id, {
+                    slug: String(formData.get("slug") ?? ""),
+                  });
+                }}
+                className="flex flex-col gap-2 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center"
+              >
+                <input
+                  type="text"
+                  name="slug"
+                  defaultValue={feed.page.slug ?? ""}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={pendingId === feed.id}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Save slug
+                </button>
+              </form>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => updateFeed(feed.id, { action: "refresh" })}

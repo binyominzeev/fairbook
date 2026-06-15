@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { importFeedPosts, previewFeed } from "@/lib/rss";
+import { claimRequestedUserSlug, generateUniqueUserSlug } from "@/lib/user-slugs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    const { rssUrl, name, bio, avatarUrl, sourceWeight } = await request.json();
+    const { rssUrl, name, bio, avatarUrl, sourceWeight, slug } = await request.json();
     if (!rssUrl?.trim()) {
       return Response.json({ error: "RSS URL is required." }, { status: 400 });
     }
@@ -35,10 +36,12 @@ export async function POST(request: NextRequest) {
 
     const preview = await previewFeed(rssUrl.trim());
     const pageName = name?.trim() || preview.title;
+    const pageSlug = slug ? await claimRequestedUserSlug(slug) : await generateUniqueUserSlug(pageName);
 
     const page = await prisma.user.create({
       data: {
         name: pageName,
+        slug: pageSlug,
         email: `page+${randomUUID()}@fairbook.local`,
         passwordHash: "!page-account!",
         bio: bio?.trim() || preview.description,

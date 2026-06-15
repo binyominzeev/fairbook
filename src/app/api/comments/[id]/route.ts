@@ -147,7 +147,7 @@ export async function PATCH(
       moderatedAt: new Date(),
     },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
     },
   });

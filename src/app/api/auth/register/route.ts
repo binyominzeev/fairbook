@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, sessionCookieOptions } from "@/lib/auth";
+import { generateUniqueUserSlug } from "@/lib/user-slugs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,8 +24,9 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const slug = await generateUniqueUserSlug(name);
     const user = await prisma.user.create({
-      data: { name, email, passwordHash },
+      data: { name, slug, email, passwordHash },
     });
 
     const token = await signToken({ userId: user.id, email: user.email });

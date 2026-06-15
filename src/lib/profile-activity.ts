@@ -26,7 +26,7 @@ type CommentRecord = Prisma.CommentGetPayload<{
         content: true;
         sharedTitle: true;
         sharedSource: true;
-        author: { select: { id: true; name: true; avatarUrl: true } };
+        author: { select: { id: true; slug: true; name: true; avatarUrl: true } };
       };
     };
   };
@@ -195,7 +195,7 @@ export async function getProfileCommentsPage({
           content: true,
           sharedTitle: true,
           sharedSource: true,
-          author: { select: { id: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },
       },
     },

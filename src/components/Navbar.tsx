@@ -1,12 +1,14 @@
 "use client";
 
 import BrandLink from "@/components/BrandLink";
+import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 
 interface User {
   id: string;
+  slug?: string | null;
   name: string;
   avatarUrl?: string | null;
 }
@@ -31,6 +33,7 @@ export default function Navbar({ user }: Props) {
     { href: "/connections", label: "People" },
     { href: "/pages", label: "Pages" },
   ];
+  const profileHref = buildProfilePath(user);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
@@ -51,8 +54,8 @@ export default function Navbar({ user }: Props) {
             </Link>
           ))}
           <Link
-            href={`/profile/${user.id}`}
-            className={`ml-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors sm:ml-2 ${pathname.startsWith(`/profile/${user.id}`) ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
+            href={profileHref}
+            className={`ml-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors sm:ml-2 ${pathname.startsWith(profileHref) ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
           >Profile
           </Link>
           <button
