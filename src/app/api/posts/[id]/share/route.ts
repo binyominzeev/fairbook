@@ -3,6 +3,18 @@ import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
 
+function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
+  if (moderation.source === "fallback") {
+    return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Post is visible only to you until this is fixed.`;
+  }
+
+  if (moderation.status === "visible") {
+    return "Share accepted.";
+  }
+
+  return `Post filtered: ${moderation.reasonShort}. Only you can see it.`;
+}
+
 export async function POST(
   req: Request,
   ctx: RouteContext<"/api/posts/[id]/share">
@@ -85,6 +97,8 @@ export async function POST(
       shared: true,
       postId: existingShare.id,
       shareCount: sourcePost._count.sharedBy,
+      moderation: { status: "visible", source: "rules" },
+      message: "You already shared this post.",
     });
   }
 
@@ -121,6 +135,8 @@ export async function POST(
       shared: true,
       postId: sharedPost.id,
       shareCount,
+      moderation,
+      message: buildModerationMessage(moderation),
     },
     { status: 201 }
   );

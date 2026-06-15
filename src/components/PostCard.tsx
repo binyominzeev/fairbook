@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+
 interface Author {
   id: string;
   slug?: string | null;
@@ -48,6 +50,33 @@ interface Props {
   post: PostData;
   currentUserId: string;
   showDelete?: boolean;
+}
+
+function renderTextWithLinks(text: string, className: string) {
+  return (
+    <p className={className}>
+      {text.split("\n").map((line, lineIndex) => (
+        <span key={`${lineIndex}:${line}`}>
+          {lineIndex > 0 && <br />}
+          {line.split(URL_PATTERN).map((part, partIndex) =>
+            /^https?:\/\/\S+$/i.test(part) ? (
+              <a
+                key={`${lineIndex}:${partIndex}:${part}`}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-blue-600 hover:underline"
+              >
+                {part}
+              </a>
+            ) : (
+              <span key={`${lineIndex}:${partIndex}`}>{part}</span>
+            )
+          )}
+        </span>
+      ))}
+    </p>
+  );
 }
 
 export default function PostCard({ post, currentUserId, showDelete }: Props) {
@@ -131,7 +160,15 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       setShareCount(Number(data.shareCount ?? shareCount));
       setShareComposerOpen(false);
       setShareContent("");
-      router.refresh();
+      const params = new URLSearchParams();
+      if (typeof data.message === "string" && data.message.length > 0) {
+        params.set("notice", data.message);
+      }
+      params.set(
+        "noticeKind",
+        data.moderation?.status === "author_only" ? "warning" : "success"
+      );
+      router.push(`/feed?${params.toString()}`);
     } finally {
       setPendingAction(null);
     }
@@ -182,7 +219,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                 </div>
 
                 {post.content && (
-                  <p className="whitespace-pre-wrap text-sm text-slate-800">{post.content}</p>
+                  renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800")
                 )}
 
                 {post.sharedUrl && (
@@ -216,9 +253,10 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                     </div>
 
                     {post.sharedPost.content && (
-                      <p className="whitespace-pre-wrap text-sm text-slate-800">
-                        {post.sharedPost.content}
-                      </p>
+                      renderTextWithLinks(
+                        post.sharedPost.content,
+                        "whitespace-pre-wrap text-sm text-slate-800"
+                      )
                     )}
 
                     {post.sharedPost.sharedUrl && (
@@ -273,54 +311,50 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       )}
 
       <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
-      {/* Author row */}
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar
-            name={post.author.name}
-            avatarUrl={post.author.avatarUrl}
-            sizeClassName="h-9 w-9"
-            textClassName="text-sm font-semibold"
-          />
-          <div className="min-w-0">
-            <Link
-              href={buildProfilePath(post.author)}
-              className="block truncate text-sm font-semibold text-slate-900 hover:underline"
-            >
-              {post.author.name}
-            </Link>
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
-              <span>{timeAgo(post.createdAt)}</span>
+        {/* Author row */}
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar
+              name={post.author.name}
+              avatarUrl={post.author.avatarUrl}
+              sizeClassName="h-9 w-9"
+              textClassName="text-sm font-semibold"
+            />
+            <div className="min-w-0">
+              <Link
+                href={buildProfilePath(post.author)}
+                className="block truncate text-sm font-semibold text-slate-900 hover:underline"
+              >
+                {post.author.name}
+              </Link>
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
+                <span>{timeAgo(post.createdAt)}</span>
+              </div>
             </div>
           </div>
+          {showDelete && post.author.id === currentUserId && (
+            <button
+              onClick={handleDelete}
+              className="shrink-0 text-xs text-slate-400 hover:text-red-500 transition-colors"
+            >
+              Delete
+            </button>
+          )}
         </div>
-        {showDelete && post.author.id === currentUserId && (
-          <button
-            onClick={handleDelete}
-            className="shrink-0 text-xs text-slate-400 hover:text-red-500 transition-colors"
-          >
-            Delete
-          </button>
+
+        {/* Post body */}
+        {post.content && renderTextWithLinks(post.content, "mb-3 whitespace-pre-wrap text-sm text-slate-800")}
+
+        {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <p className="font-medium">
+              Filtered{post.moderationReason ? ` · ${post.moderationReason}` : ""}
+            </p>
+            <p className="mt-1 text-amber-800">
+              {post.moderationExplanation ?? "Only you can see this post."}
+            </p>
+          </div>
         )}
-      </div>
-
-      {/* Post body */}
-      {post.content && (
-        <p className="text-sm text-slate-800 whitespace-pre-wrap mb-3">
-          {post.content}
-        </p>
-      )}
-
-      {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          <p className="font-medium">
-            Filtered{post.moderationReason ? ` · ${post.moderationReason}` : ""}
-          </p>
-          <p className="mt-1 text-amber-800">
-            {post.moderationExplanation ?? "Only you can see this post."}
-          </p>
-        </div>
-      )}
 
       {/* Shared link card */}
       {post.sharedUrl && (
@@ -376,9 +410,10 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
           </div>
 
           {post.sharedPost.content && (
-            <p className="whitespace-pre-wrap text-sm text-slate-800">
-              {post.sharedPost.content}
-            </p>
+            renderTextWithLinks(
+              post.sharedPost.content,
+              "whitespace-pre-wrap text-sm text-slate-800"
+            )
           )}
 
           {post.sharedPost.sharedUrl && (

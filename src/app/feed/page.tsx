@@ -8,7 +8,10 @@ import CreatePostForm from "@/components/CreatePostForm";
 import { getFeedPage } from "@/lib/feed-posts";
 import { buildProfilePath } from "@/lib/profile-path";
 
-export default async function FeedPage() {
+export default async function FeedPage(props: {
+  searchParams: Promise<{ notice?: string; noticeKind?: string }>;
+}) {
+  const { notice, noticeKind } = await props.searchParams;
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -50,6 +53,14 @@ export default async function FeedPage() {
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="space-y-4">
+          {notice && (
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${noticeKind === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+            >
+              {notice}
+            </div>
+          )}
+
           <CreatePostForm />
 
           <FeedInfiniteList
