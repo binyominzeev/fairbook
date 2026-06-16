@@ -36,10 +36,10 @@ export default async function AboutPage() {
         <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
           <div className="mb-8 max-w-3xl space-y-3">
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">
-              About
+              Data Policy
             </p>
             <p className="text-base leading-7 text-slate-600">
-              Ez az oldal a Fairbook alapelveit foglalja össze.
+              Ez az oldal a Fairbook adatvédelmi szabályzatát tartalmazza.
             </p>
           </div>
 
