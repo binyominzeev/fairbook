@@ -23,6 +23,9 @@ export default function RootLayout({
             <Link href="/about" className="transition-colors hover:text-slate-900">
               About
             </Link>
+            <Link href="/data-policy" className="transition-colors hover:text-slate-900">
+              Data Policy
+            </Link>
           </div>
         </footer>
       </body>
