@@ -39,7 +39,7 @@ export default async function AboutPage() {
               About
             </p>
             <p className="text-base leading-7 text-slate-600">
-              Ez az oldal a Fairbook alapelveit foglalja össze.
+              A Fairbook egy AI-moderált közösségi platform, melynek célja, hogy moderáltabb, erőszak- és gyűlöletmentes, biztonságosabb közösségi felületet nyújtson a jelenleg elérhető alternatívákhoz képest.
             </p>
           </div>
           <ManifestoContent />
