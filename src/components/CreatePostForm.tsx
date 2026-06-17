@@ -1,8 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import { useRouter } from "next/navigation";
+
+type ComposerImage = {
+  id: string;
+  file: File;
+  previewUrl: string;
+};
+
+type ModerationResult = {
+  moderation?: {
+    status?: string;
+    explanation?: string;
+  };
+};
+
+type CreatePostPayload = {
+  content: string | null;
+  sharedUrl: string | null;
+  sharedTitle: string | null;
+  sharedDescription: string | null;
+  sharedSource: string | null;
+  imageUrls: string[];
+  preModeration?: {
+    content: string;
+    moderation: ModerationResult["moderation"];
+  };
+};
+
+const MAX_IMAGES = 4;
+const MAX_DIMENSION = 1600;
+const WEBP_QUALITY = 0.82;
+
+function buildImageId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function compressImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+
+  let targetWidth = width;
+  let targetHeight = height;
+  const largestSide = Math.max(width, height);
+  if (largestSide > MAX_DIMENSION) {
+    const ratio = MAX_DIMENSION / largestSide;
+    targetWidth = Math.round(width * ratio);
+    targetHeight = Math.round(height * ratio);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("Failed to process image.");
+  }
+
+  ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", WEBP_QUALITY);
+  });
+
+  if (!blob) {
+    throw new Error("Failed to compress image.");
+  }
+
+  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "image";
+  return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
+}
 
 export default function CreatePostForm() {
   const router = useRouter();
@@ -20,24 +92,98 @@ export default function CreatePostForm() {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [lastTestKey, setLastTestKey] = useState<string | null>(null);
-  const [lastTestResult, setLastTestResult] = useState<any | null>(null);
+  const [lastTestResult, setLastTestResult] = useState<ModerationResult | null>(null);
+  const [images, setImages] = useState<ComposerImage[]>([]);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const imagesRef = useRef<ComposerImage[]>([]);
+
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+
+  useEffect(() => {
+    return () => {
+      for (const image of imagesRef.current) {
+        URL.revokeObjectURL(image.previewUrl);
+      }
+    };
+  }, []);
+
+  const addFilesToComposer = async (incomingFiles: FileList | File[]) => {
+    const rawFiles = Array.from(incomingFiles);
+    const imageFiles = rawFiles.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    const remainingSlots = MAX_IMAGES - images.length;
+    if (remainingSlots <= 0) {
+      setError(`You can attach at most ${MAX_IMAGES} images.`);
+      return;
+    }
+
+    const filesToProcess = imageFiles.slice(0, remainingSlots);
+    setError("");
+
+    try {
+      const compressedFiles = await Promise.all(filesToProcess.map(compressImage));
+      const newImages: ComposerImage[] = compressedFiles.map((file) => ({
+        id: buildImageId(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+
+      setImages((current) => [...current, ...newImages]);
+    } catch {
+      setError("One or more images could not be processed.");
+    }
+  };
+
+  const removeImage = (id: string) => {
+    setImages((current) => {
+      const item = current.find((image) => image.id === id);
+      if (item) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+      return current.filter((image) => image.id !== id);
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !sharedUrl.trim()) {
-      setError("Add some content or a link.");
+    if (!content.trim() && !sharedUrl.trim() && images.length === 0) {
+      setError("Add some content, images, or a link.");
       return;
     }
     setError("");
     setNotice(null);
     setSubmitting(true);
     try {
-      const body: any = {
+      let uploadedImageUrls: string[] = [];
+      if (images.length > 0) {
+        const uploadPayload = new FormData();
+        for (const image of images) {
+          uploadPayload.append("files", image.file);
+        }
+
+        const uploadRes = await fetch("/api/uploads/images", {
+          method: "POST",
+          body: uploadPayload,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          setError(uploadData.error ?? "Failed to upload images.");
+          return;
+        }
+        uploadedImageUrls = Array.isArray(uploadData.urls) ? uploadData.urls : [];
+      }
+
+      const body: CreatePostPayload = {
         content: content.trim() || null,
         sharedUrl: sharedUrl.trim() || null,
         sharedTitle: sharedTitle.trim() || null,
         sharedDescription: sharedDescription.trim() || null,
         sharedSource: sharedSource.trim() || null,
+        imageUrls: uploadedImageUrls,
       };
 
       const key = `${content.trim()}||${sharedUrl.trim()}`;
@@ -57,6 +203,12 @@ export default function CreatePostForm() {
         setSharedTitle("");
         setSharedSource("");
         setSharedDescription("");
+        setImages((current) => {
+          for (const image of current) {
+            URL.revokeObjectURL(image.previewUrl);
+          }
+          return [];
+        });
         setShowLinkFields(false);
         setNotice({
           kind: data.moderation?.status === "author_only" ? "warning" : "success",
@@ -114,6 +266,85 @@ export default function CreatePostForm() {
         minRows={3}
         className="w-full text-sm text-slate-800 placeholder-slate-400 resize-y focus:outline-none"
       />
+
+      <div className="mt-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) {
+              void addFilesToComposer(e.target.files);
+              e.target.value = "";
+            }
+          }}
+        />
+
+        <div
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setIsDraggingImages(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingImages(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            const relatedTarget = e.relatedTarget as Node | null;
+            if (!relatedTarget || !e.currentTarget.contains(relatedTarget)) {
+              setIsDraggingImages(false);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingImages(false);
+            void addFilesToComposer(e.dataTransfer.files);
+          }}
+          className={`rounded-lg border border-dashed px-4 py-3 transition-colors ${
+            isDraggingImages
+              ? "border-blue-400 bg-blue-50"
+              : "border-slate-300 bg-slate-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-600">
+              Drag and drop images here, or pick files. Up to {MAX_IMAGES} images.
+            </p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Add photos
+            </button>
+          </div>
+        </div>
+
+        {images.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {images.map((image) => (
+              <div key={image.id} className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.previewUrl}
+                  alt="Selected upload"
+                  className="h-24 w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeImage(image.id)}
+                  className="absolute right-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-white"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showLinkFields && (
         <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">

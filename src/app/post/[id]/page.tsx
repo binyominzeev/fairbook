@@ -30,11 +30,13 @@ export default async function PostPage(props: {
         select: {
           id: true,
           content: true,
+          feedSourceId: true,
           sharedUrl: true,
           sharedTitle: true,
           sharedDescription: true,
           sharedSource: true,
           sharedImageUrl: true,
+          imageUrls: true,
           createdAt: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },
@@ -142,14 +144,28 @@ export default async function PostPage(props: {
       }
     : null;
 
+  const parseImageUrls = (value: string | null) => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item): item is string => typeof item === "string");
+    } catch {
+      return [];
+    }
+  };
+
   const postForCard = {
     ...post,
+    imageUrls: parseImageUrls(post.imageUrls),
+    feedSourceId: post.feedSourceId,
     createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,
+          imageUrls: parseImageUrls(post.sharedPost.imageUrls),
           createdAt: post.sharedPost.createdAt.toISOString(),
         }
       : null,

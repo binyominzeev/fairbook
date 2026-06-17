@@ -5,6 +5,20 @@ import { getFeedPage } from "@/lib/feed-posts";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
 
+const MAX_IMAGE_COUNT = 4;
+
+function normalizeImageUrls(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => item.startsWith("/uploads/posts/"));
+
+  return normalized.slice(0, MAX_IMAGE_COUNT);
+}
+
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
   if (moderation.source === "fallback") {
     return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Post is visible only to you until this is fixed.`;
@@ -49,12 +63,22 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl, preModeration } =
+  const {
+    content,
+    sharedUrl,
+    sharedTitle,
+    sharedDescription,
+    sharedSource,
+    sharedImageUrl,
+    imageUrls,
+    preModeration,
+  } =
     await request.json();
+  const normalizedImageUrls = normalizeImageUrls(imageUrls);
 
-  if (!content && !sharedUrl) {
+  if (!content && !sharedUrl && normalizedImageUrls.length === 0) {
     return Response.json(
-      { error: "Post must have content or a shared URL." },
+      { error: "Post must have content, images, or a shared URL." },
       { status: 400 }
     );
   }
@@ -90,6 +114,7 @@ export async function POST(request: NextRequest) {
       sharedDescription,
       sharedSource,
       sharedImageUrl,
+      imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       moderationStatus: moderation.status,
       moderationReason:
         moderation.status === "author_only" ? moderation.reasonShort : null,
@@ -112,6 +137,7 @@ export async function POST(request: NextRequest) {
           sharedDescription: true,
           sharedSource: true,
           sharedImageUrl: true,
+          imageUrls: true,
           createdAt: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },

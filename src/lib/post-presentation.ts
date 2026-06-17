@@ -15,6 +15,7 @@ export interface SerializedSharedPost {
   sharedDescription: string | null;
   sharedSource: string | null;
   sharedImageUrl: string | null;
+  imageUrls: string[];
   createdAt: string;
   author: SerializedAuthor;
 }
@@ -22,6 +23,7 @@ export interface SerializedSharedPost {
 export interface SerializedPost {
   id: string;
   content: string | null;
+  feedSourceId: string | null;
   moderationStatus: string;
   moderationReason: string | null;
   moderationExplanation: string | null;
@@ -30,6 +32,7 @@ export interface SerializedPost {
   sharedDescription: string | null;
   sharedSource: string | null;
   sharedImageUrl: string | null;
+  imageUrls: string[];
   createdAt: string;
   author: SerializedAuthor;
   likedByCurrentUser: boolean;
@@ -67,6 +70,7 @@ export const buildPostInclude = (viewerId: string) =>
         sharedDescription: true,
         sharedSource: true,
         sharedImageUrl: true,
+        imageUrls: true,
         createdAt: true,
         author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       },
@@ -84,6 +88,7 @@ export const buildPostInclude = (viewerId: string) =>
 type PostForPresentation = {
   id: string;
   content: string | null;
+  feedSourceId: string | null;
   moderationStatus: string;
   moderationReason: string | null;
   moderationExplanation: string | null;
@@ -92,6 +97,7 @@ type PostForPresentation = {
   sharedDescription: string | null;
   sharedSource: string | null;
   sharedImageUrl: string | null;
+  imageUrls: string | null;
   createdAt: Date;
   author: SerializedAuthor;
   likes: { id: string }[];
@@ -104,6 +110,7 @@ type PostForPresentation = {
     sharedDescription: string | null;
     sharedSource: string | null;
     sharedImageUrl: string | null;
+    imageUrls: string | null;
     createdAt: Date;
     author: SerializedAuthor;
   } | null;
@@ -128,14 +135,27 @@ type CommentForPresentation = {
 };
 
 export function serializePost(post: PostForPresentation): SerializedPost {
+  const parseImageUrls = (value: string | null) => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item): item is string => typeof item === "string");
+    } catch {
+      return [];
+    }
+  };
+
   return {
     ...post,
+    imageUrls: parseImageUrls(post.imageUrls),
     createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,
+          imageUrls: parseImageUrls(post.sharedPost.imageUrls),
           createdAt: post.sharedPost.createdAt.toISOString(),
         }
       : null,

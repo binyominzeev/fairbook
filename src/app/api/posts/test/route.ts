@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
 
 export async function POST(request: NextRequest) {
@@ -9,14 +8,20 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource } = await request.json();
+  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedContent } = await request.json();
 
   if (!content?.trim() && !sharedUrl?.trim()) {
     return Response.json({ error: "Add some content or a link." }, { status: 400 });
   }
 
-  const sharedContent = [sharedTitle, sharedDescription, sharedSource, sharedUrl].filter(Boolean).join("\n");
-  const moderation = await moderatePost({ postContent: content ?? undefined, sharedContent: sharedContent || undefined });
+  const sharedContentText =
+    typeof sharedContent === "string"
+      ? sharedContent.trim()
+      : [sharedTitle, sharedDescription, sharedSource, sharedUrl].filter(Boolean).join("\n");
+  const moderation = await moderatePost({
+    postContent: content ?? undefined,
+    sharedContent: sharedContentText || undefined,
+  });
 
   return Response.json({ moderation });
 }

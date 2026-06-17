@@ -52,6 +52,7 @@ model Post {
   sharedDescription  String?
   sharedSource       String?
   sharedImageUrl     String?
+  imageUrls          String?
   sharedPostId       String?
   communityId        String?
   score              Float    @default(0)

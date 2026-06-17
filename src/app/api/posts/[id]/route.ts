@@ -20,11 +20,13 @@ export async function GET(
         select: {
           id: true,
           content: true,
+          feedSourceId: true,
           sharedUrl: true,
           sharedTitle: true,
           sharedDescription: true,
           sharedSource: true,
           sharedImageUrl: true,
+          imageUrls: true,
           createdAt: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
         },

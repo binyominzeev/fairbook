@@ -23,13 +23,22 @@ interface SharedPostData {
   sharedDescription?: string | null;
   sharedSource?: string | null;
   sharedImageUrl?: string | null;
+  imageUrls?: string[];
   createdAt: string;
   author: Author;
 }
 
+type ShareTestResult = {
+  moderation?: {
+    status: string;
+    explanation?: string | null;
+  };
+};
+
 interface PostData {
   id: string;
   content?: string | null;
+  feedSourceId?: string | null;
   moderationStatus: string;
   moderationReason?: string | null;
   moderationExplanation?: string | null;
@@ -38,6 +47,7 @@ interface PostData {
   sharedDescription?: string | null;
   sharedSource?: string | null;
   sharedImageUrl?: string | null;
+  imageUrls?: string[];
   sharedPost?: SharedPostData | null;
   createdAt: string;
   author: Author;
@@ -91,7 +101,11 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   const [shareContent, setShareContent] = useState("");
   const [shareComposerOpen, setShareComposerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<"like" | "share" | null>(null);
+  const [shareTesting, setShareTesting] = useState(false);
+  const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
+  const [lastShareTestResult, setLastShareTestResult] = useState<ShareTestResult | null>(null);
   const [actionError, setActionError] = useState("");
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -100,6 +114,37 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
 
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (!lightbox) return;
+
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setLightbox(null);
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        setLightbox((current) => {
+          if (!current) return current;
+          const prevIndex =
+            (current.index - 1 + current.urls.length) % current.urls.length;
+          return { ...current, index: prevIndex };
+        });
+      }
+
+      if (event.key === "ArrowRight") {
+        setLightbox((current) => {
+          if (!current) return current;
+          const nextIndex = (current.index + 1) % current.urls.length;
+          return { ...current, index: nextIndex };
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [lightbox]);
 
   const timeAgo = (date: string) => {
     const diff = now - new Date(date).getTime();
@@ -145,10 +190,18 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
     setActionError("");
 
     try {
+      const body: Record<string, unknown> = { content: shareContent };
+      if (lastShareTestContent === shareContent && lastShareTestResult) {
+        body.preModeration = {
+          content: lastShareTestContent,
+          moderation: lastShareTestResult.moderation,
+        };
+      }
+
       const res = await fetch(`/api/posts/${post.id}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: shareContent }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -175,10 +228,171 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
     }
   };
 
+  const handleShareTest = async () => {
+    if (!shareContent.trim() || !post.feedSourceId) return;
+
+    setShareTesting(true);
+    setActionError("");
+
+    try {
+      const res = await fetch("/api/posts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: shareContent,
+          sharedContent: post.content,
+          sharedUrl: post.sharedUrl,
+          sharedTitle: post.sharedTitle,
+          sharedDescription: post.sharedDescription,
+          sharedSource: post.sharedSource,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to test share.");
+        return;
+      }
+
+      setLastShareTestContent(shareContent);
+      setLastShareTestResult(data);
+    } finally {
+      setShareTesting(false);
+    }
+  };
+
+  const openLightbox = (urls: string[], index: number) => {
+    setLightbox({ urls, index });
+  };
+
+  const shiftLightbox = (direction: -1 | 1) => {
+    setLightbox((current) => {
+      if (!current) return current;
+      const nextIndex =
+        (current.index + direction + current.urls.length) % current.urls.length;
+      return { ...current, index: nextIndex };
+    });
+  };
+
+  const renderImageGallery = (imageUrls: string[]) => {
+    if (imageUrls.length === 0) return null;
+
+    const renderClickableImage = (url: string, index: number, className: string) => (
+      <button
+        type="button"
+        onClick={() => openLightbox(imageUrls, index)}
+        className="block h-full w-full"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={`Post image ${index + 1}`} className={className} />
+      </button>
+    );
+
+    if (imageUrls.length === 1) {
+      return (
+        <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+          {renderClickableImage(imageUrls[0], 0, "h-80 w-full object-cover")}
+        </div>
+      );
+    }
+
+    if (imageUrls.length === 2) {
+      return (
+        <div className="mb-3 grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
+          {imageUrls.map((url, index) => (
+            <div key={`${url}:${index}`} className="border border-slate-200 bg-slate-100">
+              {renderClickableImage(url, index, "h-56 w-full object-cover")}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    const visibleImages = imageUrls.slice(0, 4);
+    const remainingCount = imageUrls.length - visibleImages.length;
+
+    return (
+      <div className="mb-3 grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
+        {visibleImages.map((url, index) => {
+          const shouldShowOverlay = index === 3 && remainingCount > 0;
+          return (
+            <div key={`${url}:${index}`} className="relative border border-slate-200 bg-slate-100">
+              {renderClickableImage(url, index, "h-44 w-full object-cover sm:h-48")}
+              {shouldShowOverlay && (
+                <button
+                  type="button"
+                  onClick={() => openLightbox(imageUrls, index)}
+                  className="absolute inset-0 flex items-center justify-center bg-slate-950/45 text-xl font-semibold text-white"
+                >
+                  +{remainingCount}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (deleted) return null;
 
   return (
     <>
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/85 px-3"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              shiftLightbox(-1);
+            }}
+            className="mr-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
+            aria-label="Previous image"
+          >
+            ←
+          </button>
+
+          <div className="max-h-[90vh] max-w-5xl" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.urls[lightbox.index]}
+              alt={`Expanded image ${lightbox.index + 1}`}
+              className="max-h-[90vh] w-auto max-w-full rounded-lg object-contain"
+            />
+            <p className="mt-2 text-center text-xs text-slate-200">
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              shiftLightbox(1);
+            }}
+            className="ml-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
+            aria-label="Next image"
+          >
+            →
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightbox(null);
+            }}
+            className="absolute right-3 top-3 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
+            aria-label="Close lightbox"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {shareComposerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
           <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
@@ -211,6 +425,30 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
+              {post.feedSourceId && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <p>
+                    Test the moderation result before sharing this RSS article with your note.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleShareTest}
+                    disabled={shareTesting || !shareContent.trim()}
+                    className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:border-amber-100 disabled:text-amber-300"
+                  >
+                    {shareTesting ? "Testing…" : "Test"}
+                  </button>
+                </div>
+              )}
+
+              {lastShareTestResult?.moderation?.explanation && lastShareTestContent === shareContent && (
+                <p
+                  className={`text-xs ${lastShareTestResult.moderation.status === "author_only" ? "text-amber-700" : "text-emerald-700"}`}
+                >
+                  {lastShareTestResult.moderation.explanation}
+                </p>
+              )}
+
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                   <span>Sharing from</span>
@@ -222,6 +460,8 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                 {post.content && (
                   renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800")
                 )}
+
+                {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
 
                 {post.sharedUrl && (
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -259,6 +499,10 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                         "whitespace-pre-wrap text-sm text-slate-800"
                       )
                     )}
+
+                    {post.sharedPost.imageUrls &&
+                      post.sharedPost.imageUrls.length > 0 &&
+                      renderImageGallery(post.sharedPost.imageUrls)}
 
                     {post.sharedPost.sharedUrl && (
                       <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -355,6 +599,8 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         {/* Post body */}
         {post.content && renderTextWithLinks(post.content, "mb-3 whitespace-pre-wrap text-sm text-slate-800")}
 
+        {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
+
         {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
           <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             <p className="font-medium">
@@ -425,6 +671,10 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
               "whitespace-pre-wrap text-sm text-slate-800"
             )
           )}
+
+          {post.sharedPost.imageUrls &&
+            post.sharedPost.imageUrls.length > 0 &&
+            renderImageGallery(post.sharedPost.imageUrls)}
 
           {post.sharedPost.sharedUrl && (
             <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
