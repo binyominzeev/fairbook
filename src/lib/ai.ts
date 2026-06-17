@@ -396,16 +396,27 @@ Return every input id exactly once.`;
 const FEED_TAGGING_PROMPT = `You classify RSS article titles into an existing set of tags.
 
 You will receive:
-- a list of allowed tags
+- a list of allowed tags WITH their descriptions
 - a list of article titles with ids
 
 For each article, assign zero or more relevant tags from the allowed tag list only.
 
 Rules:
 - Use only tags that are explicitly provided.
-- Be conservative. If a tag is not clearly relevant from the title alone, leave it out.
+- Read the tag descriptions carefully. A tag should only be assigned if the article clearly matches the tag's description, not just by keyword similarity.
+- Be very conservative. If a tag is not clearly relevant from the title AND the description context, leave it out.
 - Do not invent new tags.
 - Return every input article exactly once.
+
+Example:
+- Tag: "Sport" (description: "sporthírek, versenyek, meccsek, játékosok")
+- Article: "Orbán calls for patriotic parties in Europe" -> DO NOT tag as Sport
+- Article: "Hungary defeats Serbia in volleyball" -> tag as Sport
+
+Example:
+- Tag: "Zsidóság" (description: "zsidó közösség, vallás, izraeli-palesztin ügyek, antiszemitizmus")
+- Article: "Orbán Viktor Brüsszelben: Európában folytatódik a patrióta pártok előretörése" -> DO NOT tag as Zsidóság (just politics)
+- Article: "Israel and Gaza ceasefire talks" -> tag as Zsidóság
 
 Return valid JSON only in this shape:
 {
@@ -555,10 +566,10 @@ export async function classifyFeedArticlesForViolence(
 }
 
 export async function classifyFeedArticlesByTags(
-  tags: string[],
+  tagsWithDescriptions: Array<{ name: string; description?: string | null }>,
   articles: FeedArticleTaggingInput[]
 ): Promise<FeedArticleTaggingResult[]> {
-  if (tags.length === 0 || articles.length === 0) {
+  if (tagsWithDescriptions.length === 0 || articles.length === 0) {
     return articles.map((article) => ({
       id: article.id,
       title: article.title,
@@ -575,7 +586,7 @@ export async function classifyFeedArticlesByTags(
     }));
   }
 
-  const allowedTags = new Set(tags);
+  const allowedTagNames = new Set(tagsWithDescriptions.map((t) => t.name));
   const articleIds = new Set(articles.map((article) => article.id));
 
   try {
@@ -586,7 +597,10 @@ export async function classifyFeedArticlesByTags(
         {
           role: "user",
           content: JSON.stringify({
-            tags,
+            tags: tagsWithDescriptions.map((t) => ({
+              name: t.name,
+              description: t.description || "no description provided",
+            })),
             articles: articles.map((article) => ({
               id: article.id,
               title: article.title,
@@ -610,7 +624,7 @@ export async function classifyFeedArticlesByTags(
       }
 
       const normalizedTags = Array.isArray(item.tags)
-        ? item.tags.filter((tag): tag is string => typeof tag === "string" && allowedTags.has(tag))
+        ? item.tags.filter((tag): tag is string => typeof tag === "string" && allowedTagNames.has(tag))
         : [];
 
       byId.set(item.id, {

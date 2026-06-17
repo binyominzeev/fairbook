@@ -353,7 +353,10 @@ export async function importFeedPosts(feedSourceId: string) {
   const configuredTags = await prisma.tag.findMany();
   const tagsByName = new Map(configuredTags.map((tag) => [tag.name, tag.id]));
   const articleTagResults = await classifyFeedArticlesByTags(
-    configuredTags.map((tag) => tag.name),
+    configuredTags.map((tag) => ({
+      name: tag.name,
+      description: tag.description,
+    })),
     pendingPosts.map((post) => ({
       id: post.batchId,
       title: post.data.sharedTitle,

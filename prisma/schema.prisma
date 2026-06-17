@@ -93,6 +93,8 @@ model Tag {
   color     String   @default("#9CA3AF") // hex color
   // comma-separated keywords used for simple auto-classification
   keywords  String?
+  // descriptive text to help AI classification; e.g., "zsidó közösség, vallás, izraeli-palesztin ügyek"
+  description String?
   createdAt DateTime @default(now())
 
   postTags  PostTag[]

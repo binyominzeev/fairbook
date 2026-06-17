@@ -11,10 +11,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!isAdminEmail(session.email)) return Response.json({ error: "Forbidden." }, { status: 403 });
 
   const { id } = await context.params;
-  const { name, color } = await request.json();
+  const { name, color, description } = await request.json();
 
   try {
-    const tag = await prisma.tag.update({ where: { id }, data: { name: name?.trim(), color: color?.trim() } });
+    const updateData: Record<string, string | null | undefined> = {};
+    if (name?.trim()) updateData.name = name.trim();
+    if (color?.trim()) updateData.color = color.trim();
+    if (description !== undefined) updateData.description = description?.trim() || null;
+
+    const tag = await prisma.tag.update({ where: { id }, data: updateData });
     return Response.json({ tag });
   } catch {
     return Response.json({ error: "Could not update tag." }, { status: 400 });
