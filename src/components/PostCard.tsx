@@ -44,6 +44,7 @@ interface PostData {
   likedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
   _count: { comments: number; likes: number; sharedBy: number };
+  tags?: { id: string; name: string; color: string }[];
 }
 
 interface Props {
@@ -332,6 +333,15 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
               </div>
             </div>
           </div>
+          {post.tags && post.tags.length > 0 && (
+            <div className="ml-3 flex flex-wrap items-center gap-2">
+              {post.tags.map((t) => (
+                <span key={t.id} className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: t.color, color: "white" }}>
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          )}
           {showDelete && post.author.id === currentUserId && (
             <button
               onClick={handleDelete}

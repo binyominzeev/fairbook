@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { postId, parentId, content } = await request.json();
+  const { postId, parentId, content, preModeration } = await request.json();
 
   if (!postId || !content?.trim()) {
     return Response.json(
@@ -134,12 +134,22 @@ export async function POST(request: NextRequest) {
     .filter(Boolean)
     .join("\n");
 
-  const moderation = await moderateComment({
-    postContent: post.content ?? undefined,
-    sharedContent: sharedContent || undefined,
-    parentComment: parentContent,
-    commentContent: content,
-  });
+  let moderation = null;
+  if (
+    preModeration &&
+    typeof preModeration === "object" &&
+    preModeration.moderation &&
+    preModeration.content === content
+  ) {
+    moderation = preModeration.moderation;
+  } else {
+    moderation = await moderateComment({
+      postContent: post.content ?? undefined,
+      sharedContent: sharedContent || undefined,
+      parentComment: parentContent,
+      commentContent: content,
+    });
+  }
 
   const comment = await prisma.comment.create({
     data: {

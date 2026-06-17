@@ -5,6 +5,7 @@ import Avatar from "@/components/Avatar";
 import FeedInfiniteList from "@/components/FeedInfiniteList";
 import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
+import TagFilterBar from "@/components/TagFilterBar";
 import { getFeedPage } from "@/lib/feed-posts";
 import { buildProfilePath } from "@/lib/profile-path";
 
@@ -62,6 +63,8 @@ export default async function FeedPage(props: {
           )}
 
           <CreatePostForm />
+
+          <TagFilterBar />
 
           <FeedInfiniteList
             key={`${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}

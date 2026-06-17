@@ -284,6 +284,7 @@ export async function importFeedPosts(feedSourceId: string) {
       engagementScore: number;
       lastScoredAt: Date;
     };
+    matchedTagIds?: string[];
   }> = [];
 
   for (const item of items) {
@@ -348,6 +349,29 @@ export async function importFeedPosts(feedSourceId: string) {
     });
   }
 
+  // Load configured tags for simple keyword-based auto-tagging
+  const configuredTags = await prisma.tag.findMany();
+  const normalizedTags = configuredTags.map((t) => ({
+    id: t.id,
+    name: t.name,
+    keywords: (t.keywords || "").split(",").map((k) => k.trim().toLowerCase()).filter(Boolean),
+  }));
+
+  // Attach matchedTagIds to pending posts based on title/description keywords
+  for (const post of pendingPosts) {
+    const text = ((post.data.sharedTitle || "") + " " + (post.data.sharedDescription || "")).toLowerCase();
+    const matches: string[] = [];
+    for (const tag of normalizedTags) {
+      for (const kw of tag.keywords) {
+        if (text.includes(kw)) {
+          matches.push(tag.id);
+          break;
+        }
+      }
+    }
+    post.matchedTagIds = Array.from(new Set(matches));
+  }
+
   const violenceResults = await classifyFeedArticlesForViolence(
     pendingPosts.map((post) => ({
       id: post.batchId,
@@ -364,12 +388,21 @@ export async function importFeedPosts(feedSourceId: string) {
   );
 
   for (const post of pendingPosts) {
-    await prisma.post.create({
+    const created = await prisma.post.create({
       data: {
         ...post.data,
         mayContainViolence: violentIds.has(post.batchId),
       },
     });
+    if (post.matchedTagIds && post.matchedTagIds.length > 0) {
+      try {
+        await prisma.postTag.createMany({
+          data: post.matchedTagIds.map((tagId) => ({ postId: created.id, tagId })),
+        });
+      } catch {
+        // ignore tagging errors
+      }
+    }
     importedCount += 1;
   }
 

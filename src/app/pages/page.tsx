@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminFeedManager from "@/components/AdminFeedManager";
+import AdminTagsManager from "@/components/AdminTagsManager";
 import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
 import Navbar from "@/components/Navbar";
@@ -221,10 +222,17 @@ export default async function PagesPage(props: {
           )}
         </section>
 
-        {isAdminEmail(user.email) && <AdminFeedManager feeds={adminFeeds.map((feed) => ({
-          ...feed,
-          lastFetchedAt: feed.lastFetchedAt?.toISOString() ?? null,
-        }))} />}
+        {isAdminEmail(user.email) && (
+          <>
+            <AdminFeedManager
+              feeds={adminFeeds.map((feed) => ({
+                ...feed,
+                lastFetchedAt: feed.lastFetchedAt?.toISOString() ?? null,
+              }))}
+            />
+            <AdminTagsManager />
+          </>
+        )}
       </div>
     </>
   );

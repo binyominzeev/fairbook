@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import { useRouter } from "next/navigation";
 
 export default function CreatePostForm() {
@@ -17,6 +18,9 @@ export default function CreatePostForm() {
     kind: "success" | "warning";
     message: string;
   } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [lastTestKey, setLastTestKey] = useState<string | null>(null);
+  const [lastTestResult, setLastTestResult] = useState<any | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,16 +32,23 @@ export default function CreatePostForm() {
     setNotice(null);
     setSubmitting(true);
     try {
+      const body: any = {
+        content: content.trim() || null,
+        sharedUrl: sharedUrl.trim() || null,
+        sharedTitle: sharedTitle.trim() || null,
+        sharedDescription: sharedDescription.trim() || null,
+        sharedSource: sharedSource.trim() || null,
+      };
+
+      const key = `${content.trim()}||${sharedUrl.trim()}`;
+      if (lastTestKey === key && lastTestResult) {
+        body.preModeration = { content: lastTestKey, moderation: lastTestResult.moderation };
+      }
+
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: content.trim() || null,
-          sharedUrl: sharedUrl.trim() || null,
-          sharedTitle: sharedTitle.trim() || null,
-          sharedDescription: sharedDescription.trim() || null,
-          sharedSource: sharedSource.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (res.ok) {
@@ -60,17 +71,48 @@ export default function CreatePostForm() {
     }
   };
 
+  const handleTest = async () => {
+    if (!content.trim() && !sharedUrl.trim()) return;
+    setTesting(true);
+    setError("");
+    setNotice(null);
+    try {
+      const res = await fetch("/api/posts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content.trim() || null,
+          sharedUrl: sharedUrl.trim() || null,
+          sharedTitle: sharedTitle.trim() || null,
+          sharedDescription: sharedDescription.trim() || null,
+          sharedSource: sharedSource.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const key = `${content.trim()}||${sharedUrl.trim()}`;
+        setLastTestKey(key);
+        setLastTestResult(data);
+        setNotice({ kind: data.moderation?.status === "author_only" ? "warning" : "success", message: data.moderation?.explanation ?? "Test completed." });
+      } else {
+        setError(data.error ?? "Test failed.");
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
       className="bg-white rounded-xl border border-slate-200 p-4"
     >
-      <textarea
+      <AutoResizeTextarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Share a thought, start a discussion…"
-        rows={3}
-        className="w-full text-sm text-slate-800 placeholder-slate-400 resize-none focus:outline-none"
+        minRows={3}
+        className="w-full text-sm text-slate-800 placeholder-slate-400 resize-y focus:outline-none"
       />
 
       {showLinkFields && (
@@ -124,13 +166,23 @@ export default function CreatePostForm() {
         >
           🔗 {showLinkFields ? "Hide link fields" : "Add a link"}
         </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
-        >
-          {submitting ? "Posting…" : "Post"}
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testing}
+            className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 w-full sm:w-auto"
+          >
+            {testing ? "Testing…" : "Test"}
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 w-full sm:w-auto"
+          >
+            {submitting ? "Posting…" : "Post"}
+          </button>
+        </div>
       </div>
     </form>
   );

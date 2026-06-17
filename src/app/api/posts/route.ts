@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl } =
+  const { content, sharedUrl, sharedTitle, sharedDescription, sharedSource, sharedImageUrl, preModeration } =
     await request.json();
 
   if (!content && !sharedUrl) {
@@ -64,10 +64,22 @@ export async function POST(request: NextRequest) {
   const sharedContent = [sharedTitle, sharedDescription, sharedSource, sharedUrl]
     .filter(Boolean)
     .join("\n");
-  const moderation = await moderatePost({
-    postContent: content ?? undefined,
-    sharedContent: sharedContent || undefined,
-  });
+
+  const key = `${(content ?? "").trim()}||${(sharedUrl ?? "").trim()}`;
+  let moderation = null;
+  if (
+    preModeration &&
+    typeof preModeration === "object" &&
+    preModeration.moderation &&
+    preModeration.content === key
+  ) {
+    moderation = preModeration.moderation;
+  } else {
+    moderation = await moderatePost({
+      postContent: content ?? undefined,
+      sharedContent: sharedContent || undefined,
+    });
+  }
 
   const post = await prisma.post.create({
     data: {

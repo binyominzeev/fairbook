@@ -36,6 +36,7 @@ export interface SerializedPost {
   sharedByCurrentUser: boolean;
   sharedPost: SerializedSharedPost | null;
   _count: { comments: number; likes: number; sharedBy: number };
+  tags?: { id: string; name: string; color: string }[];
 }
 
 export interface SerializedProfileComment {
@@ -70,6 +71,7 @@ export const buildPostInclude = (viewerId: string) =>
         author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       },
     },
+    postTags: { include: { tag: true } },
     likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
     sharedBy: {
       where: { authorId: viewerId },
@@ -106,6 +108,7 @@ type PostForPresentation = {
     author: SerializedAuthor;
   } | null;
   _count: { comments: number; likes: number; sharedBy: number };
+  postTags: { tag: { id: string; name: string; color: string } }[];
 };
 
 type CommentForPresentation = {
@@ -136,6 +139,7 @@ export function serializePost(post: PostForPresentation): SerializedPost {
           createdAt: post.sharedPost.createdAt.toISOString(),
         }
       : null,
+    tags: post.postTags?.map((pt) => ({ id: pt.tag.id, name: pt.tag.name, color: pt.tag.color })) ?? [],
   };
 }
 
