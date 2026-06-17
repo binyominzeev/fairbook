@@ -1,7 +1,7 @@
 import Parser from "rss-parser";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { classifyFeedArticlesForViolence } from "@/lib/ai";
+import { classifyFeedArticlesByTags, classifyFeedArticlesForViolence } from "@/lib/ai";
 import {
   calculatePostScore,
   hashFeedValue,
@@ -349,27 +349,23 @@ export async function importFeedPosts(feedSourceId: string) {
     });
   }
 
-  // Load configured tags for simple keyword-based auto-tagging
+  // Load configured tags and classify new article titles in one AI request.
   const configuredTags = await prisma.tag.findMany();
-  const normalizedTags = configuredTags.map((t) => ({
-    id: t.id,
-    name: t.name,
-    keywords: (t.keywords || "").split(",").map((k) => k.trim().toLowerCase()).filter(Boolean),
-  }));
+  const tagsByName = new Map(configuredTags.map((tag) => [tag.name, tag.id]));
+  const articleTagResults = await classifyFeedArticlesByTags(
+    configuredTags.map((tag) => tag.name),
+    pendingPosts.map((post) => ({
+      id: post.batchId,
+      title: post.data.sharedTitle,
+    }))
+  );
+  const tagResultsById = new Map(articleTagResults.map((result) => [result.id, result.tags]));
 
-  // Attach matchedTagIds to pending posts based on title/description keywords
   for (const post of pendingPosts) {
-    const text = ((post.data.sharedTitle || "") + " " + (post.data.sharedDescription || "")).toLowerCase();
-    const matches: string[] = [];
-    for (const tag of normalizedTags) {
-      for (const kw of tag.keywords) {
-        if (text.includes(kw)) {
-          matches.push(tag.id);
-          break;
-        }
-      }
-    }
-    post.matchedTagIds = Array.from(new Set(matches));
+    const matchedTagNames = tagResultsById.get(post.batchId) ?? [];
+    post.matchedTagIds = matchedTagNames
+      .map((tagName) => tagsByName.get(tagName))
+      .filter((tagId): tagId is string => typeof tagId === "string");
   }
 
   const violenceResults = await classifyFeedArticlesForViolence(

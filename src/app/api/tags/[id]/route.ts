@@ -11,10 +11,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if (!isAdminEmail(session.email)) return Response.json({ error: "Forbidden." }, { status: 403 });
 
   const { id } = await context.params;
-  const { name, color, keywords } = await request.json();
+  const { name, color } = await request.json();
 
   try {
-    const tag = await prisma.tag.update({ where: { id }, data: { name: name?.trim(), color: color?.trim(), keywords: keywords?.trim() } });
+    const tag = await prisma.tag.update({ where: { id }, data: { name: name?.trim(), color: color?.trim() } });
     return Response.json({ tag });
   } catch {
     return Response.json({ error: "Could not update tag." }, { status: 400 });

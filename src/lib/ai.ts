@@ -363,6 +363,17 @@ export interface FeedArticleViolenceResult {
   mayContainViolence: boolean;
 }
 
+export interface FeedArticleTaggingInput {
+  id: string;
+  title: string;
+}
+
+export interface FeedArticleTaggingResult {
+  id: string;
+  title: string;
+  tags: string[];
+}
+
 const FEED_VIOLENCE_PROMPT = `You classify RSS news items for whether they may contain violent or fatal real-world events.
 
 You will receive an array of articles. For each article, decide whether it likely contains upsetting real-world violence, death, fatal accidents, killings, assaults, abuse causing injury, war casualties, or similarly graphic harmful events.
@@ -381,6 +392,31 @@ Return valid JSON only in this shape:
 }
 
 Return every input id exactly once.`;
+
+const FEED_TAGGING_PROMPT = `You classify RSS article titles into an existing set of tags.
+
+You will receive:
+- a list of allowed tags
+- a list of article titles with ids
+
+For each article, assign zero or more relevant tags from the allowed tag list only.
+
+Rules:
+- Use only tags that are explicitly provided.
+- Be conservative. If a tag is not clearly relevant from the title alone, leave it out.
+- Do not invent new tags.
+- Return every input article exactly once.
+
+Return valid JSON only in this shape:
+{
+  "results": [
+    {
+      "id": "article-1",
+      "title": "Example title",
+      "tags": ["Sport", "Gyasz"]
+    }
+  ]
+}`;
 
 export async function moderateComment({
   postContent,
@@ -514,6 +550,92 @@ export async function classifyFeedArticlesForViolence(
     return articles.map((article) => ({
       id: article.id,
       mayContainViolence: false,
+    }));
+  }
+}
+
+export async function classifyFeedArticlesByTags(
+  tags: string[],
+  articles: FeedArticleTaggingInput[]
+): Promise<FeedArticleTaggingResult[]> {
+  if (tags.length === 0 || articles.length === 0) {
+    return articles.map((article) => ({
+      id: article.id,
+      title: article.title,
+      tags: [],
+    }));
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return articles.map((article) => ({
+      id: article.id,
+      title: article.title,
+      tags: [],
+    }));
+  }
+
+  const allowedTags = new Set(tags);
+  const articleIds = new Set(articles.map((article) => article.id));
+
+  try {
+    const response = await getClient().chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: FEED_TAGGING_PROMPT },
+        {
+          role: "user",
+          content: JSON.stringify({
+            tags,
+            articles: articles.map((article) => ({
+              id: article.id,
+              title: article.title,
+            })),
+          }),
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    });
+
+    const raw = response.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(raw) as {
+      results?: Array<{ id?: string; title?: string; tags?: unknown }>;
+    };
+
+    const byId = new Map<string, FeedArticleTaggingResult>();
+    for (const item of parsed.results ?? []) {
+      if (typeof item.id !== "string" || !articleIds.has(item.id)) {
+        continue;
+      }
+
+      const normalizedTags = Array.isArray(item.tags)
+        ? item.tags.filter((tag): tag is string => typeof tag === "string" && allowedTags.has(tag))
+        : [];
+
+      byId.set(item.id, {
+        id: item.id,
+        title: typeof item.title === "string" && item.title.trim()
+          ? item.title.trim()
+          : articles.find((article) => article.id === item.id)?.title ?? "",
+        tags: Array.from(new Set(normalizedTags)),
+      });
+    }
+
+    return articles.map((article) =>
+      byId.get(article.id) ?? {
+        id: article.id,
+        title: article.title,
+        tags: [],
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
+    console.error("[fairbook] RSS tag classification failed:", message);
+    return articles.map((article) => ({
+      id: article.id,
+      title: article.title,
+      tags: [],
     }));
   }
 }

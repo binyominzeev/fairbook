@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
   if (!session) return Response.json({ error: "Not authenticated." }, { status: 401 });
   if (!isAdminEmail(session.email)) return Response.json({ error: "Forbidden." }, { status: 403 });
 
-  const { name, color, keywords } = await request.json();
+  const { name, color } = await request.json();
   if (!name || !name.trim()) return Response.json({ error: "Name is required." }, { status: 400 });
 
   try {
-    const tag = await prisma.tag.create({ data: { name: name.trim(), color: color?.trim() || "#9CA3AF", keywords: keywords?.trim() || null } });
+    const tag = await prisma.tag.create({ data: { name: name.trim(), color: color?.trim() || "#9CA3AF" } });
     return Response.json({ tag }, { status: 201 });
   } catch {
     return Response.json({ error: "Could not create tag." }, { status: 400 });
