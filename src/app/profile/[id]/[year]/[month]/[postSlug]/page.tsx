@@ -9,11 +9,12 @@ import GenerateReflectionButton from "@/components/GenerateReflectionButton";
 import CommentForm from "@/components/CommentForm";
 import type { DiscourseSignal } from "@/lib/ai";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
+import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 
-export default async function PostPage(props: {
-  params: Promise<{ id: string }>;
+export default async function PostPermalinkPage(props: {
+  params: Promise<{ id: string; year: string; month: string; postSlug: string }>;
 }) {
-  const { id } = await props.params;
+  const { id, year, month, postSlug } = await props.params;
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -23,8 +24,39 @@ export default async function PostPage(props: {
   });
   if (!user) redirect("/login");
 
-  const post = await prisma.post.findUnique({
-    where: { id },
+  const profileUser = await resolveUserByProfileIdentifier(id, {
+    id: true,
+    slug: true,
+    name: true,
+    avatarUrl: true,
+  });
+  if (!profileUser) notFound();
+
+  const parsedYear = Number(year);
+  const parsedMonth = Number(month);
+  if (
+    !Number.isInteger(parsedYear) ||
+    !Number.isInteger(parsedMonth) ||
+    parsedYear < 1970 ||
+    parsedYear > 3000 ||
+    parsedMonth < 1 ||
+    parsedMonth > 12
+  ) {
+    notFound();
+  }
+
+  const monthStart = new Date(Date.UTC(parsedYear, parsedMonth - 1, 1));
+  const nextMonthStart = new Date(Date.UTC(parsedYear, parsedMonth, 1));
+
+  const post = await prisma.post.findFirst({
+    where: {
+      authorId: profileUser.id,
+      createdAt: {
+        gte: monthStart,
+        lt: nextMonthStart,
+      },
+      OR: [{ permalinkSlug: postSlug }, { id: postSlug }],
+    },
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       sharedPost: {
@@ -58,9 +90,20 @@ export default async function PostPage(props: {
     notFound();
   }
 
+  const canonicalPath = buildPostPermalinkPath({
+    author: post.author,
+    createdAt: post.createdAt,
+    slug: post.permalinkSlug,
+    postId: post.id,
+  });
+  const requestedPath = `/profile/${id}/${year}/${month}/${postSlug}`;
+  if (requestedPath !== canonicalPath) {
+    redirect(canonicalPath);
+  }
+
   const rawComments = await prisma.comment.findMany({
     where: {
-      postId: id,
+      postId: post.id,
       OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
     },
     orderBy: { createdAt: "asc" },
@@ -92,7 +135,6 @@ export default async function PostPage(props: {
 
   const topLevel = rawComments.filter((c) => c.parentId === null);
 
-  // Parse analysis signals
   const parseAnalysis = (a: {
     positiveSignals: string;
     negativeSignals: string;
@@ -108,7 +150,6 @@ export default async function PostPage(props: {
     };
   };
 
-  // Recursive comment mapper
   type RawReply = {
     id: string;
     content: string;
@@ -159,12 +200,7 @@ export default async function PostPage(props: {
 
   const postForCard = {
     ...post,
-    permalinkPath: buildPostPermalinkPath({
-      author: post.author,
-      createdAt: post.createdAt,
-      slug: post.permalinkSlug,
-      postId: post.id,
-    }),
+    permalinkPath: canonicalPath,
     imageUrls: parseImageUrls(post.imageUrls),
     feedSourceId: post.feedSourceId,
     createdAt: post.createdAt.toISOString(),
@@ -191,24 +227,25 @@ export default async function PostPage(props: {
     <>
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <PostCard post={postForCard} currentUserId={user.id} showDelete />
+        <PostCard
+          post={postForCard}
+          currentUserId={user.id}
+          showDelete
+          showPermalinkEditor
+        />
 
-        {/* Thread reflection */}
         {latestReflection ? (
           <ThreadReflection reflection={latestReflection} />
         ) : (
-          commentCount >= 5 && (
-            <GenerateReflectionButton postId={id} />
-          )
+          commentCount >= 5 && <GenerateReflectionButton postId={post.id} />
         )}
 
-        {/* Comments section */}
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <h2 className="text-sm font-semibold text-slate-700 mb-4">
             Discussion ({commentCount})
           </h2>
 
-          <CommentForm postId={id} />
+          <CommentForm postId={post.id} />
 
           <div className="mt-4 divide-y divide-slate-50">
             {comments.length === 0 && (
@@ -221,7 +258,7 @@ export default async function PostPage(props: {
                 <CommentCard
                   key={(comment as { id: string }).id}
                   comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
-                  postId={id}
+                  postId={post.id}
                   currentUserId={user.id}
                 />
               )

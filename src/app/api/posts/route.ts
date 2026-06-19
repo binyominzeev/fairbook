@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { getFeedPage } from "@/lib/feed-posts";
+import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
 
@@ -105,9 +106,24 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const initialPermalinkSlug = await ensureUniquePostSlug(
+    buildInitialPostSlug(
+      typeof content === "string" ? content : null,
+      null
+    ),
+    async (candidate) => {
+      const existing = await prisma.post.findFirst({
+        where: { authorId: session.userId, permalinkSlug: candidate },
+        select: { id: true },
+      });
+      return Boolean(existing);
+    }
+  );
+
   const post = await prisma.post.create({
     data: {
       authorId: session.userId,
+      permalinkSlug: initialPermalinkSlug,
       content,
       sharedUrl,
       sharedTitle,

@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { buildPostPermalinkPath } from "@/lib/post-permalink";
 
 export interface SerializedAuthor {
   id: string;
@@ -9,6 +10,7 @@ export interface SerializedAuthor {
 
 export interface SerializedSharedPost {
   id: string;
+  permalinkPath: string;
   content: string | null;
   sharedUrl: string | null;
   sharedTitle: string | null;
@@ -22,6 +24,8 @@ export interface SerializedSharedPost {
 
 export interface SerializedPost {
   id: string;
+  permalinkSlug: string | null;
+  permalinkPath: string;
   content: string | null;
   feedSourceId: string | null;
   moderationStatus: string;
@@ -51,6 +55,7 @@ export interface SerializedProfileComment {
   createdAt: string;
   post: {
     id: string;
+    permalinkPath: string;
     content: string | null;
     sharedTitle: string | null;
     sharedSource: string | null;
@@ -64,6 +69,7 @@ export const buildPostInclude = (viewerId: string) =>
     sharedPost: {
       select: {
         id: true,
+        permalinkSlug: true,
         content: true,
         sharedUrl: true,
         sharedTitle: true,
@@ -87,6 +93,7 @@ export const buildPostInclude = (viewerId: string) =>
 
 type PostForPresentation = {
   id: string;
+  permalinkSlug: string | null;
   content: string | null;
   feedSourceId: string | null;
   moderationStatus: string;
@@ -104,6 +111,7 @@ type PostForPresentation = {
   sharedBy: { id: string }[];
   sharedPost: {
     id: string;
+    permalinkSlug: string | null;
     content: string | null;
     sharedUrl: string | null;
     sharedTitle: string | null;
@@ -127,6 +135,8 @@ type CommentForPresentation = {
   createdAt: Date;
   post: {
     id: string;
+    permalinkSlug: string | null;
+    createdAt: Date;
     content: string | null;
     sharedTitle: string | null;
     sharedSource: string | null;
@@ -148,6 +158,12 @@ export function serializePost(post: PostForPresentation): SerializedPost {
 
   return {
     ...post,
+    permalinkPath: buildPostPermalinkPath({
+      author: post.author,
+      createdAt: post.createdAt,
+      slug: post.permalinkSlug,
+      postId: post.id,
+    }),
     imageUrls: parseImageUrls(post.imageUrls),
     createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
@@ -155,6 +171,12 @@ export function serializePost(post: PostForPresentation): SerializedPost {
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,
+          permalinkPath: buildPostPermalinkPath({
+            author: post.sharedPost.author,
+            createdAt: post.sharedPost.createdAt,
+            slug: post.sharedPost.permalinkSlug,
+            postId: post.sharedPost.id,
+          }),
           imageUrls: parseImageUrls(post.sharedPost.imageUrls),
           createdAt: post.sharedPost.createdAt.toISOString(),
         }
@@ -169,5 +191,14 @@ export function serializeProfileComment(
   return {
     ...comment,
     createdAt: comment.createdAt.toISOString(),
+    post: {
+      ...comment.post,
+      permalinkPath: buildPostPermalinkPath({
+        author: comment.post.author,
+        createdAt: comment.post.createdAt,
+        slug: comment.post.permalinkSlug,
+        postId: comment.post.id,
+      }),
+    },
   };
 }

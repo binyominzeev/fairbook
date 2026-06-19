@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import TagFilterBar from "@/components/TagFilterBar";
 import { getFeedPage } from "@/lib/feed-posts";
+import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 
 export default async function FeedPage(props: {
@@ -29,25 +30,12 @@ export default async function FeedPage(props: {
   });
   if (!user) redirect("/login");
 
-  const following = await prisma.connection.findMany({
-    where: { followerId: session.userId },
-    select: { followingId: true },
-  });
-  const authorIds = [session.userId, ...following.map((c) => c.followingId)];
   const initialFeedPage = await getFeedPage({
     viewerId: session.userId,
     hideViolentFeed: user.hideViolentFeed,
   });
 
-  // Suggest users to follow
-  const suggestedUsers = await prisma.user.findMany({
-    where: {
-      isPage: false,
-      id: { notIn: [...authorIds] },
-    },
-    select: { id: true, slug: true, name: true, avatarUrl: true, bio: true },
-    take: 5,
-  });
+  const suggestedUsers = await getSuggestedPeople(session.userId, 5);
 
   return (
     <>

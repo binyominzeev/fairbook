@@ -10,8 +10,23 @@ export default function ServiceWorkerRegistration() {
 
     let cancelled = false;
 
+    const unregisterServiceWorkers = async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+
+      if ("caches" in window) {
+        const cacheKeys = await window.caches.keys();
+        await Promise.all(cacheKeys.map((cacheKey) => window.caches.delete(cacheKey)));
+      }
+    };
+
     const registerServiceWorker = async () => {
       try {
+        if (process.env.NODE_ENV !== "production") {
+          await unregisterServiceWorkers();
+          return;
+        }
+
         const registration = await navigator.serviceWorker.register("/sw.js", {
           scope: "/",
           updateViaCache: "none",

@@ -23,6 +23,8 @@ type CommentRecord = Prisma.CommentGetPayload<{
     post: {
       select: {
         id: true;
+        permalinkSlug: true;
+        createdAt: true;
         content: true;
         sharedTitle: true;
         sharedSource: true;
@@ -192,6 +194,8 @@ export async function getProfileCommentsPage({
       post: {
         select: {
           id: true,
+          permalinkSlug: true,
+          createdAt: true,
           content: true,
           sharedTitle: true,
           sharedSource: true,

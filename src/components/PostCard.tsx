@@ -17,6 +17,7 @@ interface Author {
 
 interface SharedPostData {
   id: string;
+  permalinkPath: string;
   content?: string | null;
   sharedUrl?: string | null;
   sharedTitle?: string | null;
@@ -37,6 +38,8 @@ type ShareTestResult = {
 
 interface PostData {
   id: string;
+  permalinkSlug?: string | null;
+  permalinkPath: string;
   content?: string | null;
   feedSourceId?: string | null;
   moderationStatus: string;
@@ -61,6 +64,7 @@ interface Props {
   post: PostData;
   currentUserId: string;
   showDelete?: boolean;
+  showPermalinkEditor?: boolean;
 }
 
 function renderTextWithLinks(text: string, className: string) {
@@ -90,7 +94,12 @@ function renderTextWithLinks(text: string, className: string) {
   );
 }
 
-export default function PostCard({ post, currentUserId, showDelete }: Props) {
+export default function PostCard({
+  post,
+  currentUserId,
+  showDelete,
+  showPermalinkEditor,
+}: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -106,6 +115,11 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
   const [lastShareTestResult, setLastShareTestResult] = useState<ShareTestResult | null>(null);
   const [actionError, setActionError] = useState("");
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
+  const [permalinkDraft, setPermalinkDraft] = useState(post.permalinkSlug ?? "");
+  const [permalinkSaving, setPermalinkSaving] = useState(false);
+  const [permalinkMessage, setPermalinkMessage] = useState<string | null>(null);
+
+  const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -258,6 +272,33 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
       setLastShareTestResult(data);
     } finally {
       setShareTesting(false);
+    }
+  };
+
+  const handlePermalinkSave = async () => {
+    if (!canEditPermalink) return;
+
+    setPermalinkSaving(true);
+    setPermalinkMessage(null);
+
+    try {
+      const response = await fetch(`/api/posts/${post.id}/permalink`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: permalinkDraft }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setPermalinkMessage(data.error ?? "Failed to update permalink.");
+        return;
+      }
+
+      setPermalinkDraft(String(data.permalinkSlug ?? permalinkDraft));
+      setPermalinkMessage("Permalink updated.");
+      router.refresh();
+    } finally {
+      setPermalinkSaving(false);
     }
   };
 
@@ -573,7 +614,9 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
                 {post.author.name}
               </Link>
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
-                <span>{timeAgo(post.createdAt)}</span>
+                <Link href={post.permalinkPath} className="hover:text-slate-600 hover:underline">
+                  {timeAgo(post.createdAt)}
+                </Link>
               </div>
             </div>
           </div>
@@ -653,7 +696,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
 
       {post.sharedPost && (
         <Link
-          href={`/post/${post.sharedPost.id}`}
+          href={post.sharedPost.permalinkPath}
           className="mb-3 block rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300"
         >
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
@@ -709,10 +752,37 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
         </Link>
       )}
 
+      {canEditPermalink && (
+        <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            Permalink slug
+          </p>
+          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              value={permalinkDraft}
+              onChange={(e) => setPermalinkDraft(e.target.value)}
+              placeholder="pl. a-bejegyzes-cime"
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={handlePermalinkSave}
+              disabled={permalinkSaving}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
+            >
+              {permalinkSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+          {permalinkMessage && (
+            <p className="mt-1.5 text-[11px] text-slate-500">{permalinkMessage}</p>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
         <Link
-          href={`/post/${post.id}`}
+          href={post.permalinkPath}
           className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
         >
           💬 {post._count.comments} comment{post._count.comments !== 1 ? "s" : ""}
@@ -738,7 +808,7 @@ export default function PostCard({ post, currentUserId, showDelete }: Props) {
           {shared ? "d" : ""}
         </button>
         <Link
-          href={`/post/${post.id}`}
+          href={post.permalinkPath}
           className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
         >
           Discuss →

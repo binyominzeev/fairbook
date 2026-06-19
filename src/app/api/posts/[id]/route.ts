@@ -19,6 +19,7 @@ export async function GET(
       sharedPost: {
         select: {
           id: true,
+          permalinkSlug: true,
           content: true,
           feedSourceId: true,
           sharedUrl: true,

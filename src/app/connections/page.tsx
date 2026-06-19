@@ -4,6 +4,7 @@ import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import { getSession } from "@/lib/auth";
+import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
 
@@ -65,6 +66,8 @@ export default async function ConnectionsPage(props: {
       })
     : [];
 
+  const suggestedPeople = await getSuggestedPeople(session.userId);
+
   const connections =
     activeTab === "followers"
       ? (
@@ -93,7 +96,7 @@ export default async function ConnectionsPage(props: {
   return (
     <>
       <Navbar user={user} />
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <div>
             <h1 className="text-lg font-bold text-slate-900">People</h1>
@@ -101,6 +104,38 @@ export default async function ConnectionsPage(props: {
               Search for people by name or email, then open their profile or follow them directly.
             </p>
           </div>
+
+          {suggestedPeople.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700">Kit ismerhetek?</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Azok a regisztrált felhasználók, akikkel még nem állsz kapcsolatban.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {suggestedPeople.map((person) => (
+                  <Link
+                    key={person.id}
+                    href={buildProfilePath(person)}
+                    className="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-center transition-colors hover:border-slate-300 hover:bg-white"
+                  >
+                    <Avatar
+                      name={person.name}
+                      avatarUrl={person.avatarUrl}
+                      sizeClassName="h-16 w-16"
+                      textClassName="text-lg font-semibold"
+                      className="mx-auto"
+                    />
+                    <p className="mt-3 line-clamp-2 text-sm font-medium text-slate-900 group-hover:text-blue-700">
+                      {person.name}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <form action="/connections" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
@@ -173,7 +208,7 @@ export default async function ConnectionsPage(props: {
           )}
         </section>
 
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 max-w-2xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-700">Your connections</h2>

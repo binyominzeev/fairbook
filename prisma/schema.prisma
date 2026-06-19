@@ -42,6 +42,7 @@ model User {
 model Post {
   id                 String   @id @default(cuid())
   authorId           String
+  permalinkSlug      String?
   feedSourceId       String?
   externalId         String?
   urlHash            String?
@@ -82,6 +83,7 @@ model Post {
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
+  @@unique([authorId, permalinkSlug])
   @@index([urlHash])
   @@index([titleHash])
   @@index([feedSourceId, isFeedVisible])

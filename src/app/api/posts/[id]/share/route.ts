@@ -1,6 +1,7 @@
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
+import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
@@ -103,6 +104,16 @@ export async function POST(
   }
 
   const createdAt = new Date();
+  const initialPermalinkSlug = await ensureUniquePostSlug(
+    buildInitialPostSlug(shareContent || sourcePost.sharedTitle || sourcePost.content || null, null),
+    async (candidate) => {
+      const existing = await prisma.post.findFirst({
+        where: { authorId: session.userId, permalinkSlug: candidate },
+        select: { id: true },
+      });
+      return Boolean(existing);
+    }
+  );
   const nextScore = calculatePostScore({
     createdAt,
     sourceWeight: 1,
@@ -112,6 +123,7 @@ export async function POST(
   const sharedPost = await prisma.post.create({
     data: {
       authorId: session.userId,
+      permalinkSlug: initialPermalinkSlug,
       content: shareContent || null,
       sharedPostId: id,
       moderationStatus: moderation.status,

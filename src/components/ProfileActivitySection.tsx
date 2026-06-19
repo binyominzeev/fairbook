@@ -132,7 +132,7 @@ function InfiniteCommentActivityList({
               <span>·</span>
               <span>On</span>
               <Link
-                href={`/post/${comment.post.id}`}
+                href={comment.post.permalinkPath}
                 className="font-medium text-blue-600 hover:underline"
               >
                 {comment.post.sharedTitle ?? comment.post.content?.slice(0, 80) ?? "Untitled post"}
@@ -155,7 +155,7 @@ function InfiniteCommentActivityList({
             )}
             <div className="mt-3">
               <Link
-                href={`/post/${comment.post.id}`}
+                href={comment.post.permalinkPath}
                 className="text-xs text-slate-500 hover:text-blue-600"
               >
                 Open discussion →
