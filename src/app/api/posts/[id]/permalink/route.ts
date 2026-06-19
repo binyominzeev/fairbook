@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { ensureUniquePostSlug, slugifyPostText } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,13 @@ export async function PATCH(
   const { id } = await ctx.params;
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true, authorId: true, permalinkSlug: true },
+    select: {
+      id: true,
+      authorId: true,
+      permalinkSlug: true,
+      createdAt: true,
+      author: { select: { id: true, slug: true } },
+    },
   });
 
   if (!post) {
@@ -51,11 +58,22 @@ export async function PATCH(
   const updated = await prisma.post.update({
     where: { id: post.id },
     data: { permalinkSlug: uniqueSlug },
-    select: { id: true, permalinkSlug: true },
+    select: {
+      id: true,
+      permalinkSlug: true,
+      createdAt: true,
+      author: { select: { id: true, slug: true } },
+    },
   });
 
   return Response.json({
     postId: updated.id,
     permalinkSlug: updated.permalinkSlug,
+    permalinkPath: buildPostPermalinkPath({
+      author: updated.author,
+      createdAt: updated.createdAt,
+      slug: updated.permalinkSlug,
+      postId: updated.id,
+    }),
   });
 }

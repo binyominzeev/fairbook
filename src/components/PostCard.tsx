@@ -296,7 +296,11 @@ export default function PostCard({
 
       setPermalinkDraft(String(data.permalinkSlug ?? permalinkDraft));
       setPermalinkMessage("Permalink updated.");
-      router.refresh();
+      if (typeof data.permalinkPath === "string" && data.permalinkPath.length > 0) {
+        router.push(data.permalinkPath);
+      } else {
+        router.refresh();
+      }
     } finally {
       setPermalinkSaving(false);
     }
