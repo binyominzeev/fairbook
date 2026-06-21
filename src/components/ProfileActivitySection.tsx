@@ -18,15 +18,17 @@ function InfinitePostActivityList({
   currentUserId,
   showDelete,
   emptyMessage,
+  initiallyHidden,
 }: {
   resetKey: string;
   profileId: string;
-  activeTab: "posts" | "likes";
+  activeTab: "posts" | "likes" | "hidden";
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
   showDelete: (post: SerializedPost) => boolean;
   emptyMessage: string;
+  initiallyHidden: boolean;
 }) {
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
@@ -64,6 +66,7 @@ function InfinitePostActivityList({
           post={post}
           currentUserId={currentUserId}
           showDelete={showDelete(post)}
+          initiallyHidden={initiallyHidden}
         />
       ))}
 
@@ -218,6 +221,8 @@ export default function ProfileActivitySection({
       showDelete={
         activeTab === "likes"
           ? (post) => post.author.id === currentUserId
+          : activeTab === "hidden"
+            ? () => false
           : () => isOwnProfile
       }
       emptyMessage={
@@ -225,8 +230,11 @@ export default function ProfileActivitySection({
           ? isOwnProfile
             ? "You have not liked any posts yet."
             : "No visible liked posts yet."
+          : activeTab === "hidden"
+            ? "You have not hidden any posts."
           : "No posts yet."
       }
+      initiallyHidden={activeTab === "hidden"}
     />
   );
 }

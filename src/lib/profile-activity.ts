@@ -8,11 +8,12 @@ import {
 } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
 
-export type ProfileActivityTab = "posts" | "likes" | "comments";
+export type ProfileActivityTab = "posts" | "likes" | "comments" | "hidden";
 
 const PROFILE_POST_PAGE_SIZE = 20;
 const PROFILE_LIKES_PAGE_SIZE = 20;
 const PROFILE_COMMENTS_PAGE_SIZE = 30;
+const PROFILE_HIDDEN_PAGE_SIZE = 20;
 
 type PostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
@@ -210,6 +211,43 @@ export async function getProfileCommentsPage({
 
   return {
     comments: items.map((comment: CommentRecord) => serializeProfileComment(comment)),
+    nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+  };
+}
+
+export async function getProfileHiddenPostsPage({
+  viewerId,
+  profileId,
+  isOwnProfile,
+  cursor,
+}: {
+  viewerId: string;
+  profileId: string;
+  isOwnProfile: boolean;
+  cursor?: string | null;
+}): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
+  if (!isOwnProfile) {
+    return { posts: [], nextCursor: null };
+  }
+
+  const batch = await prisma.hiddenPost.findMany({
+    where: { userId: profileId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: PROFILE_HIDDEN_PAGE_SIZE + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    select: {
+      id: true,
+      post: {
+        include: buildPostInclude(viewerId),
+      },
+    },
+  });
+
+  const hasMore = batch.length > PROFILE_HIDDEN_PAGE_SIZE;
+  const items = hasMore ? batch.slice(0, PROFILE_HIDDEN_PAGE_SIZE) : batch;
+
+  return {
+    posts: items.map((hiddenPost) => serializePost(hiddenPost.post as PostRecord)),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

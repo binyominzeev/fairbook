@@ -9,6 +9,7 @@ import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
 import {
   getProfileActivityAccess,
   getProfileCommentsPage,
+  getProfileHiddenPostsPage,
   getProfileLikedPostsPage,
   getProfilePostsPage,
 } from "@/lib/profile-activity";
@@ -25,7 +26,8 @@ export default async function ProfilePage(props: {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const requestedTab = tab === "likes" || tab === "comments" ? tab : "posts";
+  const requestedTab =
+    tab === "likes" || tab === "comments" || tab === "hidden" ? tab : "posts";
   const showSettings = settings === "1";
 
   const currentUser = await prisma.user.findUnique({
@@ -70,12 +72,25 @@ export default async function ProfilePage(props: {
       profileId: profileUser.id,
       isPage: profileUser.isPage,
     });
-  const activeTab = canViewActivity && requestedTab !== "posts" ? requestedTab : "posts";
+  const canUseHiddenTab = isOwnProfile;
+  const activeTab =
+    canViewActivity &&
+    requestedTab !== "posts" &&
+    (requestedTab !== "hidden" || canUseHiddenTab)
+      ? requestedTab
+      : "posts";
 
-  function buildProfileHref(nextTab?: "posts" | "likes" | "comments", nextShowSettings = showSettings) {
+  function buildProfileHref(
+    nextTab?: "posts" | "likes" | "comments" | "hidden",
+    nextShowSettings = showSettings
+  ) {
     const params = new URLSearchParams();
 
-    const resolvedTab = canViewActivity ? nextTab ?? activeTab : "posts";
+    const requestedNextTab = nextTab ?? activeTab;
+    const resolvedTab =
+      canViewActivity && (requestedNextTab !== "hidden" || canUseHiddenTab)
+        ? requestedNextTab
+        : "posts";
 
     if (resolvedTab !== "posts") {
       params.set("tab", resolvedTab);
@@ -97,6 +112,12 @@ export default async function ProfilePage(props: {
           isOwnProfile,
           canViewActivity,
         })
+      : activeTab === "hidden"
+        ? await getProfileHiddenPostsPage({
+            viewerId: session.userId,
+            profileId: profileUser.id,
+            isOwnProfile,
+          })
       : await getProfilePostsPage({
           viewerId: session.userId,
           profileId: profileUser.id,
@@ -250,6 +271,14 @@ export default async function ProfilePage(props: {
               >
                 Comments
               </Link>
+              {isOwnProfile && (
+                <Link
+                  href={buildProfileHref("hidden")}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "hidden" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                >
+                  Hidden
+                </Link>
+              )}
             </div>
 
             {activeTab === "posts" && (
@@ -287,6 +316,22 @@ export default async function ProfilePage(props: {
             {activeTab === "comments" && (
               <>
                 <h2 className="px-1 text-sm font-semibold text-slate-700">Recent comments</h2>
+                <ProfileActivitySection
+                  key={`${activeTab}:${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? initialCommentsPage.comments[0]?.id ?? "empty"}`}
+                  profileId={profileUser.id}
+                  activeTab={activeTab}
+                  initialPosts={initialPostsPage.posts}
+                  initialComments={initialCommentsPage.comments}
+                  initialNextCursor={initialNextCursor}
+                  currentUserId={currentUser.id}
+                  isOwnProfile={isOwnProfile}
+                />
+              </>
+            )}
+
+            {activeTab === "hidden" && isOwnProfile && (
+              <>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">Hidden posts</h2>
                 <ProfileActivitySection
                   key={`${activeTab}:${initialNextCursor ?? "end"}:${initialPostsPage.posts[0]?.id ?? initialCommentsPage.comments[0]?.id ?? "empty"}`}
                   profileId={profileUser.id}

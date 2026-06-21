@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import {
   getProfileActivityAccess,
   getProfileCommentsPage,
+  getProfileHiddenPostsPage,
   getProfileLikedPostsPage,
   getProfilePostsPage,
   type ProfileActivityTab,
@@ -23,7 +24,7 @@ export async function GET(
   const cursor = searchParams.get("cursor");
 
   const activeTab: ProfileActivityTab =
-    tab === "likes" || tab === "comments" ? tab : "posts";
+    tab === "likes" || tab === "comments" || tab === "hidden" ? tab : "posts";
 
   const profileUser = await prisma.user.findUnique({
     where: { id },
@@ -58,6 +59,17 @@ export async function GET(
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       canViewActivity: access.canViewActivity,
+      cursor,
+    });
+
+    return Response.json({ items: page.posts, nextCursor: page.nextCursor });
+  }
+
+  if (activeTab === "hidden") {
+    const page = await getProfileHiddenPostsPage({
+      viewerId: session.userId,
+      profileId: id,
+      isOwnProfile: access.isOwnProfile,
       cursor,
     });
 

@@ -65,6 +65,7 @@ interface Props {
   currentUserId: string;
   showDelete?: boolean;
   showPermalinkEditor?: boolean;
+  initiallyHidden?: boolean;
 }
 
 function renderTextWithLinks(text: string, className: string) {
@@ -99,10 +100,11 @@ export default function PostCard({
   currentUserId,
   showDelete,
   showPermalinkEditor,
+  initiallyHidden = false,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [hidden, setHidden] = useState(initiallyHidden);
   const [now, setNow] = useState(() => Date.now());
   const [liked, setLiked] = useState(post.likedByCurrentUser);
   const [likeCount, setLikeCount] = useState(post._count.likes);
@@ -213,10 +215,8 @@ export default function PostCard({
       }
 
       setHidden(Boolean(data.hidden));
-      if (Boolean(data.hidden)) {
-        router.refresh();
-      }
-    } catch (error) {
+      router.refresh();
+    } catch {
       setActionError("Failed to hide post.");
     }
   };
@@ -828,9 +828,9 @@ export default function PostCard({
           type="button"
           onClick={handleHide}
           className="text-xs text-slate-500 hover:text-red-600 transition-colors"
-          title={hidden ? "Show post" : "Hide post"}
+          title={hidden ? "Unhide post" : "Hide post"}
         >
-          {hidden ? "👁️" : "🚫"} {hidden ? "Show" : "Hide"}
+          {hidden ? "👁️" : "🚫"} {hidden ? "Unhide" : "Hide"}
         </button>
         <Link
           href={post.permalinkPath}
