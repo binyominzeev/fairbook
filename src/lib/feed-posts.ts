@@ -79,11 +79,6 @@ export async function getFeedPage({
   const authorIds = [viewerId, ...following.map((connection) => connection.followingId)];
   const postInclude = buildPostInclude(viewerId);
 
-  // Load user's tag filter preferences
-  const userPrefs = await prisma.user.findUnique({ where: { id: viewerId }, select: { tagFilterMode: true, tagFilterTags: true } });
-  const filterMode = userPrefs?.tagFilterMode ?? null;
-  const filterTagIds: string[] = userPrefs?.tagFilterTags ? JSON.parse(userPrefs.tagFilterTags) : [];
-
   const chunkSize = hideViolentFeed ? 60 : FEED_PAGE_SIZE + 1;
   const collected: FeedPostRecord[] = [];
   let nextDbCursor = cursor ?? null;
@@ -124,16 +119,8 @@ export async function getFeedPage({
   const items = hasMore ? collected.slice(0, FEED_PAGE_SIZE) : collected;
   const orderedItems = cursor ? items : rerankFirstFeedPage(items, viewerId);
 
-  // Apply user tag filtering (whitelist/blacklist) if configured
-  let filteredOrdered = orderedItems;
-  if (filterMode === "whitelist" && filterTagIds.length > 0) {
-    filteredOrdered = orderedItems.filter((p) => p.postTags?.some((pt) => filterTagIds.includes(pt.tag.id)));
-  } else if (filterMode === "blacklist" && filterTagIds.length > 0) {
-    filteredOrdered = orderedItems.filter((p) => !p.postTags?.some((pt) => filterTagIds.includes(pt.tag.id)));
-  }
-
   return {
-    posts: filteredOrdered.map(serializePost),
+    posts: orderedItems.map(serializePost),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

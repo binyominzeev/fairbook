@@ -1,7 +1,7 @@
 import Parser from "rss-parser";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { classifyFeedArticlesByTags, classifyFeedArticlesForViolence } from "@/lib/ai";
+import { classifyFeedArticlesForViolence } from "@/lib/ai";
 import {
   calculatePostScore,
   hashFeedValue,
@@ -284,7 +284,6 @@ export async function importFeedPosts(feedSourceId: string) {
       engagementScore: number;
       lastScoredAt: Date;
     };
-    matchedTagIds?: string[];
   }> = [];
 
   for (const item of items) {
@@ -349,28 +348,6 @@ export async function importFeedPosts(feedSourceId: string) {
     });
   }
 
-  // Load configured tags and classify new article titles in one AI request.
-  const configuredTags = await prisma.tag.findMany();
-  const tagsByName = new Map(configuredTags.map((tag) => [tag.name, tag.id]));
-  const articleTagResults = await classifyFeedArticlesByTags(
-    configuredTags.map((tag) => ({
-      name: tag.name,
-      description: tag.description,
-    })),
-    pendingPosts.map((post) => ({
-      id: post.batchId,
-      title: post.data.sharedTitle,
-    }))
-  );
-  const tagResultsById = new Map(articleTagResults.map((result) => [result.id, result.tags]));
-
-  for (const post of pendingPosts) {
-    const matchedTagNames = tagResultsById.get(post.batchId) ?? [];
-    post.matchedTagIds = matchedTagNames
-      .map((tagName) => tagsByName.get(tagName))
-      .filter((tagId): tagId is string => typeof tagId === "string");
-  }
-
   const violenceResults = await classifyFeedArticlesForViolence(
     pendingPosts.map((post) => ({
       id: post.batchId,
@@ -393,15 +370,6 @@ export async function importFeedPosts(feedSourceId: string) {
         mayContainViolence: violentIds.has(post.batchId),
       },
     });
-    if (post.matchedTagIds && post.matchedTagIds.length > 0) {
-      try {
-        await prisma.postTag.createMany({
-          data: post.matchedTagIds.map((tagId) => ({ postId: created.id, tagId })),
-        });
-      } catch {
-        // ignore tagging errors
-      }
-    }
     importedCount += 1;
   }
 
