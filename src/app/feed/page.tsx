@@ -81,7 +81,7 @@ export default async function FeedPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Following
+                Friends
               </Link>
             </div>
             <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">

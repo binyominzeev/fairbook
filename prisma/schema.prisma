@@ -37,6 +37,7 @@ model User {
   steelmanTargets    SteelmanRequest[]   @relation("target")
   communityMemberships CommunityMember[]
   ownedCommunities   Community[]
+  hiddenPosts        HiddenPost[]
 }
 
 model Post {
@@ -80,6 +81,7 @@ model Post {
   reflections ThreadReflection[]
   steelmanRequests SteelmanRequest[]
   postTags   PostTag[]
+  hiddenBy   HiddenPost[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -251,4 +253,16 @@ model ThreadReflection {
   createdAt            DateTime @default(now())
 
   post Post @relation(fields: [postId], references: [id])
+}
+
+model HiddenPost {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
 }

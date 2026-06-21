@@ -83,10 +83,45 @@ export async function getFeedPage({
     },
     select: { followingId: true },
   });
+  const followingIds = following.map((connection) => connection.followingId);
   const authorIds =
-    viewMode === "following"
-      ? following.map((connection) => connection.followingId)
-      : [viewerId, ...following.map((connection) => connection.followingId)];
+    viewMode === "following" ? followingIds : [viewerId, ...followingIds];
+
+  if (viewMode === "following" && followingIds.length === 0) {
+    return { posts: [], nextCursor: null };
+  }
+
+  const followingWhere: Prisma.PostWhereInput = {
+    AND: [
+      {
+        OR: [
+          {
+            authorId: { in: authorIds },
+            feedSourceId: null,
+            moderationStatus: "visible",
+          },
+          {
+            feedSourceId: { not: null },
+            isFeedVisible: true,
+            moderationStatus: "visible",
+            comments: {
+              some: {
+                authorId: { in: followingIds },
+                moderationStatus: "visible",
+              },
+            },
+          },
+        ],
+      },
+      {
+        hiddenBy: {
+          none: {
+            userId: viewerId,
+          },
+        },
+      },
+    ],
+  };
   const postInclude = buildPostInclude(viewerId);
 
   const chunkSize = hideViolentFeed ? 60 : FEED_PAGE_SIZE + 1;
@@ -96,25 +131,27 @@ export async function getFeedPage({
 
   while (collected.length < FEED_PAGE_SIZE + 1 && !exhausted) {
     const batch = (await prisma.post.findMany({
-      where: {
-        AND: [
-          { authorId: { in: authorIds } },
-          ...(viewMode === "following"
-            ? [{ moderationStatus: "visible" }]
-            : [
+      where:
+        viewMode === "following"
+          ? followingWhere
+          : {
+              AND: [
+                { authorId: { in: authorIds } },
                 {
                   OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],
                 },
-              ]),
-          ...(viewMode === "following"
-            ? [{ feedSourceId: null }]
-            : [
                 {
                   OR: [{ feedSourceId: null }, { isFeedVisible: true }],
                 },
-              ]),
-        ],
-      },
+                {
+                  hiddenBy: {
+                    none: {
+                      userId: viewerId,
+                    },
+                  },
+                },
+              ],
+            },
       orderBy: [{ score: "desc" }, { createdAt: "desc" }],
       include: postInclude,
       take: chunkSize,

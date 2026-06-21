@@ -152,26 +152,56 @@ export async function refreshVisibleFeedPosts() {
     select: { id: true, score: true },
   });
 
-  const visibleIds = importedPosts
+  const rankedVisibleIds = importedPosts
     .filter((post, index) => {
       if (index < MIN_VISIBLE_FEED_POSTS) return true;
       return index < TARGET_VISIBLE_FEED_POSTS && post.score >= MIN_OPTIONAL_FEED_SCORE;
     })
     .map((post) => post.id);
 
-  await prisma.$transaction([
+  const [deleted] = await prisma.$transaction([
+    prisma.post.deleteMany({
+      where: {
+        feedSourceId: { not: null },
+        id: { notIn: rankedVisibleIds.length > 0 ? rankedVisibleIds : ["__none__"] },
+        likes: { none: {} },
+        sharedBy: { none: {} },
+        comments: { none: {} },
+      },
+    }),
     prisma.post.updateMany({
       where: { feedSourceId: { not: null } },
       data: { isFeedVisible: false },
     }),
     prisma.post.updateMany({
-      where: { id: { in: visibleIds } },
+      where: { id: { in: rankedVisibleIds.length > 0 ? rankedVisibleIds : ["__none__"] } },
+      data: { isFeedVisible: true },
+    }),
+    prisma.post.updateMany({
+      where: {
+        feedSourceId: { not: null },
+        OR: [
+          { likes: { some: {} } },
+          { sharedBy: { some: {} } },
+          { comments: { some: { moderationStatus: "visible" } } },
+        ],
+      },
       data: { isFeedVisible: true },
     }),
   ]);
 
+  const [visibleCount, hiddenCount] = await Promise.all([
+    prisma.post.count({
+      where: { feedSourceId: { not: null }, isFeedVisible: true },
+    }),
+    prisma.post.count({
+      where: { feedSourceId: { not: null }, isFeedVisible: false },
+    }),
+  ]);
+
   return {
-    visibleCount: visibleIds.length,
-    hiddenCount: Math.max(0, importedPosts.length - visibleIds.length),
+    visibleCount,
+    hiddenCount,
+    deletedCount: deleted.count,
   };
 }

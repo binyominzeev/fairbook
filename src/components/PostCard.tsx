@@ -102,6 +102,7 @@ export default function PostCard({
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [liked, setLiked] = useState(post.likedByCurrentUser);
   const [likeCount, setLikeCount] = useState(post._count.likes);
@@ -196,6 +197,27 @@ export default function PostCard({
       setLikeCount(Number(data.likeCount ?? likeCount));
     } finally {
       setPendingAction(null);
+    }
+  };
+
+  const handleHide = async () => {
+    setActionError("");
+
+    try {
+      const res = await fetch(`/api/posts/${post.id}/hide`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to hide post.");
+        return;
+      }
+
+      setHidden(Boolean(data.hidden));
+      if (Boolean(data.hidden)) {
+        router.refresh();
+      }
+    } catch (error) {
+      setActionError("Failed to hide post.");
     }
   };
 
@@ -801,6 +823,14 @@ export default function PostCard({
         >
           ↻ {shareCount} share{shareCount !== 1 ? "s" : ""}
           {shared ? "d" : ""}
+        </button>
+        <button
+          type="button"
+          onClick={handleHide}
+          className="text-xs text-slate-500 hover:text-red-600 transition-colors"
+          title={hidden ? "Show post" : "Hide post"}
+        >
+          {hidden ? "👁️" : "🚫"} {hidden ? "Show" : "Hide"}
         </button>
         <Link
           href={post.permalinkPath}
