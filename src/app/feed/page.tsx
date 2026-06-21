@@ -8,11 +8,15 @@ import CreatePostForm from "@/components/CreatePostForm";
 import { getFeedPage } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
+import Link from "next/link";
+
+type FeedMode = "all" | "following";
 
 export default async function FeedPage(props: {
-  searchParams: Promise<{ notice?: string; noticeKind?: string }>;
+  searchParams: Promise<{ notice?: string; noticeKind?: string; mode?: string }>;
 }) {
-  const { notice, noticeKind } = await props.searchParams;
+  const { notice, noticeKind, mode } = await props.searchParams;
+  const activeMode: FeedMode = mode === "following" ? "following" : "all";
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -32,6 +36,14 @@ export default async function FeedPage(props: {
   const initialFeedPage = await getFeedPage({
     viewerId: session.userId,
     hideViolentFeed: user.hideViolentFeed,
+    viewMode: activeMode,
+  });
+
+  const followingPeopleCount = await prisma.connection.count({
+    where: {
+      followerId: session.userId,
+      following: { isPage: false },
+    },
   });
 
   const suggestedUsers = await getSuggestedPeople(session.userId, 5);
@@ -49,13 +61,43 @@ export default async function FeedPage(props: {
             </div>
           )}
 
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
+              <Link
+                href="/feed?mode=all"
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
+                  activeMode === "all"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                All
+              </Link>
+              <Link
+                href="/feed?mode=following"
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
+                  activeMode === "following"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Following
+              </Link>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
+              <p className="text-xs text-slate-400">Following people</p>
+              <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
+            </div>
+          </div>
+
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
+            mode={activeMode}
           />
         </div>
 

@@ -11,17 +11,21 @@ export default function FeedInfiniteList({
   initialPosts,
   initialNextCursor,
   currentUserId,
+  mode,
 }: {
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
+  mode: "all" | "following";
 }) {
   const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
     useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
     loadPage: async (cursor) => {
-      const response = await fetch(`/api/posts?cursor=${encodeURIComponent(cursor)}`);
+      const response = await fetch(
+        `/api/posts?cursor=${encodeURIComponent(cursor)}&mode=${encodeURIComponent(mode)}`
+      );
 
       if (!response.ok) {
         throw new Error("Failed to load feed page.");
@@ -60,8 +64,14 @@ export default function FeedInfiniteList({
     return (
       <div className="text-center py-16 text-slate-400">
         <p className="text-2xl mb-3">👋</p>
-        <p className="font-medium text-slate-600">Your feed is empty.</p>
-        <p className="text-sm mt-1">Follow people or pages to see posts here.</p>
+        <p className="font-medium text-slate-600">
+          {mode === "following" ? "Your Following feed is empty." : "Your feed is empty."}
+        </p>
+        <p className="text-sm mt-1">
+          {mode === "following"
+            ? "Follow people to see their posts here."
+            : "Follow people or pages to see posts here."}
+        </p>
       </div>
     );
   }

@@ -13,6 +13,8 @@ const OWN_POST_PENALTY = 18;
 const REPEATED_AUTHOR_PENALTY = 6;
 const RERANK_JITTER_RANGE = 8;
 
+export type FeedViewMode = "all" | "following";
+
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
 }>;
@@ -67,16 +69,24 @@ export async function getFeedPage({
   viewerId,
   hideViolentFeed,
   cursor,
+  viewMode = "all",
 }: {
   viewerId: string;
   hideViolentFeed: boolean;
   cursor?: string | null;
+  viewMode?: FeedViewMode;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const following = await prisma.connection.findMany({
-    where: { followerId: viewerId },
+    where: {
+      followerId: viewerId,
+      ...(viewMode === "following" ? { following: { isPage: false } } : {}),
+    },
     select: { followingId: true },
   });
-  const authorIds = [viewerId, ...following.map((connection) => connection.followingId)];
+  const authorIds =
+    viewMode === "following"
+      ? following.map((connection) => connection.followingId)
+      : [viewerId, ...following.map((connection) => connection.followingId)];
   const postInclude = buildPostInclude(viewerId);
 
   const chunkSize = hideViolentFeed ? 60 : FEED_PAGE_SIZE + 1;
@@ -89,12 +99,20 @@ export async function getFeedPage({
       where: {
         AND: [
           { authorId: { in: authorIds } },
-          {
-            OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],
-          },
-          {
-            OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-          },
+          ...(viewMode === "following"
+            ? [{ moderationStatus: "visible" }]
+            : [
+                {
+                  OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],
+                },
+              ]),
+          ...(viewMode === "following"
+            ? [{ feedSourceId: null }]
+            : [
+                {
+                  OR: [{ feedSourceId: null }, { isFeedVisible: true }],
+                },
+              ]),
         ],
       },
       orderBy: [{ score: "desc" }, { createdAt: "desc" }],

@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const cursor = searchParams.get("cursor");
+  const mode = searchParams.get("mode");
+  const viewMode = mode === "following" ? "following" : "all";
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
     viewerId: session.userId,
     hideViolentFeed: user.hideViolentFeed,
     cursor,
+    viewMode,
   });
 
   return Response.json(page);
