@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import PostCard from "@/components/PostCard";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import type { SerializedPost } from "@/lib/post-presentation";
+
+const NEW_VISIBLE_POST_EVENT = "fairbook:new-visible-post";
 
 export default function FeedInfiniteList({
   initialPosts,
@@ -13,7 +16,8 @@ export default function FeedInfiniteList({
   initialNextCursor: string | null;
   currentUserId: string;
 }) {
-  const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
+  const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
+    useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
     loadPage: async (cursor) => {
@@ -33,7 +37,24 @@ export default function FeedInfiniteList({
         nextCursor: data.nextCursor,
       };
     },
-  });
+    });
+
+  useEffect(() => {
+    const handleNewPost = (event: Event) => {
+      const customEvent = event as CustomEvent<SerializedPost>;
+      const post = customEvent.detail;
+      if (!post?.id) {
+        return;
+      }
+
+      prependItem(post, (candidate) => candidate.id === post.id);
+    };
+
+    window.addEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
+    return () => {
+      window.removeEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
+    };
+  }, [prependItem]);
 
   if (items.length === 0) {
     return (

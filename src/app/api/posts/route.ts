@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { getFeedPage } from "@/lib/feed-posts";
+import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
@@ -142,35 +143,12 @@ export async function POST(request: NextRequest) {
       ...nextScore,
       lastScoredAt: createdAt,
     },
-    include: {
-      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-      sharedPost: {
-        select: {
-          id: true,
-          content: true,
-          sharedUrl: true,
-          sharedTitle: true,
-          sharedDescription: true,
-          sharedSource: true,
-          sharedImageUrl: true,
-          imageUrls: true,
-          createdAt: true,
-          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-        },
-      },
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-      sharedBy: {
-        where: { authorId: session.userId },
-        select: { id: true },
-        take: 1,
-      },
-      _count: { select: { comments: true, likes: true, sharedBy: true } },
-    },
+    include: buildPostInclude(session.userId),
   });
 
   return Response.json(
     {
-      post,
+      post: serializePost(post),
       moderation,
       message: buildModerationMessage(moderation),
     },

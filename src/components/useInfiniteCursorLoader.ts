@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CursorPage<T> {
   items: T[];
@@ -64,8 +64,21 @@ export function useInfiniteCursorLoader<T>({
     return () => observer.disconnect();
   }, [nextCursor, items.length]);
 
+  const prependItem = useCallback(
+    (item: T, isSame?: (candidate: T) => boolean) => {
+      setItems((currentItems) => {
+        const deduped = isSame
+          ? currentItems.filter((candidate) => !isSame(candidate))
+          : currentItems;
+        return [item, ...deduped];
+      });
+    },
+    []
+  );
+
   return {
     items,
+    prependItem,
     hasMore: nextCursor !== null,
     isLoading,
     error,
