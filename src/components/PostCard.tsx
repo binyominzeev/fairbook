@@ -1,8 +1,9 @@
 "use client";
 
 import Avatar from "@/components/Avatar";
+import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import { buildProfilePath } from "@/lib/profile-path";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -119,12 +120,31 @@ export default function PostCard({
   const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
   const [lastShareTestResult, setLastShareTestResult] = useState<ShareTestResult | null>(null);
   const [actionError, setActionError] = useState("");
+  const [actionNotice, setActionNotice] = useState<{
+    kind: "success" | "warning" | "error";
+    message: string;
+  } | null>(null);
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const [permalinkDraft, setPermalinkDraft] = useState(post.permalinkSlug ?? "");
   const [permalinkSaving, setPermalinkSaving] = useState(false);
   const [permalinkMessage, setPermalinkMessage] = useState<string | null>(null);
+  const [editComposerOpen, setEditComposerOpen] = useState(false);
+  const [editContent, setEditContent] = useState(post.content ?? "");
+  const [editSharedUrl, setEditSharedUrl] = useState(post.sharedUrl ?? "");
+  const [editSharedTitle, setEditSharedTitle] = useState(post.sharedTitle ?? "");
+  const [editSharedDescription, setEditSharedDescription] = useState(post.sharedDescription ?? "");
+  const [editSharedSource, setEditSharedSource] = useState(post.sharedSource ?? "");
+  const [editShowLinkFields, setEditShowLinkFields] = useState(
+    Boolean(post.sharedUrl || post.sharedTitle || post.sharedDescription || post.sharedSource)
+  );
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editTesting, setEditTesting] = useState(false);
+  const [lastEditTestKey, setLastEditTestKey] = useState<string | null>(null);
+  const [lastEditTestResult, setLastEditTestResult] = useState<ShareTestResult | null>(null);
+  const menuRef = useRef<HTMLDetailsElement | null>(null);
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
+  const canEditPost = post.author.id === currentUserId;
   const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
 
   useEffect(() => {
@@ -188,6 +208,7 @@ export default function PostCard({
   const handleLike = async () => {
     setPendingAction("like");
     setActionError("");
+    setActionNotice(null);
 
     try {
       const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
@@ -207,6 +228,7 @@ export default function PostCard({
 
   const handleHide = async () => {
     setActionError("");
+    setActionNotice(null);
 
     try {
       const res = await fetch(`/api/posts/${post.id}/hide`, { method: "POST" });
@@ -227,6 +249,7 @@ export default function PostCard({
   const handleBookmark = async () => {
     setPendingAction("bookmark");
     setActionError("");
+    setActionNotice(null);
 
     try {
       const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
@@ -248,6 +271,7 @@ export default function PostCard({
   const handleShareSubmit = async () => {
     setPendingAction("share");
     setActionError("");
+    setActionNotice(null);
 
     try {
       const body: Record<string, unknown> = { content: shareContent };
@@ -293,6 +317,7 @@ export default function PostCard({
 
     setShareTesting(true);
     setActionError("");
+    setActionNotice(null);
 
     try {
       const res = await fetch("/api/posts/test", {
@@ -354,6 +379,203 @@ export default function PostCard({
 
   const openLightbox = (urls: string[], index: number) => {
     setLightbox({ urls, index });
+  };
+
+  const buildEditTestKey = (input: {
+    content: string;
+    sharedUrl: string;
+    sharedTitle: string;
+    sharedDescription: string;
+    sharedSource: string;
+  }) => {
+    return [
+      input.content,
+      input.sharedUrl,
+      input.sharedTitle,
+      input.sharedDescription,
+      input.sharedSource,
+    ].join("||");
+  };
+
+  const openEditComposer = () => {
+    setEditContent(post.content ?? "");
+    setEditSharedUrl(post.sharedUrl ?? "");
+    setEditSharedTitle(post.sharedTitle ?? "");
+    setEditSharedDescription(post.sharedDescription ?? "");
+    setEditSharedSource(post.sharedSource ?? "");
+    setEditShowLinkFields(
+      Boolean(post.sharedUrl || post.sharedTitle || post.sharedDescription || post.sharedSource)
+    );
+    setLastEditTestKey(null);
+    setLastEditTestResult(null);
+    setActionError("");
+    setActionNotice(null);
+    setEditComposerOpen(true);
+    menuRef.current?.removeAttribute("open");
+  };
+
+  const handleEditTest = async () => {
+    const normalizedContent = editContent.trim();
+    const normalizedSharedUrl = editSharedUrl.trim();
+    const normalizedSharedTitle = editSharedTitle.trim();
+    const normalizedSharedDescription = editSharedDescription.trim();
+    const normalizedSharedSource = editSharedSource.trim();
+
+    if (!normalizedContent && !normalizedSharedUrl) return;
+
+    setEditTesting(true);
+    setActionError("");
+    setActionNotice(null);
+
+    const combinedSharedContent = [
+      normalizedSharedTitle,
+      normalizedSharedDescription,
+      normalizedSharedSource,
+      normalizedSharedUrl,
+      post.sharedPost?.content,
+      post.sharedPost?.sharedTitle,
+      post.sharedPost?.sharedDescription,
+      post.sharedPost?.sharedSource,
+      post.sharedPost?.sharedUrl,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      const response = await fetch("/api/posts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: normalizedContent || null,
+          sharedUrl: normalizedSharedUrl || null,
+          sharedTitle: normalizedSharedTitle || null,
+          sharedDescription: normalizedSharedDescription || null,
+          sharedSource: normalizedSharedSource || null,
+          sharedContent: combinedSharedContent || null,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Test failed.",
+        });
+        return;
+      }
+
+      const key = buildEditTestKey({
+        content: normalizedContent,
+        sharedUrl: normalizedSharedUrl,
+        sharedTitle: normalizedSharedTitle,
+        sharedDescription: normalizedSharedDescription,
+        sharedSource: normalizedSharedSource,
+      });
+      setLastEditTestKey(key);
+      setLastEditTestResult(data);
+      setActionNotice({
+        kind: data.moderation?.status === "author_only" ? "warning" : "success",
+        message: data.moderation?.explanation ?? "Test completed.",
+      });
+    } finally {
+      setEditTesting(false);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    const normalizedContent = editContent.trim();
+    const normalizedSharedUrl = editSharedUrl.trim();
+    const normalizedSharedTitle = editSharedTitle.trim();
+    const normalizedSharedDescription = editSharedDescription.trim();
+    const normalizedSharedSource = editSharedSource.trim();
+
+    const hasLinkFields =
+      normalizedSharedUrl || normalizedSharedTitle || normalizedSharedDescription || normalizedSharedSource;
+    const hasStaticContent = (post.imageUrls?.length ?? 0) > 0 || Boolean(post.sharedPost);
+
+    if (!normalizedContent && !normalizedSharedUrl && !hasStaticContent) {
+      setActionNotice({
+        kind: "error",
+        message: "Post must have content, images, or a shared URL.",
+      });
+      return;
+    }
+
+    const contentUnchanged = normalizedContent === (post.content ?? "").trim();
+    const sharedUrlUnchanged = normalizedSharedUrl === (post.sharedUrl ?? "").trim();
+    const sharedTitleUnchanged = normalizedSharedTitle === (post.sharedTitle ?? "").trim();
+    const sharedDescriptionUnchanged =
+      normalizedSharedDescription === (post.sharedDescription ?? "").trim();
+    const sharedSourceUnchanged = normalizedSharedSource === (post.sharedSource ?? "").trim();
+
+    if (
+      contentUnchanged &&
+      sharedUrlUnchanged &&
+      sharedTitleUnchanged &&
+      sharedDescriptionUnchanged &&
+      sharedSourceUnchanged
+    ) {
+      setEditComposerOpen(false);
+      return;
+    }
+
+    setSavingEdit(true);
+    setActionError("");
+    setActionNotice(null);
+
+    try {
+      const body: Record<string, unknown> = {
+        content: normalizedContent || null,
+        sharedUrl: normalizedSharedUrl || null,
+        sharedTitle: hasLinkFields ? normalizedSharedTitle || null : null,
+        sharedDescription: hasLinkFields ? normalizedSharedDescription || null : null,
+        sharedSource: hasLinkFields ? normalizedSharedSource || null : null,
+      };
+
+      const key = buildEditTestKey({
+        content: normalizedContent,
+        sharedUrl: normalizedSharedUrl,
+        sharedTitle: hasLinkFields ? normalizedSharedTitle : "",
+        sharedDescription: hasLinkFields ? normalizedSharedDescription : "",
+        sharedSource: hasLinkFields ? normalizedSharedSource : "",
+      });
+
+      if (lastEditTestKey === key && lastEditTestResult) {
+        body.preModeration = {
+          content: lastEditTestKey,
+          moderation: lastEditTestResult.moderation,
+        };
+      }
+
+      const response = await fetch(`/api/posts/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Failed to update post.",
+        });
+        return;
+      }
+
+      setActionNotice({
+        kind: data.moderation?.status === "author_only" ? "warning" : "success",
+        message: data.message ?? "Post updated.",
+      });
+      setEditComposerOpen(false);
+      setEditContent(data.post?.content ?? normalizedContent);
+      setEditSharedUrl(data.post?.sharedUrl ?? normalizedSharedUrl);
+      setEditSharedTitle(data.post?.sharedTitle ?? normalizedSharedTitle);
+      setEditSharedDescription(data.post?.sharedDescription ?? normalizedSharedDescription);
+      setEditSharedSource(data.post?.sharedSource ?? normalizedSharedSource);
+      router.refresh();
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const shiftLightbox = (direction: -1 | 1) => {
@@ -646,6 +868,169 @@ export default function PostCard({
         </div>
       )}
 
+      {editComposerOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-8 sm:items-center">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Edit post</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Saving runs moderation again and republishes if the update passes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingEdit) {
+                    setEditComposerOpen(false);
+                  }
+                }}
+                className="text-sm text-slate-400 transition-colors hover:text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <AutoResizeTextarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Say something..."
+                minRows={4}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Attached link</p>
+                    <p className="text-xs text-slate-500">
+                      Update or remove the external link metadata used during moderation.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditShowLinkFields((value) => !value);
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    {editShowLinkFields ? "Hide link fields" : "Edit link fields"}
+                  </button>
+                </div>
+
+                {editShowLinkFields && (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      value={editSharedUrl}
+                      onChange={(e) => setEditSharedUrl(e.target.value)}
+                      placeholder="https://example.com/article"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      value={editSharedTitle}
+                      onChange={(e) => setEditSharedTitle(e.target.value)}
+                      placeholder="Link title"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      value={editSharedSource}
+                      onChange={(e) => setEditSharedSource(e.target.value)}
+                      placeholder="Source"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <textarea
+                      value={editSharedDescription}
+                      onChange={(e) => setEditSharedDescription(e.target.value)}
+                      placeholder="Link description"
+                      rows={3}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <p>Test moderation before saving this update.</p>
+                <button
+                  type="button"
+                  onClick={handleEditTest}
+                  disabled={editTesting || (!editContent.trim() && !editSharedUrl.trim())}
+                  className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:border-amber-100 disabled:text-amber-300"
+                >
+                  {editTesting ? "Testing…" : "Test"}
+                </button>
+              </div>
+
+              {lastEditTestResult?.moderation?.explanation &&
+                lastEditTestKey ===
+                  buildEditTestKey({
+                    content: editContent.trim(),
+                    sharedUrl: editSharedUrl.trim(),
+                    sharedTitle: editShowLinkFields ? editSharedTitle.trim() : "",
+                    sharedDescription: editShowLinkFields ? editSharedDescription.trim() : "",
+                    sharedSource: editShowLinkFields ? editSharedSource.trim() : "",
+                  }) && (
+                  <p
+                    className={`text-xs ${
+                      lastEditTestResult.moderation.status === "author_only"
+                        ? "text-amber-700"
+                        : "text-emerald-700"
+                    }`}
+                  >
+                    {lastEditTestResult.moderation.explanation}
+                  </p>
+                )}
+
+              {(post.imageUrls?.length ?? 0) > 0 && (
+                <p className="text-xs text-slate-500">
+                  Existing images stay attached during editing.
+                </p>
+              )}
+
+              {post.sharedPost && (
+                <p className="text-xs text-slate-500">
+                  The shared post stays attached; only your own note can be changed here.
+                </p>
+              )}
+
+              {actionNotice && (
+                <p
+                  className={`text-xs ${
+                    actionNotice.kind === "error"
+                      ? "text-red-600"
+                      : actionNotice.kind === "warning"
+                        ? "text-amber-700"
+                        : "text-emerald-700"
+                  }`}
+                >
+                  {actionNotice.message}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setEditComposerOpen(false)}
+                disabled={savingEdit || editTesting}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:border-slate-100 disabled:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEditSubmit}
+                disabled={savingEdit || editTesting}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {savingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
         {/* Author row */}
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -670,11 +1055,20 @@ export default function PostCard({
               </div>
             </div>
           </div>
-          <details className="relative">
+          <details ref={menuRef} className="relative">
             <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
               More ▾
             </summary>
             <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+              {canEditPost && (
+                <button
+                  type="button"
+                  onClick={openEditComposer}
+                  className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Edit
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleHide}
@@ -705,6 +1099,20 @@ export default function PostCard({
         {post.content && renderTextWithLinks(post.content, "mb-3 whitespace-pre-wrap text-sm text-slate-800")}
 
         {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
+
+        {actionNotice && !editComposerOpen && (
+          <p
+            className={`mb-3 text-xs ${
+              actionNotice.kind === "error"
+                ? "text-red-600"
+                : actionNotice.kind === "warning"
+                  ? "text-amber-700"
+                  : "text-emerald-700"
+            }`}
+          >
+            {actionNotice.message}
+          </p>
+        )}
 
         {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
           <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
