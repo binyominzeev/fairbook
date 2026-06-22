@@ -7,6 +7,7 @@ type SuggestedPersonRow = {
   avatarUrl: string | null;
   bio: string | null;
   createdAt: Date;
+  followsViewer: boolean;
   _count: {
     followers: number;
     following: number;
@@ -19,9 +20,13 @@ export type SuggestedPerson = {
   name: string;
   avatarUrl: string | null;
   bio: string | null;
+  followsViewer: boolean;
 };
 
 function compareSuggestedPeople(a: SuggestedPersonRow, b: SuggestedPersonRow) {
+  const followsViewerDiff = Number(b.followsViewer) - Number(a.followsViewer);
+  if (followsViewerDiff !== 0) return followsViewerDiff;
+
   const avatarDiff = Number(Boolean(b.avatarUrl)) - Number(Boolean(a.avatarUrl));
   if (avatarDiff !== 0) return avatarDiff;
 
@@ -49,9 +54,17 @@ export async function getSuggestedPeople(viewerId: string, limit?: number) {
   });
 
   const excludedIds = new Set([viewerId]);
+  const followerIds = new Set<string>();
 
   for (const row of connectionRows) {
-    excludedIds.add(row.followerId === viewerId ? row.followingId : row.followerId);
+    if (row.followerId === viewerId) {
+      excludedIds.add(row.followingId);
+      continue;
+    }
+
+    if (row.followingId === viewerId) {
+      followerIds.add(row.followerId);
+    }
   }
 
   const people = await prisma.user.findMany({
@@ -75,14 +88,20 @@ export async function getSuggestedPeople(viewerId: string, limit?: number) {
     },
   });
 
-  const sortedPeople = people.sort(compareSuggestedPeople);
+  const sortedPeople = people
+    .map((person) => ({
+      ...person,
+      followsViewer: followerIds.has(person.id),
+    }))
+    .sort(compareSuggestedPeople);
   const limitedPeople = typeof limit === "number" ? sortedPeople.slice(0, limit) : sortedPeople;
 
-  return limitedPeople.map(({ id, slug, name, avatarUrl, bio }) => ({
+  return limitedPeople.map(({ id, slug, name, avatarUrl, bio, followsViewer }) => ({
     id,
     slug,
     name,
     avatarUrl,
     bio,
+    followsViewer,
   }));
 }

@@ -105,15 +105,19 @@ export default async function ConnectionsPage(props: {
             </p>
           </div>
 
-          {suggestedPeople.length > 0 && (
-            <div className="space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-700">Kit ismerhetek?</h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Azok a regisztrált felhasználók, akikkel még nem állsz kapcsolatban.
-                </p>
-              </div>
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700">Kit ismerhetek?</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Regisztrált felhasználók, akiket még nem követsz.
+              </p>
+            </div>
 
+            {suggestedPeople.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                Jelenleg nincs új javaslat. Próbáld meg a keresőt név vagy email alapján.
+              </p>
+            ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {suggestedPeople.map((person) => (
                   <Link
@@ -131,11 +135,16 @@ export default async function ConnectionsPage(props: {
                     <p className="mt-3 line-clamp-2 text-sm font-medium text-slate-900 group-hover:text-blue-700">
                       {person.name}
                     </p>
+                    {person.followsViewer && (
+                      <p className="mt-1 text-[11px] font-medium text-emerald-700">
+                        Követ téged
+                      </p>
+                    )}
                   </Link>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <form action="/connections" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
