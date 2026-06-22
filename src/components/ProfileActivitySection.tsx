@@ -22,7 +22,7 @@ function InfinitePostActivityList({
 }: {
   resetKey: string;
   profileId: string;
-  activeTab: "posts" | "likes" | "hidden";
+  activeTab: "posts" | "likes" | "bookmarks" | "hidden";
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
@@ -221,6 +221,8 @@ export default function ProfileActivitySection({
       showDelete={
         activeTab === "likes"
           ? (post) => post.author.id === currentUserId
+          : activeTab === "bookmarks"
+            ? () => false
           : activeTab === "hidden"
             ? () => false
           : () => isOwnProfile
@@ -230,6 +232,8 @@ export default function ProfileActivitySection({
           ? isOwnProfile
             ? "You have not liked any posts yet."
             : "No visible liked posts yet."
+          : activeTab === "bookmarks"
+            ? "You have not bookmarked any posts yet."
           : activeTab === "hidden"
             ? "You have not hidden any posts."
           : "No posts yet."

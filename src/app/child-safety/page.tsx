@@ -38,8 +38,16 @@ export default async function ChildSafetyPage() {
               Child Safety / Gyermekbiztonság
             </p>
             <p className="text-base leading-7 text-slate-600">
-              This page contains the platform's Child Safety policy.
+              This page contains the platform&apos;s Child Safety policy.
             </p>
+            <div>
+              <Link
+                href="/child-safety/report"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Report child safety concern
+              </Link>
+            </div>
           </div>
 
           <hr className="my-8 border-slate-200" />

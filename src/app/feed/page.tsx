@@ -5,6 +5,8 @@ import Avatar from "@/components/Avatar";
 import FeedInfiniteList from "@/components/FeedInfiniteList";
 import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
+import AdminChildSafetyInbox from "@/components/AdminChildSafetyInbox";
+import { isAdminEmail } from "@/lib/admin";
 import { getFeedPage } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
@@ -47,6 +49,21 @@ export default async function FeedPage(props: {
   });
 
   const suggestedUsers = await getSuggestedPeople(session.userId, 5);
+  const adminOpenChildSafetyReports = isAdminEmail(user.email)
+    ? await prisma.childSafetyReport.findMany({
+        where: { status: "open" },
+        orderBy: [{ createdAt: "desc" }],
+        take: 10,
+        select: {
+          id: true,
+          reason: true,
+          details: true,
+          targetUrl: true,
+          postId: true,
+          createdAt: true,
+        },
+      })
+    : [];
 
   return (
     <>
@@ -89,6 +106,15 @@ export default async function FeedPage(props: {
               <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
             </div>
           </div>
+
+          {isAdminEmail(user.email) && (
+            <AdminChildSafetyInbox
+              initialReports={adminOpenChildSafetyReports.map((report) => ({
+                ...report,
+                createdAt: report.createdAt.toISOString(),
+              }))}
+            />
+          )}
 
           <CreatePostForm />
 

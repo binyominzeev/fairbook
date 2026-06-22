@@ -40,6 +40,7 @@ export interface SerializedPost {
   createdAt: string;
   author: SerializedAuthor;
   likedByCurrentUser: boolean;
+  bookmarkedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
   sharedPost: SerializedSharedPost | null;
   _count: { comments: number; likes: number; sharedBy: number };
@@ -83,6 +84,7 @@ export const buildPostInclude = (viewerId: string) =>
     },
     postTags: { include: { tag: true } },
     likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
+    bookmarkedBy: { where: { userId: viewerId }, select: { id: true }, take: 1 },
     sharedBy: {
       where: { authorId: viewerId },
       select: { id: true },
@@ -108,6 +110,7 @@ type PostForPresentation = {
   createdAt: Date;
   author: SerializedAuthor;
   likes: { id: string }[];
+  bookmarkedBy: { id: string }[];
   sharedBy: { id: string }[];
   sharedPost: {
     id: string;
@@ -167,6 +170,7 @@ export function serializePost(post: PostForPresentation): SerializedPost {
     imageUrls: parseImageUrls(post.imageUrls),
     createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
+    bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     sharedPost: post.sharedPost
       ? {

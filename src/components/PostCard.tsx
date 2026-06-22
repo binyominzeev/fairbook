@@ -55,6 +55,7 @@ interface PostData {
   createdAt: string;
   author: Author;
   likedByCurrentUser: boolean;
+  bookmarkedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
   _count: { comments: number; likes: number; sharedBy: number };
   tags?: { id: string; name: string; color: string }[];
@@ -107,12 +108,13 @@ export default function PostCard({
   const [hidden, setHidden] = useState(initiallyHidden);
   const [now, setNow] = useState(() => Date.now());
   const [liked, setLiked] = useState(post.likedByCurrentUser);
+  const [bookmarked, setBookmarked] = useState(post.bookmarkedByCurrentUser);
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [shared, setShared] = useState(post.sharedByCurrentUser);
   const [shareCount, setShareCount] = useState(post._count.sharedBy);
   const [shareContent, setShareContent] = useState("");
   const [shareComposerOpen, setShareComposerOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"like" | "share" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"like" | "bookmark" | "share" | null>(null);
   const [shareTesting, setShareTesting] = useState(false);
   const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
   const [lastShareTestResult, setLastShareTestResult] = useState<ShareTestResult | null>(null);
@@ -123,6 +125,7 @@ export default function PostCard({
   const [permalinkMessage, setPermalinkMessage] = useState<string | null>(null);
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
+  const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -218,6 +221,27 @@ export default function PostCard({
       router.refresh();
     } catch {
       setActionError("Failed to hide post.");
+    }
+  };
+
+  const handleBookmark = async () => {
+    setPendingAction("bookmark");
+    setActionError("");
+
+    try {
+      const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to update bookmark.");
+        return;
+      }
+
+      setBookmarked(Boolean(data.bookmarked));
+    } catch {
+      setActionError("Failed to update bookmark.");
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -646,14 +670,35 @@ export default function PostCard({
               </div>
             </div>
           </div>
-          {showDelete && post.author.id === currentUserId && (
-            <button
-              onClick={handleDelete}
-              className="shrink-0 text-xs text-slate-400 hover:text-red-500 transition-colors"
-            >
-              Delete
-            </button>
-          )}
+          <details className="relative">
+            <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
+              More ▾
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button
+                type="button"
+                onClick={handleHide}
+                className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {hidden ? "Unhide post" : "Hide post"}
+              </button>
+              <Link
+                href={reportHref}
+                className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Report child safety concern
+              </Link>
+              {showDelete && post.author.id === currentUserId && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </details>
         </div>
 
         {/* Post body */}
@@ -826,11 +871,11 @@ export default function PostCard({
         </button>
         <button
           type="button"
-          onClick={handleHide}
-          className="text-xs text-slate-500 hover:text-red-600 transition-colors"
-          title={hidden ? "Unhide post" : "Hide post"}
+          onClick={handleBookmark}
+          disabled={pendingAction !== null}
+          className={`text-xs transition-colors ${bookmarked ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
         >
-          {hidden ? "👁️" : "🚫"} {hidden ? "Unhide" : "Hide"}
+          {bookmarked ? "★" : "☆"} {bookmarked ? "Bookmarked" : "Bookmark"}
         </button>
         <Link
           href={post.permalinkPath}

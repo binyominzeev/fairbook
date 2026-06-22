@@ -38,6 +38,8 @@ model User {
   communityMemberships CommunityMember[]
   ownedCommunities   Community[]
   hiddenPosts        HiddenPost[]
+  bookmarkedPosts    BookmarkedPost[]
+  childSafetyReports ChildSafetyReport[] @relation("ChildSafetyReporter")
 }
 
 model Post {
@@ -82,6 +84,8 @@ model Post {
   steelmanRequests SteelmanRequest[]
   postTags   PostTag[]
   hiddenBy   HiddenPost[]
+  bookmarkedBy BookmarkedPost[]
+  childSafetyReports ChildSafetyReport[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -265,4 +269,33 @@ model HiddenPost {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
+}
+
+model BookmarkedPost {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model ChildSafetyReport {
+  id              String   @id @default(cuid())
+  reporterId      String?
+  postId          String?
+  targetUrl       String?
+  reason          String
+  details         String
+  status          String   @default("open") // open | reviewing | escalated | closed
+  createdAt       DateTime @default(now())
+  reviewedAt      DateTime?
+
+  reporter User? @relation("ChildSafetyReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  post     Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
 }

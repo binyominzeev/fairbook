@@ -44,6 +44,11 @@ export default async function PostPage(props: {
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      bookmarkedBy: {
+        where: { userId: session.userId },
+        select: { id: true },
+        take: 1,
+      },
       sharedBy: {
         where: { authorId: session.userId },
         select: { id: true },
@@ -169,6 +174,7 @@ export default async function PostPage(props: {
     feedSourceId: post.feedSourceId,
     createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
+    bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     sharedPost: post.sharedPost
       ? {

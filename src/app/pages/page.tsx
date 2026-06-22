@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminFeedManager from "@/components/AdminFeedManager";
+import AdminChildSafetyArchive from "@/components/AdminChildSafetyArchive";
 import AdminTagsManager from "@/components/AdminTagsManager";
 import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
@@ -92,6 +93,24 @@ export default async function PagesPage(props: {
             select: { id: true, slug: true, name: true, bio: true },
           },
           _count: { select: { posts: true } },
+        },
+      })
+    : [];
+
+  const adminHandledChildSafetyReports = isAdminEmail(user.email)
+    ? await prisma.childSafetyReport.findMany({
+        where: { status: { not: "open" } },
+        orderBy: [{ createdAt: "desc" }],
+        take: 50,
+        select: {
+          id: true,
+          reason: true,
+          details: true,
+          targetUrl: true,
+          postId: true,
+          status: true,
+          createdAt: true,
+          reviewedAt: true,
         },
       })
     : [];
@@ -231,6 +250,13 @@ export default async function PagesPage(props: {
               }))}
             />
             <AdminTagsManager />
+            <AdminChildSafetyArchive
+              initialReports={adminHandledChildSafetyReports.map((report) => ({
+                ...report,
+                createdAt: report.createdAt.toISOString(),
+                reviewedAt: report.reviewedAt?.toISOString() ?? null,
+              }))}
+            />
           </>
         )}
       </div>
