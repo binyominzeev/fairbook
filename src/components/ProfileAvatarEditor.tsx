@@ -2,6 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import { buildProfilePath } from "@/lib/profile-path";
 
@@ -241,6 +242,20 @@ export default function ProfileAvatarEditor({
           {fileError && <p className="text-xs text-red-600">{fileError}</p>}
           {saveError && <p className="text-xs text-red-600">{saveError}</p>}
           {saveSuccess && <p className="text-xs text-emerald-600">{saveSuccess}</p>}
+        </div>
+
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <h3 className="text-sm font-semibold text-red-900">Profil törlése</h3>
+          <p className="mt-1 text-xs leading-5 text-red-700">
+            A profil törlése végleges. A művelet minden felhasználói adatot eltávolít,
+            és nem vonható vissza.
+          </p>
+          <Link
+            href="/profile/remove"
+            className="mt-3 inline-flex rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:border-red-400 hover:bg-red-100"
+          >
+            Profil törlése
+          </Link>
         </div>
       </div>
     </section>

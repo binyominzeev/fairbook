@@ -141,7 +141,7 @@ export default async function AboutPage() {
                 A Platform tárhelyszolgáltatója az Infotipp Rendszerház Kft. (székhely: 1212 Budapest, Maros u. 32.) amely az adatok tárolásához szükséges infrastruktúrát biztosítja.
               </p>
               <p>
-                A felhasználók adatait a fiók törléséig megőrizzük. A fiók törlését követően a személyes adatokat indokolatlan késedelem nélkül töröljük vagy anonimizáljuk. A biztonsági mentésekben szereplő adatok legfeljebb 60 napig maradhatnak meg, ezt követően automatikusan felülíródnak, kivéve, ha jogszabály hosszabb megőrzést ír elő.
+                A felhasználók adatait a <a href="/profile/remove">fiók törléséig</a> megőrizzük. A fiók törlését követően a személyes adatokat indokolatlan késedelem nélkül töröljük vagy anonimizáljuk. A biztonsági mentésekben szereplő adatok legfeljebb 60 napig maradhatnak meg, ezt követően automatikusan felülíródnak, kivéve, ha jogszabály hosszabb megőrzést ír elő.
               </p>
             </section>
 
