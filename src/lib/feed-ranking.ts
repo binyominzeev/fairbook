@@ -165,6 +165,7 @@ export async function refreshVisibleFeedPosts() {
         feedSourceId: { not: null },
         id: { notIn: rankedVisibleIds.length > 0 ? rankedVisibleIds : ["__none__"] },
         likes: { none: {} },
+        bookmarkedBy: { none: {} },
         sharedBy: { none: {} },
         comments: { none: {} },
       },
