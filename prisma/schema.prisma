@@ -24,6 +24,8 @@ model User {
   tagFilterMode String?
   // JSON array (string) of tag ids the user selected for filtering
   tagFilterTags String?
+  // Profile activity view mode: "normal" | "reels"
+  profileActivityViewMode String @default("normal")
 
   managedBy          User?               @relation("ManagedPages", fields: [managedById], references: [id])
   managedPages       User[]              @relation("ManagedPages")

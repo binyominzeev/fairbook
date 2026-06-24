@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import HighlightedText from "@/components/HighlightedText";
 import PostCard from "@/components/PostCard";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
@@ -9,7 +10,32 @@ import type {
   SerializedPost,
   SerializedProfileComment,
 } from "@/lib/post-presentation";
-import type { ProfileActivityTab } from "@/lib/profile-activity";
+import type {
+  ProfileActivityTab,
+  ProfileActivityViewMode,
+} from "@/lib/profile-activity";
+
+type ProfilePostTab = "posts" | "likes" | "bookmarks" | "hidden";
+
+function getReelCoverImage(post: SerializedPost): string | null {
+  return (
+    post.imageUrls[0] ??
+    post.sharedImageUrl ??
+    post.sharedPost?.imageUrls[0] ??
+    post.sharedPost?.sharedImageUrl ??
+    null
+  );
+}
+
+function getReelTitle(post: SerializedPost): string {
+  return (
+    post.sharedTitle ??
+    post.content?.trim().slice(0, 120) ??
+    post.sharedPost?.sharedTitle ??
+    post.sharedPost?.content?.trim().slice(0, 120) ??
+    "Untitled post"
+  );
+}
 
 function InfinitePostActivityList({
   resetKey,
@@ -203,9 +229,158 @@ function InfiniteCommentActivityList({
   );
 }
 
+function InfiniteReelsPostActivityList({
+  resetKey,
+  profileId,
+  activeTab,
+  initialPosts,
+  initialNextCursor,
+  currentUserId,
+  showDelete,
+  emptyMessage,
+  emptySearchMessage,
+  initiallyHidden,
+  query,
+}: {
+  resetKey: string;
+  profileId: string;
+  activeTab: ProfilePostTab;
+  initialPosts: SerializedPost[];
+  initialNextCursor: string | null;
+  currentUserId: string;
+  showDelete: (post: SerializedPost) => boolean;
+  emptyMessage: string;
+  emptySearchMessage: string;
+  initiallyHidden: boolean;
+  query: string;
+}) {
+  const [selectedPost, setSelectedPost] = useState<SerializedPost | null>(null);
+
+  const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
+    initialItems: initialPosts,
+    initialNextCursor,
+    loadPage: async (cursor) => {
+      const response = await fetch(
+        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load more posts.");
+      }
+
+      const data = (await response.json()) as {
+        items: SerializedPost[];
+        nextCursor: string | null;
+      };
+
+      return {
+        items: data.items,
+        nextCursor: data.nextCursor,
+      };
+    },
+  });
+
+  return (
+    <div key={resetKey}>
+      {items.length === 0 && (
+        <p className="py-8 text-center text-sm text-slate-400">
+          {query ? emptySearchMessage : emptyMessage}
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {items.map((post) => {
+            const imageUrl = getReelCoverImage(post);
+            const title = getReelTitle(post);
+
+            return (
+              <button
+                key={post.id}
+                type="button"
+                onClick={() => setSelectedPost(post)}
+                className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left"
+                aria-label="Open post preview"
+              >
+                {imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageUrl}
+                    alt={title}
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-3 text-center text-xs font-medium text-slate-500">
+                    No image
+                  </div>
+                )}
+
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent p-2 text-white">
+                  <p className="line-clamp-2 text-xs font-medium">{title}</p>
+                  <p className="mt-1 text-[11px] text-slate-300">
+                    {new Date(post.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
+          {isLoading ? "Loading older posts…" : hasMore ? "Scroll for older posts" : "No more posts"}
+        </div>
+      )}
+
+      {error && <p className="pb-4 text-center text-xs text-red-600">{error}</p>}
+
+      {selectedPost && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 px-3 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Selected post"
+          onClick={() => setSelectedPost(null)}
+        >
+          <div
+            className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedPost(null)}
+              className="sticky top-2 z-10 ml-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-900"
+              aria-label="Close preview"
+            >
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                <path
+                  fillRule="evenodd"
+                  d="M4.28 4.22a.75.75 0 0 1 1.06 0L10 8.94l4.66-4.72a.75.75 0 1 1 1.06 1.06L11.06 10l4.66 4.72a.75.75 0 0 1-1.06 1.06L10 11.06l-4.66 4.72a.75.75 0 0 1-1.06-1.06L8.94 10 4.28 5.28a.75.75 0 0 1 0-1.06Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+
+            <PostCard
+              post={selectedPost}
+              currentUserId={currentUserId}
+              showDelete={showDelete(selectedPost)}
+              initiallyHidden={initiallyHidden}
+              highlightQuery={query}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProfileActivitySection({
   profileId,
   activeTab,
+  profileViewMode,
   initialPosts,
   initialComments,
   initialNextCursor,
@@ -215,6 +390,7 @@ export default function ProfileActivitySection({
 }: {
   profileId: string;
   activeTab: ProfileActivityTab;
+  profileViewMode: ProfileActivityViewMode;
   initialPosts: SerializedPost[];
   initialComments: SerializedProfileComment[];
   initialNextCursor: string | null;
@@ -253,6 +429,30 @@ export default function ProfileActivitySection({
     );
   }
 
+  const postTab = activeTab as ProfilePostTab;
+
+  const showDelete =
+    postTab === "likes"
+      ? (post: SerializedPost) => post.author.id === currentUserId
+      : postTab === "bookmarks"
+        ? () => false
+      : postTab === "hidden"
+        ? () => false
+      : () => isOwnProfile;
+
+  const emptyMessage =
+    postTab === "likes"
+      ? isOwnProfile
+        ? "You have not liked any posts yet."
+        : "No visible liked posts yet."
+      : postTab === "bookmarks"
+        ? "You have not bookmarked any posts yet."
+      : postTab === "hidden"
+        ? "You have not hidden any posts."
+      : "No posts yet.";
+
+  const isReelsMode = profileViewMode === "reels";
+
   return (
     <>
       <div className="px-1">
@@ -262,38 +462,37 @@ export default function ProfileActivitySection({
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
         />
       </div>
-      <InfinitePostActivityList
-        key={resetKey}
-        resetKey={resetKey}
-        profileId={profileId}
-        activeTab={activeTab}
-        initialPosts={initialPosts}
-        initialNextCursor={initialNextCursor}
-        currentUserId={currentUserId}
-        showDelete={
-          activeTab === "likes"
-            ? (post) => post.author.id === currentUserId
-            : activeTab === "bookmarks"
-              ? () => false
-            : activeTab === "hidden"
-              ? () => false
-            : () => isOwnProfile
-        }
-        emptyMessage={
-          activeTab === "likes"
-            ? isOwnProfile
-              ? "You have not liked any posts yet."
-              : "No visible liked posts yet."
-            : activeTab === "bookmarks"
-              ? "You have not bookmarked any posts yet."
-            : activeTab === "hidden"
-              ? "You have not hidden any posts."
-            : "No posts yet."
-        }
-        emptySearchMessage={`No results found for "${query}".`}
-        initiallyHidden={activeTab === "hidden"}
-        query={query}
-      />
+      {isReelsMode ? (
+        <InfiniteReelsPostActivityList
+          key={resetKey}
+          resetKey={resetKey}
+          profileId={profileId}
+          activeTab={postTab}
+          initialPosts={initialPosts}
+          initialNextCursor={initialNextCursor}
+          currentUserId={currentUserId}
+          showDelete={showDelete}
+          emptyMessage={emptyMessage}
+          emptySearchMessage={`No results found for "${query}".`}
+          initiallyHidden={postTab === "hidden"}
+          query={query}
+        />
+      ) : (
+        <InfinitePostActivityList
+          key={resetKey}
+          resetKey={resetKey}
+          profileId={profileId}
+          activeTab={postTab}
+          initialPosts={initialPosts}
+          initialNextCursor={initialNextCursor}
+          currentUserId={currentUserId}
+          showDelete={showDelete}
+          emptyMessage={emptyMessage}
+          emptySearchMessage={`No results found for "${query}".`}
+          initiallyHidden={postTab === "hidden"}
+          query={query}
+        />
+      )}
     </>
   );
 }

@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
 import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
+import ProfileActivityViewModeSelect from "@/components/ProfileActivityViewModeSelect";
 import {
   getProfileActivityAccess,
   getProfileCommentsPage,
@@ -13,6 +14,7 @@ import {
   getProfileHiddenPostsPage,
   getProfileLikedPostsPage,
   getProfilePostsPage,
+  type ProfileActivityViewMode,
 } from "@/lib/profile-activity";
 import Link from "next/link";
 import { buildProfilePath } from "@/lib/profile-path";
@@ -43,9 +45,13 @@ export default async function ProfilePage(props: {
       email: true,
       avatarUrl: true,
       hideViolentFeed: true,
+      profileActivityViewMode: true,
     },
   });
   if (!currentUser) redirect("/login");
+
+  const profileActivityViewMode: ProfileActivityViewMode =
+    currentUser.profileActivityViewMode === "reels" ? "reels" : "normal";
 
   const profileUser = await resolveUserByProfileIdentifier(id, {
     id: true,
@@ -276,41 +282,44 @@ export default async function ProfilePage(props: {
               />
             )}
 
-            <div className="flex items-center gap-2 px-1 text-sm">
-              <Link
-                href={buildProfileHref("posts")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "posts" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-              >
-                Posts
-              </Link>
-              <Link
-                href={buildProfileHref("likes")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "likes" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-              >
-                Likes
-              </Link>
-              <Link
-                href={buildProfileHref("comments")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "comments" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-              >
-                Comments
-              </Link>
-              {isOwnProfile && (
+            <div className="flex items-start justify-between gap-3 px-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
                 <Link
-                  href={buildProfileHref("bookmarks")}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "bookmarks" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  href={buildProfileHref("posts")}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "posts" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
                 >
-                  Bookmarks
+                  Posts
                 </Link>
-              )}
-              {isOwnProfile && (
                 <Link
-                  href={buildProfileHref("hidden")}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "hidden" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  href={buildProfileHref("likes")}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "likes" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
                 >
-                  Hidden
+                  Likes
                 </Link>
-              )}
+                <Link
+                  href={buildProfileHref("comments")}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "comments" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                >
+                  Comments
+                </Link>
+                {isOwnProfile && (
+                  <Link
+                    href={buildProfileHref("bookmarks")}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "bookmarks" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  >
+                    Bookmarks
+                  </Link>
+                )}
+                {isOwnProfile && (
+                  <Link
+                    href={buildProfileHref("hidden")}
+                    className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "hidden" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  >
+                    Hidden
+                  </Link>
+                )}
+              </div>
+              <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
             </div>
 
             {activeTab === "posts" && (
@@ -319,6 +328,7 @@ export default async function ProfilePage(props: {
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
+                  profileViewMode={profileActivityViewMode}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
@@ -335,6 +345,7 @@ export default async function ProfilePage(props: {
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
+                  profileViewMode={profileActivityViewMode}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
@@ -351,6 +362,7 @@ export default async function ProfilePage(props: {
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
+                  profileViewMode={profileActivityViewMode}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
@@ -367,6 +379,7 @@ export default async function ProfilePage(props: {
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
+                  profileViewMode={profileActivityViewMode}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
@@ -383,6 +396,7 @@ export default async function ProfilePage(props: {
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
+                  profileViewMode={profileActivityViewMode}
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
@@ -395,10 +409,14 @@ export default async function ProfilePage(props: {
           </>
         ) : (
           <>
-            <h2 className="px-1 text-sm font-semibold text-slate-700">Posts</h2>
+            <div className="flex items-start justify-between gap-3 px-1">
+              <h2 className="text-sm font-semibold text-slate-700">Posts</h2>
+              <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
+            </div>
             <ProfileActivitySection
               profileId={profileUser.id}
               activeTab="posts"
+              profileViewMode={profileActivityViewMode}
               initialPosts={initialPostsPage.posts}
               initialComments={initialCommentsPage.comments}
               initialNextCursor={initialNextCursor}

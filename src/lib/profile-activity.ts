@@ -9,6 +9,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 export type ProfileActivityTab = "posts" | "likes" | "bookmarks" | "comments" | "hidden";
+export type ProfileActivityViewMode = "normal" | "reels";
 
 const PROFILE_POST_PAGE_SIZE = 20;
 const PROFILE_LIKES_PAGE_SIZE = 20;
