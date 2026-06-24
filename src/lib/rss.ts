@@ -135,23 +135,28 @@ function resolveBatchSize(activeFeedCount: number) {
 
   const configured = Number.parseInt(process.env.RSS_SYNC_BATCH_SIZE ?? "", 10);
   if (Number.isFinite(configured)) {
-    return Math.min(4, Math.max(2, configured));
+    return Math.min(activeFeedCount, Math.max(1, configured));
   }
 
-  return Math.min(4, Math.max(2, Math.round(activeFeedCount / 4)));
+  // Keep all feeds warm by default; operators can lower this via RSS_SYNC_BATCH_SIZE.
+  return activeFeedCount;
 }
 
 async function fetchFeed(feedSource: {
   rssUrl: string;
   etag: string | null;
   lastModified: string | null;
-}) {
+}, useConditionalHeaders = true) {
   const response = await fetch(feedSource.rssUrl, {
     headers: {
       "User-Agent": "fairbook-rss-bot/1.0",
       Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.1",
-      ...(feedSource.etag ? { "If-None-Match": feedSource.etag } : {}),
-      ...(feedSource.lastModified ? { "If-Modified-Since": feedSource.lastModified } : {}),
+      ...(useConditionalHeaders && feedSource.etag
+        ? { "If-None-Match": feedSource.etag }
+        : {}),
+      ...(useConditionalHeaders && feedSource.lastModified
+        ? { "If-Modified-Since": feedSource.lastModified }
+        : {}),
     },
     cache: "no-store",
   });
@@ -218,7 +223,7 @@ export async function importFeedPosts(feedSourceId: string) {
 
   let fetchedFeed;
   try {
-    fetchedFeed = await fetchFeed(feedSource);
+    fetchedFeed = await fetchFeed(feedSource, true);
   } catch {
     await prisma.feedSource.update({
       where: { id: feedSource.id },
@@ -228,6 +233,21 @@ export async function importFeedPosts(feedSourceId: string) {
       },
     });
     throw new Error("Could not fetch feed.");
+  }
+
+  if (fetchedFeed.response.status === 304) {
+    // Some publishers occasionally mis-handle conditional requests.
+    // Retry once without validators before concluding there is no update.
+    if (process.env.RSS_DISABLE_UNCONDITIONAL_RETRY_ON_304 !== "1") {
+      try {
+        const unconditionalFeed = await fetchFeed(feedSource, false);
+        if (unconditionalFeed.response.ok && unconditionalFeed.body) {
+          fetchedFeed = unconditionalFeed;
+        }
+      } catch {
+        // Keep the original 304 result and continue the normal no-change path.
+      }
+    }
   }
 
   if (fetchedFeed.response.status === 304) {
@@ -364,7 +384,7 @@ export async function importFeedPosts(feedSourceId: string) {
   );
 
   for (const post of pendingPosts) {
-    const created = await prisma.post.create({
+    await prisma.post.create({
       data: {
         ...post.data,
         mayContainViolence: violentIds.has(post.batchId),
@@ -435,6 +455,7 @@ export async function syncFeedBatch() {
   let importedCount = 0;
   let skippedCount = 0;
   let notModifiedCount = 0;
+  const errors: Array<{ feedId: string; message: string }> = [];
 
   for (const feed of selectedFeeds) {
     try {
@@ -442,7 +463,9 @@ export async function syncFeedBatch() {
       importedCount += result.importedCount;
       skippedCount += result.skippedCount;
       notModifiedCount += result.notModified ? 1 : 0;
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown feed sync error.";
+      errors.push({ feedId: feed.id, message });
       continue;
     }
   }
@@ -452,6 +475,8 @@ export async function syncFeedBatch() {
     importedCount,
     skippedCount,
     notModifiedCount,
+    failedCount: errors.length,
+    errors,
     processedFeedIds: selectedFeeds.map((feed) => feed.id),
   };
 }
