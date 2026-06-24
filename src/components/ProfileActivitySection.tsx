@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import HighlightedText from "@/components/HighlightedText";
 import PostCard from "@/components/PostCard";
+import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import type {
   SerializedPost,
@@ -18,7 +20,9 @@ function InfinitePostActivityList({
   currentUserId,
   showDelete,
   emptyMessage,
+  emptySearchMessage,
   initiallyHidden,
+  query,
 }: {
   resetKey: string;
   profileId: string;
@@ -28,14 +32,16 @@ function InfinitePostActivityList({
   currentUserId: string;
   showDelete: (post: SerializedPost) => boolean;
   emptyMessage: string;
+  emptySearchMessage: string;
   initiallyHidden: boolean;
+  query: string;
 }) {
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
     loadPage: async (cursor) => {
       const response = await fetch(
-        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}`
+        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
       );
 
       if (!response.ok) {
@@ -57,7 +63,9 @@ function InfinitePostActivityList({
   return (
     <div key={resetKey}>
       {items.length === 0 && (
-        <p className="py-8 text-center text-sm text-slate-400">{emptyMessage}</p>
+        <p className="py-8 text-center text-sm text-slate-400">
+          {query ? emptySearchMessage : emptyMessage}
+        </p>
       )}
 
       {items.map((post) => (
@@ -67,6 +75,7 @@ function InfinitePostActivityList({
           currentUserId={currentUserId}
           showDelete={showDelete(post)}
           initiallyHidden={initiallyHidden}
+          highlightQuery={query}
         />
       ))}
 
@@ -87,19 +96,23 @@ function InfiniteCommentActivityList({
   initialComments,
   initialNextCursor,
   emptyMessage,
+  emptySearchMessage,
+  query,
 }: {
   resetKey: string;
   profileId: string;
   initialComments: SerializedProfileComment[];
   initialNextCursor: string | null;
   emptyMessage: string;
+  emptySearchMessage: string;
+  query: string;
 }) {
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialComments,
     initialNextCursor,
     loadPage: async (cursor) => {
       const response = await fetch(
-        `/api/users/${profileId}/activity?tab=comments&cursor=${encodeURIComponent(cursor)}`
+        `/api/users/${profileId}/activity?tab=comments&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
       );
 
       if (!response.ok) {
@@ -121,7 +134,9 @@ function InfiniteCommentActivityList({
   return (
     <div key={resetKey}>
       {items.length === 0 && (
-        <p className="py-8 text-center text-sm text-slate-400">{emptyMessage}</p>
+        <p className="py-8 text-center text-sm text-slate-400">
+          {query ? emptySearchMessage : emptyMessage}
+        </p>
       )}
 
       {items.length > 0 && <div className="space-y-3">
@@ -138,13 +153,22 @@ function InfiniteCommentActivityList({
                 href={comment.post.permalinkPath}
                 className="font-medium text-blue-600 hover:underline"
               >
-                {comment.post.sharedTitle ?? comment.post.content?.slice(0, 80) ?? "Untitled post"}
+                <HighlightedText
+                  text={comment.post.sharedTitle ?? comment.post.content?.slice(0, 80) ?? "Untitled post"}
+                  query={query}
+                />
               </Link>
-              <span>by {comment.post.author.name}</span>
-              {comment.post.sharedSource && <span>· {comment.post.sharedSource}</span>}
+              <span>
+                by <HighlightedText text={comment.post.author.name} query={query} />
+              </span>
+              {comment.post.sharedSource && (
+                <span>
+                  · <HighlightedText text={comment.post.sharedSource} query={query} />
+                </span>
+              )}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
-              {comment.content}
+              <HighlightedText text={comment.content} query={query} />
             </p>
             {comment.moderationStatus === "author_only" && (
               <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -187,6 +211,7 @@ export default function ProfileActivitySection({
   initialNextCursor,
   currentUserId,
   isOwnProfile,
+  query,
 }: {
   profileId: string;
   activeTab: ProfileActivityTab;
@@ -195,50 +220,80 @@ export default function ProfileActivitySection({
   initialNextCursor: string | null;
   currentUserId: string;
   isOwnProfile: boolean;
+  query: string;
 }) {
-  const resetKey = `${activeTab}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
+  const resetKey = `${activeTab}:${query}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
+
+  const searchPlaceholder =
+    activeTab === "comments"
+      ? "Search comments and discussed posts"
+      : "Search posts, source, author or tags";
 
   if (activeTab === "comments") {
     return (
-      <InfiniteCommentActivityList
-        resetKey={resetKey}
-        profileId={profileId}
-        initialComments={initialComments}
-        initialNextCursor={initialNextCursor}
-        emptyMessage={isOwnProfile ? "You have not commented yet." : "No public comments yet."}
-      />
+      <>
+        <div className="px-1">
+          <QuerySyncSearchInput
+            initialValue={query}
+            placeholder={searchPlaceholder}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+          />
+        </div>
+        <InfiniteCommentActivityList
+          key={resetKey}
+          resetKey={resetKey}
+          profileId={profileId}
+          initialComments={initialComments}
+          initialNextCursor={initialNextCursor}
+          emptyMessage={isOwnProfile ? "You have not commented yet." : "No public comments yet."}
+          emptySearchMessage={`No comments found for "${query}".`}
+          query={query}
+        />
+      </>
     );
   }
 
   return (
-    <InfinitePostActivityList
-      resetKey={resetKey}
-      profileId={profileId}
-      activeTab={activeTab}
-      initialPosts={initialPosts}
-      initialNextCursor={initialNextCursor}
-      currentUserId={currentUserId}
-      showDelete={
-        activeTab === "likes"
-          ? (post) => post.author.id === currentUserId
-          : activeTab === "bookmarks"
-            ? () => false
-          : activeTab === "hidden"
-            ? () => false
-          : () => isOwnProfile
-      }
-      emptyMessage={
-        activeTab === "likes"
-          ? isOwnProfile
-            ? "You have not liked any posts yet."
-            : "No visible liked posts yet."
-          : activeTab === "bookmarks"
-            ? "You have not bookmarked any posts yet."
-          : activeTab === "hidden"
-            ? "You have not hidden any posts."
-          : "No posts yet."
-      }
-      initiallyHidden={activeTab === "hidden"}
-    />
+    <>
+      <div className="px-1">
+        <QuerySyncSearchInput
+          initialValue={query}
+          placeholder={searchPlaceholder}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+        />
+      </div>
+      <InfinitePostActivityList
+        key={resetKey}
+        resetKey={resetKey}
+        profileId={profileId}
+        activeTab={activeTab}
+        initialPosts={initialPosts}
+        initialNextCursor={initialNextCursor}
+        currentUserId={currentUserId}
+        showDelete={
+          activeTab === "likes"
+            ? (post) => post.author.id === currentUserId
+            : activeTab === "bookmarks"
+              ? () => false
+            : activeTab === "hidden"
+              ? () => false
+            : () => isOwnProfile
+        }
+        emptyMessage={
+          activeTab === "likes"
+            ? isOwnProfile
+              ? "You have not liked any posts yet."
+              : "No visible liked posts yet."
+            : activeTab === "bookmarks"
+              ? "You have not bookmarked any posts yet."
+            : activeTab === "hidden"
+              ? "You have not hidden any posts."
+            : "No posts yet."
+        }
+        emptySearchMessage={`No results found for "${query}".`}
+        initiallyHidden={activeTab === "hidden"}
+        query={query}
+      />
+    </>
   );
 }

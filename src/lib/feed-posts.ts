@@ -71,13 +71,16 @@ export async function getFeedPage({
   cursor,
   viewMode = "all",
   feedSourceIds,
+  query,
 }: {
   viewerId: string;
   hideViolentFeed: boolean;
   cursor?: string | null;
   viewMode?: FeedViewMode;
   feedSourceIds?: string[];
+  query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
+  const trimmedQuery = query?.trim() ?? "";
   const groupFeedSourceIds = Array.from(
     new Set((feedSourceIds ?? []).filter((value) => typeof value === "string" && value.trim().length > 0))
   );
@@ -103,8 +106,30 @@ export async function getFeedPage({
     return { posts: [], nextCursor: null };
   }
 
+  const queryWhere: Prisma.PostWhereInput | null = trimmedQuery
+    ? {
+        OR: [
+          { content: { contains: trimmedQuery } },
+          { sharedTitle: { contains: trimmedQuery } },
+          { sharedDescription: { contains: trimmedQuery } },
+          { sharedSource: { contains: trimmedQuery } },
+          { author: { name: { contains: trimmedQuery } } },
+          {
+            postTags: {
+              some: {
+                tag: {
+                  name: { contains: trimmedQuery },
+                },
+              },
+            },
+          },
+        ],
+      }
+    : null;
+
   const followingWhere: Prisma.PostWhereInput = {
     AND: [
+      ...(queryWhere ? [queryWhere] : []),
       {
         OR: [
           {
@@ -136,6 +161,7 @@ export async function getFeedPage({
   };
   const groupedFeedWhere: Prisma.PostWhereInput = {
     AND: [
+      ...(queryWhere ? [queryWhere] : []),
       {
         feedSourceId: { in: groupFeedSourceIds },
         isFeedVisible: true,
@@ -166,6 +192,7 @@ export async function getFeedPage({
             ? groupedFeedWhere
           : {
               AND: [
+                ...(queryWhere ? [queryWhere] : []),
                 { authorId: { in: authorIds } },
                 {
                   OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],

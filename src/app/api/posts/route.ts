@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
   const cursor = searchParams.get("cursor");
   const mode = searchParams.get("mode");
   const groupId = searchParams.get("group");
+  const query = (searchParams.get("q") ?? "").trim();
 
   let viewMode: "all" | "following" | "group" =
     mode === "following" ? "following" : "all";
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
     cursor,
     viewMode,
     feedSourceIds: groupSourceIds,
+    query,
   });
 
   return Response.json(page);

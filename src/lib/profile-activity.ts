@@ -36,6 +36,36 @@ type CommentRecord = Prisma.CommentGetPayload<{
   };
 }>;
 
+function buildPostSearchWhere(query: string): Prisma.PostWhereInput {
+  return {
+    OR: [
+      { content: { contains: query } },
+      { sharedTitle: { contains: query } },
+      { sharedDescription: { contains: query } },
+      { sharedSource: { contains: query } },
+      { author: { name: { contains: query } } },
+      {
+        postTags: {
+          some: {
+            tag: {
+              name: { contains: query },
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
+function buildProfileCommentSearchWhere(query: string): Prisma.CommentWhereInput {
+  return {
+    OR: [
+      { content: { contains: query } },
+      { post: buildPostSearchWhere(query) },
+    ],
+  };
+}
+
 export async function getProfileActivityAccess({
   viewerId,
   profileId,
@@ -91,16 +121,22 @@ export async function getProfilePostsPage({
   profileId,
   isOwnProfile,
   cursor,
+  query,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
+  query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
+  const trimmedQuery = query?.trim() ?? "";
   const batch = await prisma.post.findMany({
-    where: isOwnProfile
-      ? { authorId: profileId }
-      : { authorId: profileId, moderationStatus: "visible" },
+    where: {
+      ...(isOwnProfile
+        ? { authorId: profileId }
+        : { authorId: profileId, moderationStatus: "visible" }),
+      ...(trimmedQuery ? buildPostSearchWhere(trimmedQuery) : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_POST_PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -122,24 +158,36 @@ export async function getProfileLikedPostsPage({
   isOwnProfile,
   canViewActivity,
   cursor,
+  query,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   canViewActivity: boolean;
   cursor?: string | null;
+  query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!canViewActivity) {
     return { posts: [], nextCursor: null };
   }
 
+  const trimmedQuery = query?.trim() ?? "";
+
   const batch = await prisma.postLike.findMany({
     where: isOwnProfile
-      ? { userId: profileId }
+      ? {
+          userId: profileId,
+          ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+        }
       : {
           userId: profileId,
           post: {
-            OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+            AND: [
+              {
+                OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+              },
+              ...(trimmedQuery ? [buildPostSearchWhere(trimmedQuery)] : []),
+            ],
           },
         },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -168,27 +216,34 @@ export async function getProfileCommentsPage({
   isOwnProfile,
   canViewActivity,
   cursor,
+  query,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   canViewActivity: boolean;
   cursor?: string | null;
+  query?: string;
 }): Promise<{ comments: SerializedProfileComment[]; nextCursor: string | null }> {
   if (!canViewActivity) {
     return { comments: [], nextCursor: null };
   }
 
+  const trimmedQuery = query?.trim() ?? "";
+
   const batch = await prisma.comment.findMany({
-    where: isOwnProfile
-      ? { authorId: profileId }
-      : {
-          authorId: profileId,
-          moderationStatus: "visible",
-          post: {
-            OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
-          },
-        },
+    where: {
+      ...(isOwnProfile
+        ? { authorId: profileId }
+        : {
+            authorId: profileId,
+            moderationStatus: "visible",
+            post: {
+              OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+            },
+          }),
+      ...(trimmedQuery ? buildProfileCommentSearchWhere(trimmedQuery) : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_COMMENTS_PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -221,18 +276,25 @@ export async function getProfileHiddenPostsPage({
   profileId,
   isOwnProfile,
   cursor,
+  query,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
+  query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!isOwnProfile) {
     return { posts: [], nextCursor: null };
   }
 
+  const trimmedQuery = query?.trim() ?? "";
+
   const batch = await prisma.hiddenPost.findMany({
-    where: { userId: profileId },
+    where: {
+      userId: profileId,
+      ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_HIDDEN_PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -258,18 +320,25 @@ export async function getProfileBookmarkedPostsPage({
   profileId,
   isOwnProfile,
   cursor,
+  query,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
+  query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!isOwnProfile) {
     return { posts: [], nextCursor: null };
   }
 
+  const trimmedQuery = query?.trim() ?? "";
+
   const batch = await prisma.bookmarkedPost.findMany({
-    where: { userId: profileId },
+    where: {
+      userId: profileId,
+      ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_BOOKMARKS_PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

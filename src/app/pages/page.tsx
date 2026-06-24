@@ -5,6 +5,8 @@ import AdminChildSafetyArchive from "@/components/AdminChildSafetyArchive";
 import FeedGroupsManager from "@/components/FeedGroupsManager";
 import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
+import HighlightedText from "@/components/HighlightedText";
+import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
 import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
@@ -164,10 +166,8 @@ export default async function PagesPage(props: {
 
           <form action="/pages" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
-            <input
-              type="search"
-              name="q"
-              defaultValue={query}
+            <QuerySyncSearchInput
+              initialValue={query}
               placeholder="Search pages or publishers"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
             />
@@ -208,14 +208,16 @@ export default async function PagesPage(props: {
                             href={buildProfilePath(page)}
                             className="text-sm font-semibold text-slate-900 hover:underline"
                           >
-                            {page.name}
+                            <HighlightedText text={page.name} query={query} />
                           </Link>
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
                             Page
                           </span>
                         </div>
                         {page.bio && (
-                          <p className="text-sm text-slate-500 mt-1 line-clamp-2">{page.bio}</p>
+                          <p className="text-sm text-slate-500 mt-1 line-clamp-2">
+                            <HighlightedText text={page.bio} query={query} />
+                          </p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
                           <span>{page._count.posts} articles</span>

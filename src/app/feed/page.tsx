@@ -12,14 +12,22 @@ import { getFeedPage } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
+import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 
 type FeedMode = "all" | "following" | "group";
 
 export default async function FeedPage(props: {
-  searchParams: Promise<{ notice?: string; noticeKind?: string; mode?: string; group?: string }>;
+  searchParams: Promise<{
+    notice?: string;
+    noticeKind?: string;
+    mode?: string;
+    group?: string;
+    q?: string;
+  }>;
 }) {
-  const { notice, noticeKind, mode, group } = await props.searchParams;
+  const { notice, noticeKind, mode, group, q } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
+  const query = q?.trim() ?? "";
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -51,7 +59,10 @@ export default async function FeedPage(props: {
     hideViolentFeed: user.hideViolentFeed,
     viewMode: activeMode,
     feedSourceIds: activeGroup?.feedSourceIds,
+    query,
   });
+
+  const querySuffix = query ? `&q=${encodeURIComponent(query)}` : "";
 
   const followingPeopleCount = await prisma.connection.count({
     where: {
@@ -93,7 +104,7 @@ export default async function FeedPage(props: {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
               <Link
-                href="/feed?mode=all"
+                href={`/feed?mode=all${querySuffix}`}
                 className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeMode === "all"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -103,7 +114,7 @@ export default async function FeedPage(props: {
                 All
               </Link>
               <Link
-                href="/feed?mode=following"
+                href={`/feed?mode=following${querySuffix}`}
                 className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeMode === "following"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -115,7 +126,7 @@ export default async function FeedPage(props: {
               {feedGroups.map((feedGroup) => (
                 <Link
                   key={feedGroup.id}
-                  href={`/feed?group=${encodeURIComponent(feedGroup.id)}`}
+                  href={`/feed?group=${encodeURIComponent(feedGroup.id)}${querySuffix}`}
                   className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                     activeMode === "group" && activeGroup?.id === feedGroup.id
                       ? "bg-white text-slate-900 shadow-sm"
@@ -132,6 +143,24 @@ export default async function FeedPage(props: {
             </div>
           </div>
 
+          <form action="/feed" method="GET" className="flex flex-col gap-2 sm:flex-row">
+            {activeMode === "following" && <input type="hidden" name="mode" value="following" />}
+            {activeMode === "group" && activeGroup?.id && (
+              <input type="hidden" name="group" value={activeGroup.id} />
+            )}
+            <QuerySyncSearchInput
+              initialValue={query}
+              placeholder="Filter posts by text, source, author or tag"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+            />
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+            >
+              Search
+            </button>
+          </form>
+
           {isAdminEmail(user.email) && (
             <AdminChildSafetyInbox
               initialReports={adminOpenChildSafetyReports.map((report) => ({
@@ -144,12 +173,13 @@ export default async function FeedPage(props: {
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${activeMode}:${activeGroup?.id ?? "none"}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${activeGroup?.id ?? "none"}:${query}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
             mode={activeMode}
             groupId={activeGroup?.id ?? null}
+            query={query}
           />
         </div>
 

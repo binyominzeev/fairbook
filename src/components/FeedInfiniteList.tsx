@@ -13,12 +13,14 @@ export default function FeedInfiniteList({
   currentUserId,
   mode,
   groupId,
+  query,
 }: {
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
   mode: "all" | "following" | "group";
   groupId: string | null;
+  query: string;
 }) {
   const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
     useInfiniteCursorLoader({
@@ -31,6 +33,9 @@ export default function FeedInfiniteList({
       });
       if (groupId) {
         searchParams.set("group", groupId);
+      }
+      if (query) {
+        searchParams.set("q", query);
       }
 
       const response = await fetch(
@@ -75,18 +80,22 @@ export default function FeedInfiniteList({
       <div className="text-center py-16 text-slate-400">
         <p className="text-2xl mb-3">👋</p>
         <p className="font-medium text-slate-600">
-          {mode === "following"
-            ? "Your Following feed is empty."
-            : mode === "group"
-              ? "This RSS group is empty."
-              : "Your feed is empty."}
+          {query
+            ? "No posts match this search."
+            : mode === "following"
+              ? "Your Following feed is empty."
+              : mode === "group"
+                ? "This RSS group is empty."
+                : "Your feed is empty."}
         </p>
         <p className="text-sm mt-1">
-          {mode === "following"
-            ? "Follow people to see their posts here."
-            : mode === "group"
-              ? "Add followed RSS sources to this group to populate it."
-              : "Follow people or pages to see posts here."}
+          {query
+            ? "Try shorter keywords or clear the search field."
+            : mode === "following"
+              ? "Follow people to see their posts here."
+              : mode === "group"
+                ? "Add followed RSS sources to this group to populate it."
+                : "Follow people or pages to see posts here."}
         </p>
       </div>
     );
@@ -100,6 +109,7 @@ export default function FeedInfiniteList({
           post={post}
           currentUserId={currentUserId}
           showDelete
+          highlightQuery={query}
         />
       ))}
 

@@ -2,6 +2,7 @@
 
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
+import HighlightedText from "@/components/HighlightedText";
 import { buildProfilePath } from "@/lib/profile-path";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -68,9 +69,10 @@ interface Props {
   showDelete?: boolean;
   showPermalinkEditor?: boolean;
   initiallyHidden?: boolean;
+  highlightQuery?: string;
 }
 
-function renderTextWithLinks(text: string, className: string) {
+function renderTextWithLinks(text: string, className: string, query?: string) {
   return (
     <p className={className}>
       {text.split("\n").map((line, lineIndex) => (
@@ -88,7 +90,9 @@ function renderTextWithLinks(text: string, className: string) {
                 {part}
               </a>
             ) : (
-              <span key={`${lineIndex}:${partIndex}`}>{part}</span>
+              <span key={`${lineIndex}:${partIndex}`}>
+                <HighlightedText text={part} query={query} />
+              </span>
             )
           )}
         </span>
@@ -103,6 +107,7 @@ export default function PostCard({
   showDelete,
   showPermalinkEditor,
   initiallyHidden = false,
+  highlightQuery,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
@@ -765,13 +770,15 @@ export default function PostCard({
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                   <span>Sharing from</span>
-                  <span className="font-medium text-slate-600">{post.author.name}</span>
+                      <span className="font-medium text-slate-600">
+                        <HighlightedText text={post.author.name} query={highlightQuery} />
+                      </span>
                   <span>·</span>
                   <span>{timeAgo(post.createdAt)}</span>
                 </div>
 
                 {post.content && (
-                  renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800")
+                  renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800", highlightQuery)
                 )}
 
                 {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
@@ -780,17 +787,17 @@ export default function PostCard({
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                     {post.sharedSource && (
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                        {post.sharedSource} · External source
+                        <HighlightedText text={post.sharedSource} query={highlightQuery} /> · External source
                       </p>
                     )}
                     {post.sharedTitle && (
                       <p className="text-sm font-semibold text-slate-900 leading-snug">
-                        {post.sharedTitle}
+                        <HighlightedText text={post.sharedTitle} query={highlightQuery} />
                       </p>
                     )}
                     {post.sharedDescription && (
                       <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                        {post.sharedDescription}
+                        <HighlightedText text={post.sharedDescription} query={highlightQuery} />
                       </p>
                     )}
                     <p className="mt-1.5 break-all text-xs text-blue-600">{post.sharedUrl}</p>
@@ -802,14 +809,15 @@ export default function PostCard({
                     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                       <span>Includes a shared post from</span>
                       <span className="font-medium text-slate-600">
-                        {post.sharedPost.author.name}
+                        <HighlightedText text={post.sharedPost.author.name} query={highlightQuery} />
                       </span>
                     </div>
 
                     {post.sharedPost.content && (
                       renderTextWithLinks(
                         post.sharedPost.content,
-                        "whitespace-pre-wrap text-sm text-slate-800"
+                        "whitespace-pre-wrap text-sm text-slate-800",
+                        highlightQuery
                       )
                     )}
 
@@ -821,17 +829,17 @@ export default function PostCard({
                       <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
                         {post.sharedPost.sharedSource && (
                           <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                            {post.sharedPost.sharedSource} · External source
+                            <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · External source
                           </p>
                         )}
                         {post.sharedPost.sharedTitle && (
                           <p className="text-sm font-semibold text-slate-900 leading-snug">
-                            {post.sharedPost.sharedTitle}
+                            <HighlightedText text={post.sharedPost.sharedTitle} query={highlightQuery} />
                           </p>
                         )}
                         {post.sharedPost.sharedDescription && (
                           <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                            {post.sharedPost.sharedDescription}
+                            <HighlightedText text={post.sharedPost.sharedDescription} query={highlightQuery} />
                           </p>
                         )}
                         <p className="mt-1.5 break-all text-xs text-blue-600">
@@ -1046,7 +1054,7 @@ export default function PostCard({
                 href={buildProfilePath(post.author)}
                 className="block truncate text-sm font-semibold text-slate-900 hover:underline"
               >
-                {post.author.name}
+                <HighlightedText text={post.author.name} query={highlightQuery} />
               </Link>
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
                 <Link href={post.permalinkPath} className="hover:text-slate-600 hover:underline">
@@ -1096,7 +1104,12 @@ export default function PostCard({
         </div>
 
         {/* Post body */}
-        {post.content && renderTextWithLinks(post.content, "mb-3 whitespace-pre-wrap text-sm text-slate-800")}
+        {post.content &&
+          renderTextWithLinks(
+            post.content,
+            "mb-3 whitespace-pre-wrap text-sm text-slate-800",
+            highlightQuery
+          )}
 
         {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
 
@@ -1144,17 +1157,17 @@ export default function PostCard({
           <div className="p-3">
             {post.sharedSource && (
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-                {post.sharedSource} · External source
+                <HighlightedText text={post.sharedSource} query={highlightQuery} /> · External source
               </p>
             )}
             {post.sharedTitle && (
               <p className="text-sm font-semibold text-slate-900 leading-snug">
-                {post.sharedTitle}
+                <HighlightedText text={post.sharedTitle} query={highlightQuery} />
               </p>
             )}
             {post.sharedDescription && (
               <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                {post.sharedDescription}
+                <HighlightedText text={post.sharedDescription} query={highlightQuery} />
               </p>
             )}
             <p className="text-xs text-blue-600 mt-1.5 break-all hover:underline">
@@ -1172,7 +1185,7 @@ export default function PostCard({
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
             <span>Shared from</span>
             <span className="font-medium text-slate-600">
-              {post.sharedPost.author.name}
+              <HighlightedText text={post.sharedPost.author.name} query={highlightQuery} />
             </span>
             <span>·</span>
             <span>{timeAgo(post.sharedPost.createdAt)}</span>
@@ -1181,7 +1194,8 @@ export default function PostCard({
           {post.sharedPost.content && (
             renderTextWithLinks(
               post.sharedPost.content,
-              "whitespace-pre-wrap text-sm text-slate-800"
+              "whitespace-pre-wrap text-sm text-slate-800",
+              highlightQuery
             )
           )}
 
@@ -1201,17 +1215,17 @@ export default function PostCard({
               )}
               {post.sharedPost.sharedSource && (
                 <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                  {post.sharedPost.sharedSource} · External source
+                  <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · External source
                 </p>
               )}
               {post.sharedPost.sharedTitle && (
                 <p className="text-sm font-semibold text-slate-900 leading-snug">
-                  {post.sharedPost.sharedTitle}
+                  <HighlightedText text={post.sharedPost.sharedTitle} query={highlightQuery} />
                 </p>
               )}
               {post.sharedPost.sharedDescription && (
                 <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                  {post.sharedPost.sharedDescription}
+                  <HighlightedText text={post.sharedPost.sharedDescription} query={highlightQuery} />
                 </p>
               )}
               <p className="mt-1.5 break-all text-xs text-blue-600">

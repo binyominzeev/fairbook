@@ -23,6 +23,7 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const tab = searchParams.get("tab");
   const cursor = searchParams.get("cursor");
+  const query = (searchParams.get("q") ?? "").trim();
 
   const activeTab: ProfileActivityTab =
     tab === "likes" || tab === "bookmarks" || tab === "comments" || tab === "hidden"
@@ -51,6 +52,7 @@ export async function GET(
       isOwnProfile: access.isOwnProfile,
       canViewActivity: access.canViewActivity,
       cursor,
+      query,
     });
 
     return Response.json({ items: page.comments, nextCursor: page.nextCursor });
@@ -63,6 +65,7 @@ export async function GET(
       isOwnProfile: access.isOwnProfile,
       canViewActivity: access.canViewActivity,
       cursor,
+      query,
     });
 
     return Response.json({ items: page.posts, nextCursor: page.nextCursor });
@@ -74,6 +77,7 @@ export async function GET(
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       cursor,
+      query,
     });
 
     return Response.json({ items: page.posts, nextCursor: page.nextCursor });
@@ -85,6 +89,7 @@ export async function GET(
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       cursor,
+      query,
     });
 
     return Response.json({ items: page.posts, nextCursor: page.nextCursor });
@@ -95,6 +100,7 @@ export async function GET(
     profileId: id,
     isOwnProfile: access.isOwnProfile,
     cursor,
+    query,
   });
 
   return Response.json({ items: page.posts, nextCursor: page.nextCursor });

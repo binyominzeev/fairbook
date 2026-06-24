@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Avatar from "@/components/Avatar";
 import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
+import HighlightedText from "@/components/HighlightedText";
+import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import { getSession } from "@/lib/auth";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
@@ -148,10 +150,8 @@ export default async function ConnectionsPage(props: {
 
           <form action="/connections" method="GET" className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="tab" value={activeTab} />
-            <input
-              type="search"
-              name="q"
-              defaultValue={query}
+            <QuerySyncSearchInput
+              initialValue={query}
               placeholder="Search by name or email"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
             />
@@ -193,11 +193,15 @@ export default async function ConnectionsPage(props: {
                             href={buildProfilePath(person)}
                             className="block text-sm font-medium text-slate-900 hover:underline"
                           >
-                            {person.name}
+                            <HighlightedText text={person.name} query={query} />
                           </Link>
-                          <p className="truncate text-xs text-slate-500">{person.email}</p>
+                          <p className="truncate text-xs text-slate-500">
+                            <HighlightedText text={person.email} query={query} />
+                          </p>
                           {person.bio && (
-                            <p className="truncate text-xs text-slate-400 mt-0.5">{person.bio}</p>
+                            <p className="truncate text-xs text-slate-400 mt-0.5">
+                              <HighlightedText text={person.bio} query={query} />
+                            </p>
                           )}
                         </div>
                       </div>
@@ -277,10 +281,12 @@ export default async function ConnectionsPage(props: {
                           href={buildProfilePath(person)}
                           className="block text-sm font-medium text-slate-900 hover:underline"
                         >
-                          {person.name}
+                          <HighlightedText text={person.name} query={query} />
                         </Link>
                         {person.bio && (
-                          <p className="truncate text-xs text-slate-500 mt-0.5">{person.bio}</p>
+                          <p className="truncate text-xs text-slate-500 mt-0.5">
+                            <HighlightedText text={person.bio} query={query} />
+                          </p>
                         )}
                       </div>
                     </div>
