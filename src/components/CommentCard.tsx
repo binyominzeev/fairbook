@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import DiscourseIndicators from "./DiscourseIndicators";
 import type { DiscourseSignal } from "@/lib/ai";
 
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+
 interface Author {
   id: string;
   slug?: string | null;
@@ -40,6 +42,33 @@ interface Props {
   postId: string;
   currentUserId: string;
   depth?: number;
+}
+
+function renderTextWithLinks(text: string, className: string) {
+  return (
+    <p className={className}>
+      {text.split("\n").map((line, lineIndex) => (
+        <span key={`${lineIndex}:${line}`}>
+          {lineIndex > 0 && <br />}
+          {line.split(URL_PATTERN).map((part, partIndex) =>
+            /^https?:\/\/\S+$/i.test(part) ? (
+              <a
+                key={`${lineIndex}:${partIndex}:${part}`}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-blue-600 hover:underline"
+              >
+                {part}
+              </a>
+            ) : (
+              <span key={`${lineIndex}:${partIndex}`}>{part}</span>
+            )
+          )}
+        </span>
+      ))}
+    </p>
+  );
 }
 
 export default function CommentCard({
@@ -297,9 +326,7 @@ export default function CommentCard({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-800 mt-0.5 whitespace-pre-wrap">
-              {localComment.content}
-            </p>
+            renderTextWithLinks(localComment.content, "mt-0.5 whitespace-pre-wrap text-sm text-slate-800")
           )}
           {localComment.moderationStatus === "author_only" && currentUserId === localComment.author.id && (
             <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
