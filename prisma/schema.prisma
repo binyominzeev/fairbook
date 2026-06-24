@@ -39,6 +39,7 @@ model User {
   ownedCommunities   Community[]
   hiddenPosts        HiddenPost[]
   bookmarkedPosts    BookmarkedPost[]
+  feedGroups         FeedGroup[]
   childSafetyReports ChildSafetyReport[] @relation("ChildSafetyReporter")
 }
 
@@ -153,6 +154,33 @@ model FeedSource {
 
   page  User   @relation(fields: [pageId], references: [id])
   posts Post[]
+  groupMemberships FeedGroupFeedSource[]
+}
+
+model FeedGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sources FeedGroupFeedSource[]
+
+  @@unique([userId, name])
+}
+
+model FeedGroupFeedSource {
+  id           String   @id @default(cuid())
+  feedGroupId  String
+  feedSourceId String
+  createdAt    DateTime @default(now())
+
+  feedGroup  FeedGroup  @relation(fields: [feedGroupId], references: [id], onDelete: Cascade)
+  feedSource FeedSource @relation(fields: [feedSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([feedGroupId, feedSourceId])
+  @@index([feedSourceId])
 }
 
 model FeedSyncState {

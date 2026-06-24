@@ -7,18 +7,19 @@ import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import AdminChildSafetyInbox from "@/components/AdminChildSafetyInbox";
 import { isAdminEmail } from "@/lib/admin";
+import { getFeedGroupsForUser } from "@/lib/feed-groups";
 import { getFeedPage } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
 
-type FeedMode = "all" | "following";
+type FeedMode = "all" | "following" | "group";
 
 export default async function FeedPage(props: {
-  searchParams: Promise<{ notice?: string; noticeKind?: string; mode?: string }>;
+  searchParams: Promise<{ notice?: string; noticeKind?: string; mode?: string; group?: string }>;
 }) {
-  const { notice, noticeKind, mode } = await props.searchParams;
-  const activeMode: FeedMode = mode === "following" ? "following" : "all";
+  const { notice, noticeKind, mode, group } = await props.searchParams;
+  const requestedGroupId = typeof group === "string" ? group : null;
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -35,10 +36,21 @@ export default async function FeedPage(props: {
   });
   if (!user) redirect("/login");
 
+  const feedGroups = await getFeedGroupsForUser(session.userId);
+  const activeGroup = requestedGroupId
+    ? feedGroups.find((feedGroup) => feedGroup.id === requestedGroupId) ?? null
+    : null;
+  const activeMode: FeedMode = activeGroup
+    ? "group"
+    : mode === "following"
+      ? "following"
+      : "all";
+
   const initialFeedPage = await getFeedPage({
     viewerId: session.userId,
     hideViolentFeed: user.hideViolentFeed,
     viewMode: activeMode,
+    feedSourceIds: activeGroup?.feedSourceIds,
   });
 
   const followingPeopleCount = await prisma.connection.count({
@@ -100,6 +112,19 @@ export default async function FeedPage(props: {
               >
                 Friends
               </Link>
+              {feedGroups.map((feedGroup) => (
+                <Link
+                  key={feedGroup.id}
+                  href={`/feed?group=${encodeURIComponent(feedGroup.id)}`}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
+                    activeMode === "group" && activeGroup?.id === feedGroup.id
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {feedGroup.name}
+                </Link>
+              ))}
             </div>
             <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
               <p className="text-xs text-slate-400">Following people</p>
@@ -119,15 +144,16 @@ export default async function FeedPage(props: {
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${activeMode}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${activeGroup?.id ?? "none"}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
             mode={activeMode}
+            groupId={activeGroup?.id ?? null}
           />
         </div>
 
-        {suggestedUsers.length > 0 && initialFeedPage.posts.length === 0 && (
+        {suggestedUsers.length > 0 && initialFeedPage.posts.length === 0 && activeMode !== "group" && (
           <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">
               People you might follow

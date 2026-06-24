@@ -12,19 +12,29 @@ export default function FeedInfiniteList({
   initialNextCursor,
   currentUserId,
   mode,
+  groupId,
 }: {
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
-  mode: "all" | "following";
+  mode: "all" | "following" | "group";
+  groupId: string | null;
 }) {
   const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
     useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
     loadPage: async (cursor) => {
+      const searchParams = new URLSearchParams({
+        cursor,
+        mode,
+      });
+      if (groupId) {
+        searchParams.set("group", groupId);
+      }
+
       const response = await fetch(
-        `/api/posts?cursor=${encodeURIComponent(cursor)}&mode=${encodeURIComponent(mode)}`
+        `/api/posts?${searchParams.toString()}`
       );
 
       if (!response.ok) {
@@ -65,12 +75,18 @@ export default function FeedInfiniteList({
       <div className="text-center py-16 text-slate-400">
         <p className="text-2xl mb-3">👋</p>
         <p className="font-medium text-slate-600">
-          {mode === "following" ? "Your Following feed is empty." : "Your feed is empty."}
+          {mode === "following"
+            ? "Your Following feed is empty."
+            : mode === "group"
+              ? "This RSS group is empty."
+              : "Your feed is empty."}
         </p>
         <p className="text-sm mt-1">
           {mode === "following"
             ? "Follow people to see their posts here."
-            : "Follow people or pages to see posts here."}
+            : mode === "group"
+              ? "Add followed RSS sources to this group to populate it."
+              : "Follow people or pages to see posts here."}
         </p>
       </div>
     );

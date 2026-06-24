@@ -2,12 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminFeedManager from "@/components/AdminFeedManager";
 import AdminChildSafetyArchive from "@/components/AdminChildSafetyArchive";
-import AdminTagsManager from "@/components/AdminTagsManager";
+import FeedGroupsManager from "@/components/FeedGroupsManager";
 import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
 import Navbar from "@/components/Navbar";
 import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
+import { getFeedGroupsForUser, getUserFeedSubscriptions } from "@/lib/feed-groups";
 import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
 
@@ -41,6 +42,11 @@ export default async function PagesPage(props: {
   });
   const followingPageIds = followingPageRows.map((row) => row.followingId);
   const followingPageSet = new Set(followingPageIds);
+
+  const [feedGroups, feedSubscriptions] = await Promise.all([
+    getFeedGroupsForUser(session.userId),
+    getUserFeedSubscriptions(session.userId),
+  ]);
 
   const pages = await prisma.user.findMany({
     where: {
@@ -239,6 +245,11 @@ export default async function PagesPage(props: {
               ))}
             </ul>
           )}
+
+          <FeedGroupsManager
+            initialGroups={feedGroups}
+            initialSources={feedSubscriptions}
+          />
         </section>
 
         {isAdminEmail(user.email) && (
@@ -249,7 +260,6 @@ export default async function PagesPage(props: {
                 lastFetchedAt: feed.lastFetchedAt?.toISOString() ?? null,
               }))}
             />
-            <AdminTagsManager />
             <AdminChildSafetyArchive
               initialReports={adminHandledChildSafetyReports.map((report) => ({
                 ...report,

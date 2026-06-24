@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
+import { getFeedGroupSourceIdsForUser } from "@/lib/feed-groups";
 import { getFeedPage } from "@/lib/feed-posts";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
@@ -42,7 +43,21 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const cursor = searchParams.get("cursor");
   const mode = searchParams.get("mode");
-  const viewMode = mode === "following" ? "following" : "all";
+  const groupId = searchParams.get("group");
+
+  let viewMode: "all" | "following" | "group" =
+    mode === "following" ? "following" : "all";
+  let groupSourceIds: string[] | undefined;
+  if (groupId) {
+    const resolvedGroupSourceIds = await getFeedGroupSourceIdsForUser(
+      session.userId,
+      groupId
+    );
+    if (resolvedGroupSourceIds) {
+      viewMode = "group";
+      groupSourceIds = resolvedGroupSourceIds;
+    }
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -57,6 +72,7 @@ export async function GET(request: NextRequest) {
     hideViolentFeed: user.hideViolentFeed,
     cursor,
     viewMode,
+    feedSourceIds: groupSourceIds,
   });
 
   return Response.json(page);

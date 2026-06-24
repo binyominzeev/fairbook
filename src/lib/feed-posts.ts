@@ -13,7 +13,7 @@ const OWN_POST_PENALTY = 18;
 const REPEATED_AUTHOR_PENALTY = 6;
 const RERANK_JITTER_RANGE = 8;
 
-export type FeedViewMode = "all" | "following";
+export type FeedViewMode = "all" | "following" | "group";
 
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
@@ -70,22 +70,34 @@ export async function getFeedPage({
   hideViolentFeed,
   cursor,
   viewMode = "all",
+  feedSourceIds,
 }: {
   viewerId: string;
   hideViolentFeed: boolean;
   cursor?: string | null;
   viewMode?: FeedViewMode;
+  feedSourceIds?: string[];
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
-  const following = await prisma.connection.findMany({
-    where: {
-      followerId: viewerId,
-      ...(viewMode === "following" ? { following: { isPage: false } } : {}),
-    },
-    select: { followingId: true },
-  });
+  const groupFeedSourceIds = Array.from(
+    new Set((feedSourceIds ?? []).filter((value) => typeof value === "string" && value.trim().length > 0))
+  );
+
+  if (viewMode === "group" && groupFeedSourceIds.length === 0) {
+    return { posts: [], nextCursor: null };
+  }
+
+  const following =
+    viewMode === "group"
+      ? []
+      : await prisma.connection.findMany({
+          where: {
+            followerId: viewerId,
+            ...(viewMode === "following" ? { following: { isPage: false } } : {}),
+          },
+          select: { followingId: true },
+        });
   const followingIds = following.map((connection) => connection.followingId);
-  const authorIds =
-    viewMode === "following" ? followingIds : [viewerId, ...followingIds];
+  const authorIds = viewMode === "following" ? followingIds : [viewerId, ...followingIds];
 
   if (viewMode === "following" && followingIds.length === 0) {
     return { posts: [], nextCursor: null };
@@ -122,6 +134,22 @@ export async function getFeedPage({
       },
     ],
   };
+  const groupedFeedWhere: Prisma.PostWhereInput = {
+    AND: [
+      {
+        feedSourceId: { in: groupFeedSourceIds },
+        isFeedVisible: true,
+        moderationStatus: "visible",
+      },
+      {
+        hiddenBy: {
+          none: {
+            userId: viewerId,
+          },
+        },
+      },
+    ],
+  };
   const postInclude = buildPostInclude(viewerId);
 
   const chunkSize = hideViolentFeed ? 60 : FEED_PAGE_SIZE + 1;
@@ -134,6 +162,8 @@ export async function getFeedPage({
       where:
         viewMode === "following"
           ? followingWhere
+          : viewMode === "group"
+            ? groupedFeedWhere
           : {
               AND: [
                 { authorId: { in: authorIds } },
@@ -172,7 +202,8 @@ export async function getFeedPage({
 
   const hasMore = collected.length > FEED_PAGE_SIZE;
   const items = hasMore ? collected.slice(0, FEED_PAGE_SIZE) : collected;
-  const orderedItems = cursor ? items : rerankFirstFeedPage(items, viewerId);
+  const orderedItems =
+    cursor || viewMode === "group" ? items : rerankFirstFeedPage(items, viewerId);
 
   return {
     posts: orderedItems.map(serializePost),
