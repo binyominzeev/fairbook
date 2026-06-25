@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 const MIN_VISIBLE_FEED_POSTS = 100;
 const TARGET_VISIBLE_FEED_POSTS = 150;
 const MIN_OPTIONAL_FEED_SCORE = 20;
+const MIN_RECENT_POSTS_PER_FEED_TO_KEEP = 30;
 
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
@@ -152,6 +153,31 @@ export async function refreshVisibleFeedPosts() {
     select: { id: true, score: true },
   });
 
+  const importedPostsByRecency = await prisma.post.findMany({
+    where: { feedSourceId: { not: null } },
+    orderBy: [
+      { feedSourceId: "asc" },
+      { fetchedAt: "desc" },
+      { createdAt: "desc" },
+    ],
+    select: { id: true, feedSourceId: true },
+  });
+
+  const recentKeepIds: string[] = [];
+  const feedKeptCount = new Map<string, number>();
+
+  for (const post of importedPostsByRecency) {
+    if (!post.feedSourceId) continue;
+
+    const currentCount = feedKeptCount.get(post.feedSourceId) ?? 0;
+    if (currentCount >= MIN_RECENT_POSTS_PER_FEED_TO_KEEP) {
+      continue;
+    }
+
+    recentKeepIds.push(post.id);
+    feedKeptCount.set(post.feedSourceId, currentCount + 1);
+  }
+
   const rankedVisibleIds = importedPosts
     .filter((post, index) => {
       if (index < MIN_VISIBLE_FEED_POSTS) return true;
@@ -159,11 +185,15 @@ export async function refreshVisibleFeedPosts() {
     })
     .map((post) => post.id);
 
+  const undeletableIds = new Set([...rankedVisibleIds, ...recentKeepIds]);
+  const undeletableIdList =
+    undeletableIds.size > 0 ? [...undeletableIds] : ["__none__"];
+
   const [deleted] = await prisma.$transaction([
     prisma.post.deleteMany({
       where: {
         feedSourceId: { not: null },
-        id: { notIn: rankedVisibleIds.length > 0 ? rankedVisibleIds : ["__none__"] },
+        id: { notIn: undeletableIdList },
         likes: { none: {} },
         bookmarkedBy: { none: {} },
         sharedBy: { none: {} },
