@@ -138,7 +138,7 @@ export default async function AboutPage() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-slate-900 pt-4">4. Az adatok tárolása és megőrzése</h2>
               <p>
-                A Platform tárhelyszolgáltatója az Infotipp Rendszerház Kft. (székhely: 1212 Budapest, Maros u. 32.) amely az adatok tárolásához szükséges infrastruktúrát biztosítja.
+                A Platform tárhelyszolgáltatója az Infotipp Rendszerház Kft. (székhely: 1212 Budapest, Maros u. 32.) amely az adatok tárolásához szükséges infrastruktúrát biztosítja. Adatkezelési tájékoztatójuk a <a href="https://olcso-vps.hu/adatkezelesi-tajekoztato" target="_blank" rel="noopener noreferrer">https://olcso-vps.hu/adatkezelesi-tajekoztato</a> címen érhető el.
               </p>
               <p>
                 A felhasználók adatait a <a href="/profile/remove">fiók törléséig</a> megőrizzük. A fiók törlését követően a személyes adatokat indokolatlan késedelem nélkül töröljük vagy anonimizáljuk. A biztonsági mentésekben szereplő adatok legfeljebb 60 napig maradhatnak meg, ezt követően automatikusan felülíródnak, kivéve, ha jogszabály hosszabb megőrzést ír elő.
