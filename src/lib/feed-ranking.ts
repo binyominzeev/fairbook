@@ -6,6 +6,22 @@ const TARGET_VISIBLE_FEED_POSTS = 150;
 const MIN_OPTIONAL_FEED_SCORE = 20;
 const MIN_RECENT_POSTS_PER_FEED_TO_KEEP = 30;
 
+export type FeedVisibilityFeedStat = {
+  feedSourceId: string;
+  feedTitle: string;
+  totalCount: number;
+  visibleCount: number;
+  hiddenCount: number;
+  deletedCount: number;
+};
+
+export type FeedVisibilityResult = {
+  visibleCount: number;
+  hiddenCount: number;
+  deletedCount: number;
+  feedStats: FeedVisibilityFeedStat[];
+};
+
 function roundScore(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -146,22 +162,52 @@ export async function recomputeAllPostScores() {
   await recomputePostScores(posts.map((post) => post.id));
 }
 
-export async function refreshVisibleFeedPosts() {
-  const importedPosts = await prisma.post.findMany({
-    where: { feedSourceId: { not: null } },
-    orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-    select: { id: true, score: true },
-  });
+function summarizeFeedPostCounts(
+  posts: Array<{ feedSourceId: string | null; isFeedVisible: boolean }>
+) {
+  const summary = new Map<string, { totalCount: number; visibleCount: number }>();
 
-  const importedPostsByRecency = await prisma.post.findMany({
-    where: { feedSourceId: { not: null } },
-    orderBy: [
-      { feedSourceId: "asc" },
-      { fetchedAt: "desc" },
-      { createdAt: "desc" },
-    ],
-    select: { id: true, feedSourceId: true },
-  });
+  for (const post of posts) {
+    if (!post.feedSourceId) continue;
+
+    const current = summary.get(post.feedSourceId) ?? {
+      totalCount: 0,
+      visibleCount: 0,
+    };
+    current.totalCount += 1;
+    if (post.isFeedVisible) {
+      current.visibleCount += 1;
+    }
+    summary.set(post.feedSourceId, current);
+  }
+
+  return summary;
+}
+
+export async function refreshVisibleFeedPosts(): Promise<FeedVisibilityResult> {
+  const [feedSources, importedPosts, importedPostsByRecency, beforePosts] = await Promise.all([
+    prisma.feedSource.findMany({
+      select: { id: true, title: true },
+    }),
+    prisma.post.findMany({
+      where: { feedSourceId: { not: null } },
+      orderBy: [{ score: "desc" }, { createdAt: "desc" }],
+      select: { id: true, score: true },
+    }),
+    prisma.post.findMany({
+      where: { feedSourceId: { not: null } },
+      orderBy: [
+        { feedSourceId: "asc" },
+        { fetchedAt: "desc" },
+        { createdAt: "desc" },
+      ],
+      select: { id: true, feedSourceId: true },
+    }),
+    prisma.post.findMany({
+      where: { feedSourceId: { not: null } },
+      select: { feedSourceId: true, isFeedVisible: true },
+    }),
+  ]);
 
   const recentKeepIds: string[] = [];
   const feedKeptCount = new Map<string, number>();
@@ -185,9 +231,12 @@ export async function refreshVisibleFeedPosts() {
     })
     .map((post) => post.id);
 
-  const undeletableIds = new Set([...rankedVisibleIds, ...recentKeepIds]);
+  const protectedVisibleIds = new Set([...rankedVisibleIds, ...recentKeepIds]);
+  const undeletableIds = new Set(protectedVisibleIds);
   const undeletableIdList =
     undeletableIds.size > 0 ? [...undeletableIds] : ["__none__"];
+  const protectedVisibleIdList =
+    protectedVisibleIds.size > 0 ? [...protectedVisibleIds] : ["__none__"];
 
   const [deleted] = await prisma.$transaction([
     prisma.post.deleteMany({
@@ -205,7 +254,7 @@ export async function refreshVisibleFeedPosts() {
       data: { isFeedVisible: false },
     }),
     prisma.post.updateMany({
-      where: { id: { in: rankedVisibleIds.length > 0 ? rankedVisibleIds : ["__none__"] } },
+      where: { id: { in: protectedVisibleIdList } },
       data: { isFeedVisible: true },
     }),
     prisma.post.updateMany({
@@ -221,18 +270,38 @@ export async function refreshVisibleFeedPosts() {
     }),
   ]);
 
-  const [visibleCount, hiddenCount] = await Promise.all([
-    prisma.post.count({
-      where: { feedSourceId: { not: null }, isFeedVisible: true },
-    }),
-    prisma.post.count({
-      where: { feedSourceId: { not: null }, isFeedVisible: false },
-    }),
-  ]);
+  const afterPosts = await prisma.post.findMany({
+    where: { feedSourceId: { not: null } },
+    select: { feedSourceId: true, isFeedVisible: true },
+  });
+
+  const beforeSummary = summarizeFeedPostCounts(beforePosts);
+  const afterSummary = summarizeFeedPostCounts(afterPosts);
+
+  const feedStats: FeedVisibilityFeedStat[] = feedSources
+    .map((feed) => {
+      const before = beforeSummary.get(feed.id) ?? { totalCount: 0, visibleCount: 0 };
+      const after = afterSummary.get(feed.id) ?? { totalCount: 0, visibleCount: 0 };
+      const deletedCount = Math.max(0, before.totalCount - after.totalCount);
+
+      return {
+        feedSourceId: feed.id,
+        feedTitle: feed.title,
+        totalCount: after.totalCount,
+        visibleCount: after.visibleCount,
+        hiddenCount: Math.max(0, after.totalCount - after.visibleCount),
+        deletedCount,
+      };
+    })
+    .sort((left, right) => left.feedTitle.localeCompare(right.feedTitle));
+
+  const visibleCount = afterPosts.filter((post) => post.isFeedVisible).length;
+  const hiddenCount = afterPosts.length - visibleCount;
 
   return {
     visibleCount,
     hiddenCount,
     deletedCount: deleted.count,
+    feedStats,
   };
 }

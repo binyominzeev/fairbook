@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { authorizeCronRequest } from "@/lib/cron";
+import { recordFeedCleanupCronRun } from "@/lib/feed-cron-logs";
 import { recomputeAllPostScores, refreshVisibleFeedPosts } from "@/lib/feed-ranking";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
+  const startedAt = new Date();
   await recomputeAllPostScores();
   const visibility = await refreshVisibleFeedPosts();
   await prisma.feedSyncState.upsert({
@@ -19,6 +21,7 @@ export async function GET(request: NextRequest) {
     update: { lastCleanupAt: new Date() },
     create: { id: "default", lastCleanupAt: new Date() },
   });
+  await recordFeedCleanupCronRun({ startedAt, result: visibility });
 
   revalidatePath("/pages");
   revalidatePath("/feed");

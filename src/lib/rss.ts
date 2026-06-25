@@ -3,12 +3,39 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { classifyFeedArticlesForViolence } from "@/lib/ai";
 import {
+  type FeedVisibilityResult,
   calculatePostScore,
   hashFeedValue,
   normalizeUrl,
   recomputePostsForFeedSource,
   refreshVisibleFeedPosts,
 } from "@/lib/feed-ranking";
+
+export type FeedImportResult = {
+  feedSourceId: string;
+  feedTitle: string;
+  importedCount: number;
+  skippedCount: number;
+  notModified: boolean;
+};
+
+export type FeedSyncFeedResult = FeedImportResult & {
+  totalCount: number;
+  visibleCount: number;
+  error?: string;
+};
+
+export type FeedSyncBatchResult = {
+  processedFeedCount: number;
+  importedCount: number;
+  skippedCount: number;
+  notModifiedCount: number;
+  failedCount: number;
+  errors: Array<{ feedId: string; message: string }>;
+  processedFeedIds: string[];
+  visibility: FeedVisibilityResult;
+  feedResults: FeedSyncFeedResult[];
+};
 
 type ParsedFeed = {
   title?: string;
@@ -209,7 +236,11 @@ export async function previewFeed(rssUrl: string) {
   };
 }
 
-export async function importFeedPosts(feedSourceId: string) {
+export async function importFeedPosts(
+  feedSourceId: string,
+  options?: { refreshVisibility?: boolean }
+): Promise<FeedImportResult> {
+  const shouldRefreshVisibility = options?.refreshVisibility ?? true;
   const feedSource = await prisma.feedSource.findUnique({
     where: { id: feedSourceId },
     include: { page: true },
@@ -263,7 +294,13 @@ export async function importFeedPosts(feedSourceId: string) {
       },
     });
 
-    return { importedCount: 0, skippedCount: 0, notModified: true };
+    return {
+      feedSourceId: feedSource.id,
+      feedTitle: feedSource.title,
+      importedCount: 0,
+      skippedCount: 0,
+      notModified: true,
+    };
   }
 
   if (!fetchedFeed.response.ok || !fetchedFeed.body) {
@@ -410,25 +447,38 @@ export async function importFeedPosts(feedSourceId: string) {
   });
 
   await recomputePostsForFeedSource(feedSource.id);
-  await refreshVisibleFeedPosts();
+  if (shouldRefreshVisibility) {
+    await refreshVisibleFeedPosts();
+  }
 
-  return { importedCount, skippedCount, notModified: false };
+  return {
+    feedSourceId: feedSource.id,
+    feedTitle: feedSource.title,
+    importedCount,
+    skippedCount,
+    notModified: false,
+  };
 }
 
-export async function syncFeedBatch() {
+export async function syncFeedBatch(): Promise<FeedSyncBatchResult> {
   const activeFeeds = await prisma.feedSource.findMany({
     where: { isActive: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true },
+    select: { id: true, title: true },
   });
 
   if (activeFeeds.length === 0) {
+    const visibility = await refreshVisibleFeedPosts();
     return {
       processedFeedCount: 0,
       importedCount: 0,
       skippedCount: 0,
       notModifiedCount: 0,
+      failedCount: 0,
+      errors: [],
       processedFeedIds: [] as string[],
+      visibility,
+      feedResults: [],
     };
   }
 
@@ -456,18 +506,46 @@ export async function syncFeedBatch() {
   let skippedCount = 0;
   let notModifiedCount = 0;
   const errors: Array<{ feedId: string; message: string }> = [];
+  const feedResults: FeedSyncFeedResult[] = [];
 
   for (const feed of selectedFeeds) {
     try {
-      const result = await importFeedPosts(feed.id);
+      const result = await importFeedPosts(feed.id, { refreshVisibility: false });
       importedCount += result.importedCount;
       skippedCount += result.skippedCount;
       notModifiedCount += result.notModified ? 1 : 0;
+      feedResults.push({
+        ...result,
+        totalCount: 0,
+        visibleCount: 0,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown feed sync error.";
       errors.push({ feedId: feed.id, message });
+      feedResults.push({
+        feedSourceId: feed.id,
+        feedTitle: feed.title,
+        importedCount: 0,
+        skippedCount: 0,
+        notModified: false,
+        totalCount: 0,
+        visibleCount: 0,
+        error: message,
+      });
       continue;
     }
+  }
+
+  const visibility = await refreshVisibleFeedPosts();
+  const visibilityByFeedId = new Map(
+    visibility.feedStats.map((feedStat) => [feedStat.feedSourceId, feedStat])
+  );
+
+  for (const feedResult of feedResults) {
+    const visibilityStat = visibilityByFeedId.get(feedResult.feedSourceId);
+    if (!visibilityStat) continue;
+    feedResult.totalCount = visibilityStat.totalCount;
+    feedResult.visibleCount = visibilityStat.visibleCount;
   }
 
   return {
@@ -478,5 +556,7 @@ export async function syncFeedBatch() {
     failedCount: errors.length,
     errors,
     processedFeedIds: selectedFeeds.map((feed) => feed.id),
+    visibility,
+    feedResults,
   };
 }

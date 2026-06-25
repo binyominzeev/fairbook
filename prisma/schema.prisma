@@ -157,6 +157,7 @@ model FeedSource {
   page  User   @relation(fields: [pageId], references: [id])
   posts Post[]
   groupMemberships FeedGroupFeedSource[]
+  cronEntries FeedCronRunEntry[]
 }
 
 model FeedGroup {
@@ -191,6 +192,49 @@ model FeedSyncState {
   lastCleanupAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model FeedCronRun {
+  id               String   @id @default(cuid())
+  kind             String
+  status           String   @default("success")
+  startedAt        DateTime
+  finishedAt       DateTime
+  processedFeedCount Int    @default(0)
+  importedCount    Int      @default(0)
+  skippedCount     Int      @default(0)
+  notModifiedCount Int      @default(0)
+  deletedCount     Int      @default(0)
+  visibleCount     Int      @default(0)
+  hiddenCount      Int      @default(0)
+  failedCount      Int      @default(0)
+
+  entries FeedCronRunEntry[]
+
+  @@index([finishedAt])
+  @@index([kind, finishedAt])
+}
+
+model FeedCronRunEntry {
+  id           String   @id @default(cuid())
+  runId        String
+  feedSourceId String?
+  feedTitle    String
+  addedCount   Int      @default(0)
+  removedCount Int      @default(0)
+  skippedCount Int      @default(0)
+  totalCount   Int      @default(0)
+  visibleCount Int      @default(0)
+  notModified  Boolean  @default(false)
+  status       String   @default("success")
+  message      String?
+  createdAt    DateTime @default(now())
+
+  run        FeedCronRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  feedSource FeedSource? @relation(fields: [feedSourceId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([feedSourceId])
 }
 
 model Comment {

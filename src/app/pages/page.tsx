@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AdminFeedManager from "@/components/AdminFeedManager";
 import AdminChildSafetyArchive from "@/components/AdminChildSafetyArchive";
+import AdminFeedCronLogs from "@/components/AdminFeedCronLogs";
 import FeedGroupsManager from "@/components/FeedGroupsManager";
 import Avatar from "@/components/Avatar";
 import FollowButton from "@/components/FollowButton";
@@ -10,6 +11,7 @@ import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
 import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
+import { getRecentFeedCronRuns } from "@/lib/feed-cron-logs";
 import { getFeedGroupsForUser, getUserFeedSubscriptions } from "@/lib/feed-groups";
 import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
@@ -27,13 +29,19 @@ export default async function PagesPage(props: {
 
   const { q, tab } = await props.searchParams;
   const query = q?.trim() ?? "";
-  const activeTab = tab === "following" ? "following" : "discover";
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
+  const isAdmin = isAdminEmail(user.email);
+  const activeTab =
+    isAdmin && tab === "logs"
+      ? "logs"
+      : tab === "following"
+        ? "following"
+        : "discover";
 
   const followingPageRows = await prisma.connection.findMany({
     where: {
@@ -93,7 +101,7 @@ export default async function PagesPage(props: {
     },
   });
 
-  const adminFeeds = isAdminEmail(user.email)
+  const adminFeeds = isAdmin
     ? await prisma.feedSource.findMany({
         orderBy: { createdAt: "desc" },
         include: {
@@ -105,7 +113,7 @@ export default async function PagesPage(props: {
       })
     : [];
 
-  const adminHandledChildSafetyReports = isAdminEmail(user.email)
+  const adminHandledChildSafetyReports = isAdmin
     ? await prisma.childSafetyReport.findMany({
         where: { status: { not: "open" } },
         orderBy: [{ createdAt: "desc" }],
@@ -122,6 +130,8 @@ export default async function PagesPage(props: {
         },
       })
     : [];
+
+  const adminCronRuns = isAdmin ? await getRecentFeedCronRuns(25) : [];
 
   return (
     <>
@@ -162,24 +172,40 @@ export default async function PagesPage(props: {
             >
               Following
             </Link>
+            {isAdmin && (
+              <Link
+                href="/pages?tab=logs"
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
+                  activeTab === "logs"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Logs
+              </Link>
+            )}
           </div>
 
-          <form action="/pages" method="GET" className="flex flex-col gap-2 sm:flex-row">
-            <input type="hidden" name="tab" value={activeTab} />
-            <QuerySyncSearchInput
-              initialValue={query}
-              placeholder="Search pages or publishers"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
-            />
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
-            >
-              Search
-            </button>
-          </form>
+          {activeTab !== "logs" && (
+            <form action="/pages" method="GET" className="flex flex-col gap-2 sm:flex-row">
+              <input type="hidden" name="tab" value={activeTab} />
+              <QuerySyncSearchInput
+                initialValue={query}
+                placeholder="Search pages or publishers"
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
+              >
+                Search
+              </button>
+            </form>
+          )}
 
-          {pages.length === 0 ? (
+          {activeTab === "logs" ? (
+            <AdminFeedCronLogs runs={adminCronRuns} />
+          ) : pages.length === 0 ? (
             <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
               {activeTab === "following"
                 ? "You are not following any pages yet."
@@ -248,13 +274,15 @@ export default async function PagesPage(props: {
             </ul>
           )}
 
-          <FeedGroupsManager
-            initialGroups={feedGroups}
-            initialSources={feedSubscriptions}
-          />
+          {activeTab !== "logs" && (
+            <FeedGroupsManager
+              initialGroups={feedGroups}
+              initialSources={feedSubscriptions}
+            />
+          )}
         </section>
 
-        {isAdminEmail(user.email) && (
+        {isAdmin && (
           <>
             <AdminFeedManager
               feeds={adminFeeds.map((feed) => ({
