@@ -73,6 +73,10 @@ const parser = new Parser<ParsedFeed, ParsedItem>({
   },
 });
 
+const FEED_MIN_TOTAL_POSTS = 30;
+const DEFAULT_ITEMS_TO_SCAN = 25;
+const BACKFILL_SCAN_LIMIT = 180;
+
 type UrlMetadata = {
   title?: string | null;
   description?: string | null;
@@ -205,11 +209,17 @@ async function findExistingImportedPost(params: {
   const duplicateClauses: Prisma.PostWhereInput[] = [];
 
   if (params.urlHash) {
-    duplicateClauses.push({ urlHash: params.urlHash, feedSourceId: { not: null } });
+    duplicateClauses.push({
+      urlHash: params.urlHash,
+      feedSourceId: params.feedSourceId,
+    });
   }
 
   if (params.titleHash) {
-    duplicateClauses.push({ titleHash: params.titleHash, feedSourceId: { not: null } });
+    duplicateClauses.push({
+      titleHash: params.titleHash,
+      feedSourceId: params.feedSourceId,
+    });
   }
 
   return prisma.post.findFirst({
@@ -249,6 +259,10 @@ export async function importFeedPosts(
   if (!feedSource) {
     throw new Error("Feed source not found.");
   }
+
+  const currentImportedCount = await prisma.post.count({
+    where: { feedSourceId },
+  });
 
   const fetchedAt = new Date();
 
@@ -316,7 +330,16 @@ export async function importFeedPosts(
   }
 
   const feed = await parser.parseString(fetchedFeed.body);
-  const items = (feed.items ?? []).slice(0, 25);
+  const rawItems = feed.items ?? [];
+  const backfillNeeded = Math.max(0, FEED_MIN_TOTAL_POSTS - currentImportedCount);
+  const scanLimit =
+    backfillNeeded > 0
+      ? Math.min(
+          rawItems.length,
+          Math.max(DEFAULT_ITEMS_TO_SCAN, Math.min(BACKFILL_SCAN_LIMIT, backfillNeeded * 10))
+        )
+      : Math.min(rawItems.length, DEFAULT_ITEMS_TO_SCAN);
+  const items = rawItems.slice(0, scanLimit);
   let importedCount = 0;
   let skippedCount = 0;
   const pendingPosts: Array<{

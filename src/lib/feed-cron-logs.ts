@@ -2,6 +2,19 @@ import { prisma } from "@/lib/prisma";
 import type { FeedVisibilityResult } from "@/lib/feed-ranking";
 import type { FeedSyncBatchResult } from "@/lib/rss";
 
+const LOG_RETENTION_DAYS = 7;
+
+async function pruneOldFeedCronRuns() {
+  const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.feedCronRun.deleteMany({
+    where: {
+      finishedAt: {
+        lt: cutoff,
+      },
+    },
+  });
+}
+
 export async function recordFeedSyncCronRun({
   startedAt,
   result,
@@ -40,6 +53,8 @@ export async function recordFeedSyncCronRun({
       },
     },
   });
+
+  await pruneOldFeedCronRuns();
 }
 
 export async function recordFeedCleanupCronRun({
@@ -76,6 +91,8 @@ export async function recordFeedCleanupCronRun({
       },
     },
   });
+
+  await pruneOldFeedCronRuns();
 }
 
 export async function getRecentFeedCronRuns(limit = 20) {
