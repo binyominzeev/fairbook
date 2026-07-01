@@ -36,7 +36,7 @@ export default function Navbar({ user }: Props) {
   const profileHref = buildProfilePath(user);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+    <header className="z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm sm:sticky sm:top-0">
       <div className="mx-auto flex max-w-2xl flex-col items-start gap-3 px-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-0">
         <BrandLink href="/feed" size="sm" subtitle="Discourse" />
         <nav className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end">
