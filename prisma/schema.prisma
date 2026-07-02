@@ -43,6 +43,8 @@ model User {
   bookmarkedPosts    BookmarkedPost[]
   feedGroups         FeedGroup[]
   childSafetyReports ChildSafetyReport[] @relation("ChildSafetyReporter")
+  commentAppealsSubmitted CommentAppeal[] @relation("CommentAppealRequester")
+  commentAppealsReviewed  CommentAppeal[] @relation("CommentAppealReviewer")
 }
 
 model Post {
@@ -254,6 +256,7 @@ model Comment {
   parent   Comment?         @relation("replies", fields: [parentId], references: [id])
   replies  Comment[]        @relation("replies")
   analysis CommentAnalysis?
+  appeals  CommentAppeal[]
 }
 
 model CommentAnalysis {
@@ -266,6 +269,36 @@ model CommentAnalysis {
   analyzedAt       DateTime @default(now())
 
   comment Comment @relation(fields: [commentId], references: [id])
+}
+
+model CommentAppeal {
+  id           String   @id @default(cuid())
+  commentId    String
+  requesterId  String
+  status       String   @default("open") // open | resolved_visible | resolved_rejected
+  requestText  String?
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  comment    Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  requester  User    @relation("CommentAppealRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewedBy User?   @relation("CommentAppealReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([commentId, status])
+  @@index([requesterId, status])
+}
+
+model AiPromptTemplate {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  label          String
+  content        String
+  updatedByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Connection {

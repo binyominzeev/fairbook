@@ -6,6 +6,7 @@ import FeedInfiniteList from "@/components/FeedInfiniteList";
 import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import AdminChildSafetyInbox from "@/components/AdminChildSafetyInbox";
+import AdminDevSidebar from "@/components/AdminDevSidebar";
 import { isAdminEmail } from "@/lib/admin";
 import { getFeedGroupsForUser } from "@/lib/feed-groups";
 import { getFeedPage } from "@/lib/feed-posts";
@@ -221,6 +222,7 @@ export default async function FeedPage(props: {
           </div>
         )}
       </div>
+      {isAdminEmail(user.email) && <AdminDevSidebar />}
     </>
   );
 }

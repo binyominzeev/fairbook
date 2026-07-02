@@ -7,7 +7,9 @@ import CommentCard from "@/components/CommentCard";
 import ThreadReflection from "@/components/ThreadReflection";
 import GenerateReflectionButton from "@/components/GenerateReflectionButton";
 import CommentForm from "@/components/CommentForm";
+import AdminDevSidebar from "@/components/AdminDevSidebar";
 import type { DiscourseSignal } from "@/lib/ai";
+import { isAdminEmail } from "@/lib/admin";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 
 export default async function PostPage(props: {
@@ -22,6 +24,7 @@ export default async function PostPage(props: {
     select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
   });
   if (!user) redirect("/login");
+  const isAdmin = isAdminEmail(user.email);
 
   const post = await prisma.post.findUnique({
     where: { id },
@@ -229,12 +232,14 @@ export default async function PostPage(props: {
                   comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
                   postId={id}
                   currentUserId={user.id}
+                  currentUserIsAdmin={isAdmin}
                 />
               )
             )}
           </div>
         </div>
       </div>
+      {isAdmin && <AdminDevSidebar />}
     </>
   );
 }

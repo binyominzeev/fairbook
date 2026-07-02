@@ -41,6 +41,7 @@ interface Props {
   comment: CommentData;
   postId: string;
   currentUserId: string;
+  currentUserIsAdmin?: boolean;
   depth?: number;
 }
 
@@ -75,6 +76,7 @@ export default function CommentCard({
   comment,
   postId,
   currentUserId,
+  currentUserIsAdmin = false,
   depth = 0,
 }: Props) {
   const router = useRouter();
@@ -98,10 +100,45 @@ export default function CommentCard({
     kind: "success" | "warning" | "error";
     message: string;
   } | null>(null);
+  const [appealing, setAppealing] = useState(false);
+  const [appealText, setAppealText] = useState("");
+  const [hasOpenAppeal, setHasOpenAppeal] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const isOwnComment = localComment.author.id === currentUserId;
+
+  const submitAppeal = useCallback(async () => {
+    if (!isOwnComment || currentUserIsAdmin) return;
+
+    setAppealing(true);
+    setActionNotice(null);
+    try {
+      const response = await fetch(`/api/comments/${localComment.id}/appeal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestText: appealText }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Failed to submit appeal.",
+        });
+        return;
+      }
+
+      setHasOpenAppeal(true);
+      setAppealText("");
+      setActionNotice({
+        kind: "success",
+        message: "Appeal submitted. Admin can now review this case in Dev Sidebar.",
+      });
+    } finally {
+      setAppealing(false);
+    }
+  }, [appealText, currentUserIsAdmin, isOwnComment, localComment.id]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -336,6 +373,33 @@ export default function CommentCard({
               <p className="mt-1 text-amber-800">
                 {localComment.moderationExplanation ?? "Only you can see this comment."}
               </p>
+              {!currentUserIsAdmin && (
+                <div className="mt-2 space-y-2">
+                  {!hasOpenAppeal ? (
+                    <>
+                      <AutoResizeTextarea
+                        value={appealText}
+                        onChange={(event) => setAppealText(event.target.value)}
+                        minRows={2}
+                        placeholder="Optional note for admin (why this should be allowed)."
+                        className="w-full resize-y rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs leading-5 text-amber-900 placeholder:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void submitAppeal()}
+                        disabled={appealing}
+                        className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                      >
+                        {appealing ? "Submitting..." : "Appeal this decision"}
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-amber-800">
+                      Appeal is open. An admin will review it.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <DiscourseIndicators analysis={analysis} />
@@ -393,6 +457,7 @@ export default function CommentCard({
           comment={reply}
           postId={postId}
           currentUserId={currentUserId}
+                  currentUserIsAdmin={currentUserIsAdmin}
           depth={depth + 1}
         />
       ))}
