@@ -3,6 +3,7 @@ import {
   buildPostInclude,
   serializePost,
   serializeProfileComment,
+  type SerializedCommentPreview,
   type SerializedPost,
   type SerializedProfileComment,
 } from "@/lib/post-presentation";
@@ -36,6 +37,42 @@ type CommentRecord = Prisma.CommentGetPayload<{
     };
   };
 }>;
+
+async function attachCommentPreviews(posts: SerializedPost[]): Promise<SerializedPost[]> {
+  if (posts.length === 0) return posts;
+
+  const postIds = posts.map((post) => post.id);
+  const previewRows = await prisma.comment.findMany({
+    where: {
+      postId: { in: postIds },
+      moderationStatus: "visible",
+      parentId: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: postIds.length * 12,
+    include: {
+      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+    },
+  });
+
+  const previewsByPostId = new Map<string, SerializedCommentPreview[]>();
+  for (const row of previewRows) {
+    const bucket = previewsByPostId.get(row.postId) ?? [];
+    if (bucket.length >= 3) continue;
+    bucket.push({
+      id: row.id,
+      content: row.content,
+      createdAt: row.createdAt.toISOString(),
+      author: row.author,
+    });
+    previewsByPostId.set(row.postId, bucket);
+  }
+
+  return posts.map((post) => ({
+    ...post,
+    commentPreviews: previewsByPostId.get(post.id) ?? [],
+  }));
+}
 
 function buildPostSearchWhere(query: string): Prisma.PostWhereInput {
   return {
@@ -146,9 +183,10 @@ export async function getProfilePostsPage({
 
   const hasMore = batch.length > PROFILE_POST_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_POST_PAGE_SIZE) : batch;
+  const serialized = items.map((post: PostRecord) => serializePost(post));
 
   return {
-    posts: items.map((post: PostRecord) => serializePost(post)),
+    posts: await attachCommentPreviews(serialized),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
@@ -204,9 +242,10 @@ export async function getProfileLikedPostsPage({
 
   const hasMore = batch.length > PROFILE_LIKES_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_LIKES_PAGE_SIZE) : batch;
+  const serialized = items.map((like) => serializePost(like.post as PostRecord));
 
   return {
-    posts: items.map((like) => serializePost(like.post as PostRecord)),
+    posts: await attachCommentPreviews(serialized),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
@@ -309,9 +348,10 @@ export async function getProfileHiddenPostsPage({
 
   const hasMore = batch.length > PROFILE_HIDDEN_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_HIDDEN_PAGE_SIZE) : batch;
+  const serialized = items.map((hiddenPost) => serializePost(hiddenPost.post as PostRecord));
 
   return {
-    posts: items.map((hiddenPost) => serializePost(hiddenPost.post as PostRecord)),
+    posts: await attachCommentPreviews(serialized),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
@@ -353,9 +393,10 @@ export async function getProfileBookmarkedPostsPage({
 
   const hasMore = batch.length > PROFILE_BOOKMARKS_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_BOOKMARKS_PAGE_SIZE) : batch;
+  const serialized = items.map((bookmark) => serializePost(bookmark.post as PostRecord));
 
   return {
-    posts: items.map((bookmark) => serializePost(bookmark.post as PostRecord)),
+    posts: await attachCommentPreviews(serialized),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
