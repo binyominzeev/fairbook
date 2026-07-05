@@ -26,6 +26,8 @@ model User {
   tagFilterTags String?
   // Profile activity view mode: "normal" | "reels"
   profileActivityViewMode String @default("normal")
+  // Feed sort mode: "current" | "weighted" | "likes" | "comments" | "time"
+  feedSortMode String @default("current")
 
   managedBy          User?               @relation("ManagedPages", fields: [managedById], references: [id])
   managedPages       User[]              @relation("ManagedPages")

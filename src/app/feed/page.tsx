@@ -31,7 +31,6 @@ export default async function FeedPage(props: {
   const { notice, noticeKind, mode, group, q, sort } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
   const query = q?.trim() ?? "";
-  const activeSort: FeedSortMode = normalizeFeedSortMode(sort);
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -44,9 +43,14 @@ export default async function FeedPage(props: {
       email: true,
       avatarUrl: true,
       hideViolentFeed: true,
+      feedSortMode: true,
     },
   });
   if (!user) redirect("/login");
+
+  const activeSort: FeedSortMode = sort
+    ? normalizeFeedSortMode(sort)
+    : normalizeFeedSortMode(user.feedSortMode);
 
   const feedGroups = await getFeedGroupsForUser(session.userId);
   const activeGroup = requestedGroupId

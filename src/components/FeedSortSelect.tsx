@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { FeedSortMode } from "@/lib/feed-posts";
 
@@ -14,17 +14,21 @@ const SORT_LABELS: Record<FeedSortMode, string> = {
 
 export default function FeedSortSelect({
   initialSort,
+  saveEndpoint = "/api/users/feed-sort",
   mode,
   groupId,
   query,
 }: {
   initialSort: FeedSortMode;
+  saveEndpoint?: string;
   mode: "all" | "following" | "group";
   groupId: string | null;
   query: string;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<FeedSortMode>(initialSort);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, startTransition] = useTransition();
 
   const buildHref = (nextSort: FeedSortMode) => {
     const params = new URLSearchParams();
@@ -51,7 +55,26 @@ export default function FeedSortSelect({
 
   const handleChange = (nextSort: FeedSortMode) => {
     setSort(nextSort);
-    router.push(buildHref(nextSort));
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(saveEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: nextSort }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not save feed sort mode.");
+        }
+
+        router.push(buildHref(nextSort));
+      } catch {
+        setSort(initialSort);
+        setError("Nem sikerult menteni a rendezest.");
+      }
+    });
   };
 
   return (
@@ -64,6 +87,7 @@ export default function FeedSortSelect({
           id="feed-sort-mode"
           value={sort}
           onChange={(event) => handleChange(event.target.value as FeedSortMode)}
+          disabled={isSaving}
           className="min-w-32 appearance-none rounded-lg border border-slate-300 bg-white px-3 py-1.5 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors hover:border-slate-400 focus:border-blue-500"
           aria-label="Rendezés"
         >
@@ -83,6 +107,7 @@ export default function FeedSortSelect({
           </svg>
         </span>
       </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
     </div>
   );
 }
