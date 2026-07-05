@@ -5,6 +5,7 @@ import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface User {
   id: string;
@@ -20,6 +21,46 @@ interface Props {
 export default function Navbar({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUnreadCount = async () => {
+      try {
+        const response = await fetch("/api/notifications/unread-count");
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!cancelled) {
+          setUnreadCount(Number(data.unreadCount ?? 0));
+        }
+      } catch {
+        // Ignore transient fetch errors in navbar.
+      }
+    };
+
+    const handleUnreadCountChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ unreadCount?: number }>;
+      if (typeof customEvent.detail?.unreadCount === "number") {
+        setUnreadCount(customEvent.detail.unreadCount);
+      }
+    };
+
+    void loadUnreadCount();
+    window.addEventListener(
+      "fairbook:notifications-unread-changed",
+      handleUnreadCountChanged
+    );
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "fairbook:notifications-unread-changed",
+        handleUnreadCountChanged
+      );
+    };
+  }, [pathname]);
 
   const logout = async () => {
     // Clear cookie by setting max-age=0
@@ -32,6 +73,7 @@ export default function Navbar({ user }: Props) {
     { href: "/feed", label: "Feed" },
     { href: "/connections", label: "People" },
     { href: "/pages", label: "Pages" },
+    { href: "/notifications", label: "Notifications" },
   ];
   const profileHref = buildProfilePath(user);
 
@@ -50,7 +92,18 @@ export default function Navbar({ user }: Props) {
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               }`}
             >
-              {link.label}
+              {link.href === "/notifications" ? (
+                <span className="inline-flex items-center gap-1.5">
+                  {link.label}
+                  {unreadCount > 0 && (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                link.label
+              )}
             </Link>
           ))}
           <Link

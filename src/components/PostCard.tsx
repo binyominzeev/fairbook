@@ -61,6 +61,12 @@ interface PostData {
   sharedByCurrentUser: boolean;
   _count: { comments: number; likes: number; sharedBy: number };
   tags?: { id: string; name: string; color: string }[];
+  commentPreviews?: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+    author: Author;
+  }>;
 }
 
 interface Props {
@@ -1308,6 +1314,31 @@ export default function PostCard({
       </div>
       {actionError && (
         <p className="mt-2 text-xs text-red-600">{actionError}</p>
+      )}
+
+      {post.commentPreviews && post.commentPreviews.length > 0 && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+          {post.commentPreviews.map((preview) => (
+            <Link
+              key={preview.id}
+              href={post.permalinkPath}
+              className="block rounded-lg bg-slate-50 px-3 py-2 transition-colors hover:bg-slate-100"
+            >
+              <p className="text-[11px] text-slate-500">
+                <span className="font-medium text-slate-700">{preview.author.name}</span> · {timeAgo(preview.createdAt)}
+              </p>
+              <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-xs text-slate-700">
+                {preview.content}
+              </p>
+            </Link>
+          ))}
+          <Link
+            href={post.permalinkPath}
+            className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+          >
+            Open discussion →
+          </Link>
+        </div>
       )}
       </article>
     </>

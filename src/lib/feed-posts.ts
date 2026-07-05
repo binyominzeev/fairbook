@@ -4,6 +4,7 @@ import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
 import {
   buildPostInclude,
   serializePost,
+  type SerializedCommentPreview,
   type SerializedPost,
 } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
@@ -232,8 +233,40 @@ export async function getFeedPage({
   const orderedItems =
     cursor || viewMode === "group" ? items : rerankFirstFeedPage(items, viewerId);
 
+  const postIds = orderedItems.map((post) => post.id);
+  const previewRows = postIds.length
+    ? await prisma.comment.findMany({
+        where: {
+          postId: { in: postIds },
+          moderationStatus: "visible",
+          parentId: null,
+        },
+        orderBy: { createdAt: "desc" },
+        take: FEED_PAGE_SIZE * 12,
+        include: {
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+        },
+      })
+    : [];
+
+  const previewsByPostId = new Map<string, SerializedCommentPreview[]>();
+  for (const row of previewRows) {
+    const bucket = previewsByPostId.get(row.postId) ?? [];
+    if (bucket.length >= 3) continue;
+    bucket.push({
+      id: row.id,
+      content: row.content,
+      createdAt: row.createdAt.toISOString(),
+      author: row.author,
+    });
+    previewsByPostId.set(row.postId, bucket);
+  }
+
   return {
-    posts: orderedItems.map(serializePost),
+    posts: orderedItems.map((post) => ({
+      ...serializePost(post),
+      commentPreviews: previewsByPostId.get(post.id) ?? [],
+    })),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

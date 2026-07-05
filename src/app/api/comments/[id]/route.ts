@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { analyzeComment, moderateComment } from "@/lib/ai";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { recomputePostScore } from "@/lib/feed-ranking";
 import { prisma } from "@/lib/prisma";
 
@@ -70,6 +71,11 @@ async function loadModerationContext(commentId: string, postId: string) {
 }
 
 async function refreshCommentAnalysis(commentId: string, postId: string, content: string) {
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
+  if (!commentInsightsEnabled) {
+    return;
+  }
+
   try {
     const siblings = await prisma.comment.findMany({
       where: { postId, id: { not: commentId } },

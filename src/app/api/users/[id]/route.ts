@@ -1,4 +1,6 @@
 import { getSession } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
+import { getCommentInsightsEnabled, setCommentInsightsEnabled } from "@/lib/app-config";
 import { prisma } from "@/lib/prisma";
 import { claimRequestedUserSlug } from "@/lib/user-slugs";
 
@@ -78,10 +80,15 @@ export async function PATCH(
   }
 
   const body = await request.json();
+  const isAdmin = isAdminEmail(session.email);
   const shouldUpdateAvatar = Object.hasOwn(body, "avatarUrl");
   const shouldUpdateSlug = Object.hasOwn(body, "slug");
   const hideViolentFeed =
     typeof body.hideViolentFeed === "boolean" ? body.hideViolentFeed : undefined;
+  const commentInsightsEnabled =
+    isAdmin && typeof body.commentInsightsEnabled === "boolean"
+      ? body.commentInsightsEnabled
+      : undefined;
 
   let avatarUrl: string | null | undefined;
   let slug: string | undefined;
@@ -127,5 +134,15 @@ export async function PATCH(
     },
   });
 
-  return Response.json({ user });
+  const resolvedCommentInsightsEnabled =
+    commentInsightsEnabled === undefined
+      ? await getCommentInsightsEnabled()
+      : await setCommentInsightsEnabled(commentInsightsEnabled);
+
+  return Response.json({
+    user,
+    appConfig: {
+      commentInsightsEnabled: resolvedCommentInsightsEnabled,
+    },
+  });
 }

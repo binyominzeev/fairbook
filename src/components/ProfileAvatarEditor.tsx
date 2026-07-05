@@ -24,6 +24,8 @@ interface Props {
   email: string;
   avatarUrl?: string | null;
   hideViolentFeed: boolean;
+  isAdmin: boolean;
+  commentInsightsEnabled: boolean;
 }
 
 export default function ProfileAvatarEditor({
@@ -33,11 +35,15 @@ export default function ProfileAvatarEditor({
   email,
   avatarUrl,
   hideViolentFeed,
+  isAdmin,
+  commentInsightsEnabled,
 }: Props) {
   const router = useRouter();
   const [draftSlug, setDraftSlug] = useState(slug ?? "");
   const [draftAvatarUrl, setDraftAvatarUrl] = useState(avatarUrl ?? null);
   const [draftHideViolentFeed, setDraftHideViolentFeed] = useState(hideViolentFeed);
+  const [draftCommentInsightsEnabled, setDraftCommentInsightsEnabled] =
+    useState(commentInsightsEnabled);
   const [isSaving, setIsSaving] = useState(false);
   const [fileError, setFileError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -46,7 +52,8 @@ export default function ProfileAvatarEditor({
   const hasChanges =
     draftSlug.trim() !== (slug ?? "") ||
     (draftAvatarUrl ?? null) !== (avatarUrl ?? null) ||
-    draftHideViolentFeed !== hideViolentFeed;
+    draftHideViolentFeed !== hideViolentFeed ||
+    (isAdmin && draftCommentInsightsEnabled !== commentInsightsEnabled);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -89,6 +96,7 @@ export default function ProfileAvatarEditor({
           slug: draftSlug,
           avatarUrl: nextAvatarUrl,
           hideViolentFeed: draftHideViolentFeed,
+          ...(isAdmin ? { commentInsightsEnabled: draftCommentInsightsEnabled } : {}),
         }),
       });
       const data = await response.json();
@@ -101,6 +109,9 @@ export default function ProfileAvatarEditor({
       setDraftAvatarUrl(data.user.avatarUrl ?? null);
       setDraftSlug(data.user.slug ?? "");
       setDraftHideViolentFeed(Boolean(data.user.hideViolentFeed));
+      if (isAdmin && data.appConfig) {
+        setDraftCommentInsightsEnabled(Boolean(data.appConfig.commentInsightsEnabled));
+      }
       setSaveSuccess("Beállítások mentve.");
       startTransition(() => {
         router.push(buildProfilePath({ id: data.user.id, slug: data.user.slug }));
@@ -237,6 +248,36 @@ export default function ProfileAvatarEditor({
             />
           </button>
         </label>
+
+        {isAdmin && (
+          <label className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-1">
+              <span className="block text-sm font-medium text-slate-900">
+                Reflection funkció a kommentfolyamnál
+              </span>
+              <span className="block text-xs leading-5 text-slate-500">
+                Kikapcsolva eltűnik a thread reflection panel és nem készül új reflection.
+                A komment &quot;Test&quot; funkció továbbra is működik.
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draftCommentInsightsEnabled}
+              onClick={() => {
+                setDraftCommentInsightsEnabled((current) => !current);
+                setSaveError("");
+                setSaveSuccess("");
+              }}
+              disabled={isSaving}
+              className={`relative inline-flex h-7 w-12 shrink-0 rounded-full border transition-colors ${draftCommentInsightsEnabled ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-slate-300"} ${isSaving ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 translate-y-[3px] rounded-full bg-white transition-transform ${draftCommentInsightsEnabled ? "translate-x-6" : "translate-x-1"}`}
+              />
+            </button>
+          </label>
+        )}
 
         <div className="space-y-1">
           {fileError && <p className="text-xs text-red-600">{fileError}</p>}

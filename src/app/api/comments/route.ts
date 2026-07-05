@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth";
 import { recomputePostScore } from "@/lib/feed-ranking";
 import { prisma } from "@/lib/prisma";
 import { analyzeComment, moderateComment } from "@/lib/ai";
+import { createCommentNotifications } from "@/lib/notifications";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderateComment>>) {
   if (moderation.source === "fallback") {
@@ -109,15 +111,17 @@ export async function POST(request: NextRequest) {
   }
 
   let parentContent: string | undefined;
+  let parentCommentAuthorId: string | undefined;
   if (parentId) {
     const parent = await prisma.comment.findUnique({
       where: { id: parentId },
-      select: { postId: true, content: true },
+      select: { postId: true, content: true, authorId: true },
     });
     if (!parent || parent.postId !== postId) {
       return Response.json({ error: "Parent comment not found." }, { status: 404 });
     }
     parentContent = parent.content;
+    parentCommentAuthorId = parent.authorId;
   }
 
   const sharedContent = [
@@ -172,34 +176,46 @@ export async function POST(request: NextRequest) {
 
   await recomputePostScore(postId);
 
-  // Analyze asynchronously — don't block the response
-  (async () => {
-    try {
-      // Collect thread context for better analysis
-      const siblings = await prisma.comment.findMany({
-        where: { postId, id: { not: comment.id } },
-        orderBy: { createdAt: "asc" },
-        take: 10,
-        include: { author: { select: { name: true } } },
-      });
-      const context = siblings
-        .map((c) => `${c.author.name}: ${c.content}`)
-        .join("\n");
+  if (moderation.status === "visible") {
+    void createCommentNotifications({
+      actorId: session.userId,
+      postId,
+      commentId: comment.id,
+      parentCommentAuthorId,
+    });
+  }
 
-      const analysis = await analyzeComment(content, context || undefined);
-      await prisma.commentAnalysis.create({
-        data: {
-          commentId: comment.id,
-          positiveSignals: JSON.stringify(analysis.positiveSignals),
-          negativeSignals: JSON.stringify(analysis.negativeSignals),
-          neutralSignals: JSON.stringify(analysis.neutralSignals),
-          explanation: analysis.explanation,
-        },
-      });
-    } catch {
-      // Analysis failure is non-fatal
-    }
-  })();
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
+  if (commentInsightsEnabled) {
+    // Analyze asynchronously — don't block the response
+    (async () => {
+      try {
+        // Collect thread context for better analysis
+        const siblings = await prisma.comment.findMany({
+          where: { postId, id: { not: comment.id } },
+          orderBy: { createdAt: "asc" },
+          take: 10,
+          include: { author: { select: { name: true } } },
+        });
+        const context = siblings
+          .map((c) => `${c.author.name}: ${c.content}`)
+          .join("\n");
+
+        const analysis = await analyzeComment(content, context || undefined);
+        await prisma.commentAnalysis.create({
+          data: {
+            commentId: comment.id,
+            positiveSignals: JSON.stringify(analysis.positiveSignals),
+            negativeSignals: JSON.stringify(analysis.negativeSignals),
+            neutralSignals: JSON.stringify(analysis.neutralSignals),
+            explanation: analysis.explanation,
+          },
+        });
+      } catch {
+        // Analysis failure is non-fatal
+      }
+    })();
+  }
 
   return Response.json(
     {

@@ -43,6 +43,7 @@ interface Props {
   currentUserId: string;
   currentUserIsAdmin?: boolean;
   depth?: number;
+  commentInsightsEnabled?: boolean;
 }
 
 function renderTextWithLinks(text: string, className: string) {
@@ -78,6 +79,7 @@ export default function CommentCard({
   currentUserId,
   currentUserIsAdmin = false,
   depth = 0,
+  commentInsightsEnabled = true,
 }: Props) {
   const router = useRouter();
   const [showReplyForm, setShowReplyForm] = useState(false);
@@ -402,7 +404,7 @@ export default function CommentCard({
               )}
             </div>
           )}
-          <DiscourseIndicators analysis={analysis} />
+          {commentInsightsEnabled && <DiscourseIndicators analysis={analysis} />}
           {depth < 3 && (
             <button
               onClick={() => setShowReplyForm((v) => !v)}
@@ -457,7 +459,8 @@ export default function CommentCard({
           comment={reply}
           postId={postId}
           currentUserId={currentUserId}
-                  currentUserIsAdmin={currentUserIsAdmin}
+          currentUserIsAdmin={currentUserIsAdmin}
+          commentInsightsEnabled={commentInsightsEnabled}
           depth={depth + 1}
         />
       ))}

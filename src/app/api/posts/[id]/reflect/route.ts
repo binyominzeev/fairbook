@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { prisma } from "@/lib/prisma";
 import { generateReflection } from "@/lib/ai";
 
@@ -9,6 +10,14 @@ export async function POST(
   const session = await getSession();
   if (!session) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
+  if (!commentInsightsEnabled) {
+    return Response.json(
+      { error: "Reflection is currently disabled by admin." },
+      { status: 403 }
+    );
   }
 
   const { id } = await ctx.params;

@@ -12,6 +12,7 @@ import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 
 export default async function PostPermalinkPage(props: {
   params: Promise<{ id: string; year: string; month: string; postSlug: string }>;
@@ -26,6 +27,7 @@ export default async function PostPermalinkPage(props: {
   });
   if (!user) redirect("/login");
   const isAdmin = isAdminEmail(user.email);
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
 
   const profileUser = await resolveUserByProfileIdentifier(id, {
     id: true,
@@ -149,6 +151,7 @@ export default async function PostPermalinkPage(props: {
     neutralSignals: string;
     explanation: string;
   } | null) => {
+    if (!commentInsightsEnabled) return null;
     if (!a) return null;
     return {
       positiveSignals: JSON.parse(a.positiveSignals) as DiscourseSignal[],
@@ -243,11 +246,12 @@ export default async function PostPermalinkPage(props: {
           showPermalinkEditor
         />
 
-        {latestReflection ? (
-          <ThreadReflection reflection={latestReflection} />
-        ) : (
-          commentCount >= 5 && <GenerateReflectionButton postId={post.id} />
-        )}
+        {commentInsightsEnabled &&
+          (latestReflection ? (
+            <ThreadReflection reflection={latestReflection} />
+          ) : (
+            commentCount >= 5 && <GenerateReflectionButton postId={post.id} />
+          ))}
 
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <h2 className="text-sm font-semibold text-slate-700 mb-4">
@@ -270,6 +274,7 @@ export default async function PostPermalinkPage(props: {
                   postId={post.id}
                   currentUserId={user.id}
                   currentUserIsAdmin={isAdmin}
+                  commentInsightsEnabled={commentInsightsEnabled}
                 />
               )
             )}

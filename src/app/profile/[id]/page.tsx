@@ -19,6 +19,8 @@ import {
 import Link from "next/link";
 import { buildProfilePath } from "@/lib/profile-path";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
+import { isAdminEmail } from "@/lib/admin";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
@@ -49,6 +51,8 @@ export default async function ProfilePage(props: {
     },
   });
   if (!currentUser) redirect("/login");
+  const isAdmin = isAdminEmail(currentUser.email);
+  const commentInsightsEnabled = isAdmin ? await getCommentInsightsEnabled() : true;
 
   const profileActivityViewMode: ProfileActivityViewMode =
     currentUser.profileActivityViewMode === "reels" ? "reels" : "normal";
@@ -279,6 +283,8 @@ export default async function ProfilePage(props: {
                 email={currentUser.email}
                 avatarUrl={profileUser.avatarUrl}
                 hideViolentFeed={currentUser.hideViolentFeed}
+                isAdmin={isAdmin}
+                commentInsightsEnabled={commentInsightsEnabled}
               />
             )}
 

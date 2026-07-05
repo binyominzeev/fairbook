@@ -1,11 +1,17 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { analyzeComment } from "@/lib/ai";
+import { getCommentInsightsEnabled } from "@/lib/app-config";
 
 export async function GET(
   _req: Request,
   ctx: RouteContext<"/api/comments/[id]/analysis">
 ) {
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
+  if (!commentInsightsEnabled) {
+    return Response.json({ analysis: null });
+  }
+
   const { id } = await ctx.params;
 
   const analysis = await prisma.commentAnalysis.findUnique({
@@ -33,6 +39,14 @@ export async function POST(
   const session = await getSession();
   if (!session) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const commentInsightsEnabled = await getCommentInsightsEnabled();
+  if (!commentInsightsEnabled) {
+    return Response.json(
+      { error: "Comment insights are currently disabled by admin." },
+      { status: 403 }
+    );
   }
 
   const { id } = await ctx.params;

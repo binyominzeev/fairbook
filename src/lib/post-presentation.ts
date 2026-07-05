@@ -22,6 +22,13 @@ export interface SerializedSharedPost {
   author: SerializedAuthor;
 }
 
+export interface SerializedCommentPreview {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: SerializedAuthor;
+}
+
 export interface SerializedPost {
   id: string;
   permalinkSlug: string | null;
@@ -45,6 +52,7 @@ export interface SerializedPost {
   sharedPost: SerializedSharedPost | null;
   _count: { comments: number; likes: number; sharedBy: number };
   tags?: { id: string; name: string; color: string }[];
+  commentPreviews?: SerializedCommentPreview[];
 }
 
 export interface SerializedProfileComment {
