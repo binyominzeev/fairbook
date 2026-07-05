@@ -3,6 +3,7 @@
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import HighlightedText from "@/components/HighlightedText";
+import LikersListTrigger from "@/components/LikersListTrigger";
 import { buildProfilePath } from "@/lib/profile-path";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -1283,8 +1284,9 @@ export default function PostCard({
           disabled={pendingAction !== null}
           className={`text-xs transition-colors ${liked ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
         >
-          {liked ? "♥" : "♡"} {likeCount} like{likeCount !== 1 ? "s" : ""}
+          {liked ? "♥ Liked" : "♡ Like"}
         </button>
+        <LikersListTrigger kind="post" targetId={post.id} likeCount={likeCount} />
         <button
           type="button"
           onClick={() => {

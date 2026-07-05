@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DiscourseIndicators from "./DiscourseIndicators";
+import LikersListTrigger from "./LikersListTrigger";
 import type { DiscourseSignal } from "@/lib/ai";
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -443,8 +444,9 @@ export default function CommentCard({
               disabled={liking}
               className={`text-xs transition-colors ${liked ? "text-blue-600" : "text-slate-400 hover:text-blue-600"} disabled:text-slate-300`}
             >
-              {liked ? "♥" : "♡"} {likeCount} like{likeCount !== 1 ? "s" : ""}
+              {liked ? "♥ Liked" : "♡ Like"}
             </button>
+            <LikersListTrigger kind="comment" targetId={localComment.id} likeCount={likeCount} />
             {depth < 3 && (
               <button
                 onClick={() => setShowReplyForm((v) => !v)}
