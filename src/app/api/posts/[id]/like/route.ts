@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { createPostLikeNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -41,6 +42,12 @@ export async function POST(
         postId: id,
         userId: session.userId,
       },
+    });
+
+    await createPostLikeNotification({
+      actorId: session.userId,
+      recipientId: post.authorId,
+      postId: id,
     });
   }
 

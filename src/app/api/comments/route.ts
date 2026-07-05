@@ -42,16 +42,28 @@ export async function GET(request: NextRequest) {
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
+      likes: session
+        ? { where: { userId: session.userId }, select: { id: true }, take: 1 }
+        : false,
+      _count: { select: { likes: true } },
       replies: {
         where: visibilityWhere,
         include: {
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
           analysis: true,
+          likes: session
+            ? { where: { userId: session.userId }, select: { id: true }, take: 1 }
+            : false,
+          _count: { select: { likes: true } },
           replies: {
             where: visibilityWhere,
             include: {
               author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
               analysis: true,
+              likes: session
+                ? { where: { userId: session.userId }, select: { id: true }, take: 1 }
+                : false,
+              _count: { select: { likes: true } },
             },
           },
         },
@@ -171,6 +183,8 @@ export async function POST(request: NextRequest) {
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      _count: { select: { likes: true } },
     },
   });
 

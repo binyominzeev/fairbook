@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 
 export const NOTIFICATION_TYPE_REPLY = "comment_reply";
 export const NOTIFICATION_TYPE_FOLLOWED_COMMENT = "followed_user_commented";
+export const NOTIFICATION_TYPE_POST_LIKE = "post_liked";
+export const NOTIFICATION_TYPE_COMMENT_LIKE = "comment_liked";
 
 export async function createCommentNotifications(input: {
   actorId: string;
@@ -36,22 +38,24 @@ export async function createCommentNotifications(input: {
 
     return prisma.notification.upsert({
       where: {
-        type_recipientId_commentId: {
+        type_recipientId_targetKey: {
           type,
           recipientId,
-          commentId,
+          targetKey: commentId,
         },
       },
       create: {
         recipientId,
         actorId,
         type,
+        targetKey: commentId,
         postId,
         commentId,
       },
       update: {
         actorId,
         postId,
+        commentId,
         isRead: false,
       },
     });
@@ -60,4 +64,75 @@ export async function createCommentNotifications(input: {
   if (writes.length > 0) {
     await prisma.$transaction(writes);
   }
+}
+
+export async function createPostLikeNotification(input: {
+  actorId: string;
+  recipientId: string;
+  postId: string;
+}) {
+  const { actorId, recipientId, postId } = input;
+  if (actorId === recipientId) return;
+
+  await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type: NOTIFICATION_TYPE_POST_LIKE,
+        recipientId,
+        targetKey: `${postId}:${actorId}`,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type: NOTIFICATION_TYPE_POST_LIKE,
+      targetKey: `${postId}:${actorId}`,
+      postId,
+      commentId: null,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      postId,
+      commentId: null,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
+}
+
+export async function createCommentLikeNotification(input: {
+  actorId: string;
+  recipientId: string;
+  postId: string;
+  commentId: string;
+}) {
+  const { actorId, recipientId, postId, commentId } = input;
+  if (actorId === recipientId) return;
+
+  await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type: NOTIFICATION_TYPE_COMMENT_LIKE,
+        recipientId,
+        targetKey: `${commentId}:${actorId}`,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type: NOTIFICATION_TYPE_COMMENT_LIKE,
+      targetKey: `${commentId}:${actorId}`,
+      postId,
+      commentId,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      postId,
+      commentId,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
 }

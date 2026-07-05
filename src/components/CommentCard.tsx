@@ -34,6 +34,8 @@ interface CommentData {
   createdAt: string;
   author: Author;
   analysis: Analysis | null;
+  likedByCurrentUser?: boolean;
+  likeCount?: number;
   replies?: CommentData[];
 }
 
@@ -107,6 +109,9 @@ export default function CommentCard({
   const [hasOpenAppeal, setHasOpenAppeal] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [liked, setLiked] = useState(Boolean(comment.likedByCurrentUser));
+  const [likeCount, setLikeCount] = useState(Number(comment.likeCount ?? 0));
+  const [liking, setLiking] = useState(false);
 
   const isOwnComment = localComment.author.id === currentUserId;
 
@@ -272,6 +277,32 @@ export default function CommentCard({
     }
   }, [localComment.id, router]);
 
+  const toggleLike = useCallback(async () => {
+    if (liking) return;
+
+    setLiking(true);
+    setActionNotice(null);
+    try {
+      const response = await fetch(`/api/comments/${localComment.id}/like`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? "Failed to update comment like.",
+        });
+        return;
+      }
+
+      setLiked(Boolean(data.liked));
+      setLikeCount(Number(data.likeCount ?? 0));
+    } finally {
+      setLiking(false);
+    }
+  }, [liking, localComment.id]);
+
   const timeAgo = (date: string) => {
     const diff = now - new Date(date).getTime();
     const mins = Math.floor(diff / 60000);
@@ -405,14 +436,24 @@ export default function CommentCard({
             </div>
           )}
           {commentInsightsEnabled && <DiscourseIndicators analysis={analysis} />}
-          {depth < 3 && (
+          <div className="mt-1 flex items-center gap-3">
             <button
-              onClick={() => setShowReplyForm((v) => !v)}
-              className="text-xs text-slate-400 hover:text-blue-600 mt-1"
+              type="button"
+              onClick={() => void toggleLike()}
+              disabled={liking}
+              className={`text-xs transition-colors ${liked ? "text-blue-600" : "text-slate-400 hover:text-blue-600"} disabled:text-slate-300`}
             >
-              Reply
+              {liked ? "♥" : "♡"} {likeCount} like{likeCount !== 1 ? "s" : ""}
             </button>
-          )}
+            {depth < 3 && (
+              <button
+                onClick={() => setShowReplyForm((v) => !v)}
+                className="text-xs text-slate-400 hover:text-blue-600"
+              >
+                Reply
+              </button>
+            )}
+          </div>
           {showReplyForm && (
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
               <AutoResizeTextarea

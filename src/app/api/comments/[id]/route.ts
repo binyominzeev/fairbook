@@ -155,6 +155,8 @@ export async function PATCH(
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      _count: { select: { likes: true } },
     },
   });
 

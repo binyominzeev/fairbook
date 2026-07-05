@@ -21,7 +21,7 @@ type NotificationItem = {
   comment: {
     id: string;
     content: string;
-  };
+  } | null;
 };
 
 function timeAgo(dateIso: string) {
@@ -41,6 +41,14 @@ function buildLabel(item: NotificationItem) {
 
   if (item.type === "followed_user_commented") {
     return `${item.actor.name} commented on a post`;
+  }
+
+  if (item.type === "post_liked") {
+    return `${item.actor.name} liked your post`;
+  }
+
+  if (item.type === "comment_liked") {
+    return `${item.actor.name} liked your comment`;
   }
 
   return `${item.actor.name} sent an update`;
@@ -204,7 +212,9 @@ export default function NotificationsPanel({
               <p className="text-sm font-medium text-slate-900">{buildLabel(item)}</p>
               <span className="text-xs text-slate-400">{timeAgo(item.createdAt)}</span>
             </div>
-            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.comment.content}</p>
+            {item.comment?.content && (
+              <p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.comment.content}</p>
+            )}
           </Link>
         ))}
       </div>

@@ -32,6 +32,7 @@ model User {
   feedSource         FeedSource?
   posts              Post[]
   likes              PostLike[]
+  commentLikes       CommentLike[]
   comments           Comment[]
   following          Connection[]        @relation("follower")
   followers          Connection[]        @relation("following")
@@ -260,6 +261,7 @@ model Comment {
   replies  Comment[]        @relation("replies")
   analysis CommentAnalysis?
   appeals  CommentAppeal[]
+  likes    CommentLike[]
   notifications Notification[]
 }
 
@@ -275,19 +277,32 @@ model Notification {
   recipientId String
   actorId     String
   type        String
+  targetKey   String
   postId      String
-  commentId   String
+  commentId   String?
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   recipient User    @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actor     User    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
-  @@unique([type, recipientId, commentId])
+  @@unique([type, recipientId, targetKey])
   @@index([recipientId, isRead, createdAt])
   @@index([recipientId, createdAt])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
 }
 
 model CommentAnalysis {

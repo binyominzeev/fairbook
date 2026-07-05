@@ -77,6 +77,8 @@ export default async function PostPage(props: {
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       analysis: true,
+      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      _count: { select: { likes: true } },
       replies: {
         where: {
           OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
@@ -84,6 +86,8 @@ export default async function PostPage(props: {
         include: {
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
           analysis: true,
+          likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+          _count: { select: { likes: true } },
           replies: {
             where: {
               OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
@@ -91,6 +95,8 @@ export default async function PostPage(props: {
             include: {
               author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
               analysis: true,
+              likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+              _count: { select: { likes: true } },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -134,6 +140,8 @@ export default async function PostPage(props: {
       neutralSignals: string;
       explanation: string;
     } | null;
+    likes: { id: string }[];
+    _count: { likes: number };
     replies?: RawReply[];
   };
 
@@ -141,6 +149,8 @@ export default async function PostPage(props: {
     ...c,
     createdAt: c.createdAt.toISOString(),
     analysis: parseAnalysis(c.analysis),
+    likedByCurrentUser: c.likes.length > 0,
+    likeCount: c._count.likes,
     replies: c.replies?.map(mapComment) ?? [],
   });
 
