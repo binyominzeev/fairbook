@@ -26,6 +26,8 @@ export default async function NotificationsPage() {
           id: true,
           permalinkSlug: true,
           createdAt: true,
+          content: true,
+          sharedTitle: true,
           author: { select: { id: true, slug: true } },
         },
       },
@@ -45,6 +47,13 @@ export default async function NotificationsPage() {
         slug: item.post.permalinkSlug,
         postId: item.post.id,
       }),
+      previewText: item.post.sharedTitle ?? item.post.content,
+      targetPath: `${buildPostPermalinkPath({
+        author: item.post.author,
+        createdAt: item.post.createdAt,
+        slug: item.post.permalinkSlug,
+        postId: item.post.id,
+      })}${item.comment?.id ? `#comment-${item.comment.id}` : ""}`,
     },
   }));
 

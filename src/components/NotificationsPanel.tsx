@@ -17,6 +17,8 @@ type NotificationItem = {
   post: {
     id: string;
     permalinkPath: string;
+    targetPath: string;
+    previewText?: string | null;
   };
   comment: {
     id: string;
@@ -52,6 +54,22 @@ function buildLabel(item: NotificationItem) {
   }
 
   return `${item.actor.name} sent an update`;
+}
+
+function buildContext(item: NotificationItem) {
+  if (item.type === "post_liked") {
+    return item.post.previewText?.trim() || "Your post was liked.";
+  }
+
+  if (item.type === "comment_liked" || item.type === "comment_reply") {
+    return item.comment?.content?.trim() || "Your comment was updated.";
+  }
+
+  if (item.type === "followed_user_commented") {
+    return item.comment?.content?.trim() || item.post.previewText?.trim() || "Open post";
+  }
+
+  return item.post.previewText?.trim() || item.comment?.content?.trim() || "Open";
 }
 
 export default function NotificationsPanel({
@@ -174,7 +192,7 @@ export default function NotificationsPanel({
       return;
     }
 
-    window.location.assign(item.post.permalinkPath);
+    window.location.assign(item.post.targetPath || item.post.permalinkPath);
   };
 
   if (items.length === 0) {
@@ -202,7 +220,7 @@ export default function NotificationsPanel({
         {items.map((item) => (
           <Link
             key={item.id}
-            href={item.post.permalinkPath}
+            href={item.post.targetPath || item.post.permalinkPath}
             onClick={(event) => {
               void openNotification(event, item);
             }}
@@ -212,9 +230,7 @@ export default function NotificationsPanel({
               <p className="text-sm font-medium text-slate-900">{buildLabel(item)}</p>
               <span className="text-xs text-slate-400">{timeAgo(item.createdAt)}</span>
             </div>
-            {item.comment?.content && (
-              <p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.comment.content}</p>
-            )}
+            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{buildContext(item)}</p>
           </Link>
         ))}
       </div>

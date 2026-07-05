@@ -317,7 +317,10 @@ export default function CommentCard({
   if (deleted) return null;
 
   return (
-    <div className={`${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}>
+    <div
+      id={`comment-${localComment.id}`}
+      className={`scroll-mt-24 ${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}
+    >
       <div className="flex gap-3 py-3">
         <Avatar
           name={localComment.author.name}

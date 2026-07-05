@@ -18,7 +18,16 @@ export async function GET(request: Request) {
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       actor: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-      post: { select: { id: true, permalinkSlug: true, createdAt: true, author: { select: { id: true, slug: true } } } },
+      post: {
+        select: {
+          id: true,
+          permalinkSlug: true,
+          createdAt: true,
+          content: true,
+          sharedTitle: true,
+          author: { select: { id: true, slug: true } },
+        },
+      },
       comment: { select: { id: true, content: true } },
     },
   });
@@ -38,6 +47,13 @@ export async function GET(request: Request) {
           slug: item.post.permalinkSlug,
           postId: item.post.id,
         }),
+        previewText: item.post.sharedTitle ?? item.post.content,
+        targetPath: `${buildPostPermalinkPath({
+          author: item.post.author,
+          createdAt: item.post.createdAt,
+          slug: item.post.permalinkSlug,
+          postId: item.post.id,
+        })}${item.comment?.id ? `#comment-${item.comment.id}` : ""}`,
       },
     })),
     nextCursor,
