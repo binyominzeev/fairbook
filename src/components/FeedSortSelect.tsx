@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 import type { FeedSortMode } from "@/lib/feed-posts";
 
 const SORT_LABELS: Record<FeedSortMode, string> = {
-  current: "Jelenlegi",
-  normal: "Normál",
-  weighted: "Súlyozott",
-  likes: "Like-ok",
-  comments: "Kommentek száma",
-  time: "Szigorú időrend",
+  current: "Személyre szabott",
+  weighted: "Frissesség + aktivitás",
+  likes: "Like-ok szerint",
+  comments: "Kommentek szerint",
+  time: "Legújabb elöl",
 };
 
 export default function FeedSortSelect({
@@ -69,7 +68,6 @@ export default function FeedSortSelect({
           aria-label="Rendezés"
         >
           <option value="current">{sort === "current" ? "✓ " : ""}{SORT_LABELS.current}</option>
-          <option value="normal">{sort === "normal" ? "✓ " : ""}{SORT_LABELS.normal}</option>
           <option value="weighted">{sort === "weighted" ? "✓ " : ""}{SORT_LABELS.weighted}</option>
           <option value="likes">{sort === "likes" ? "✓ " : ""}{SORT_LABELS.likes}</option>
           <option value="comments">{sort === "comments" ? "✓ " : ""}{SORT_LABELS.comments}</option>

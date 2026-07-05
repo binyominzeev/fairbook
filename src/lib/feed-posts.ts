@@ -15,7 +15,7 @@ const REPEATED_AUTHOR_PENALTY = 6;
 const RERANK_JITTER_RANGE = 8;
 
 export type FeedViewMode = "all" | "following" | "group";
-export type FeedSortMode = "current" | "normal" | "weighted" | "likes" | "comments" | "time";
+export type FeedSortMode = "current" | "weighted" | "likes" | "comments" | "time";
 
 const DEFAULT_FEED_SORT_MODE: FeedSortMode = "current";
 
@@ -31,7 +31,6 @@ function seededNormalizedValue(seed: string) {
 
 export function normalizeFeedSortMode(value: string | null | undefined): FeedSortMode {
   if (
-    value === "normal" ||
     value === "weighted" ||
     value === "likes" ||
     value === "comments" ||
@@ -40,13 +39,15 @@ export function normalizeFeedSortMode(value: string | null | undefined): FeedSor
     return value;
   }
 
+  if (value === "normal") {
+    return "current";
+  }
+
   return DEFAULT_FEED_SORT_MODE;
 }
 
 function buildFeedOrderBy(sortMode: FeedSortMode): Prisma.PostOrderByWithRelationInput[] {
   switch (sortMode) {
-    case "normal":
-      return [{ score: "desc" }, { createdAt: "desc" }, { id: "desc" }];
     case "weighted":
       return [
         { score: "desc" },
