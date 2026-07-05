@@ -15,6 +15,9 @@ const REPEATED_AUTHOR_PENALTY = 6;
 const RERANK_JITTER_RANGE = 8;
 
 export type FeedViewMode = "all" | "following" | "group";
+export type FeedSortMode = "current" | "normal" | "weighted" | "likes" | "comments" | "time";
+
+const DEFAULT_FEED_SORT_MODE: FeedSortMode = "current";
 
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
@@ -24,6 +27,44 @@ function seededNormalizedValue(seed: string) {
   const digest = createHash("sha256").update(seed).digest();
   const value = digest.readUInt32BE(0);
   return value / 0xffffffff;
+}
+
+export function normalizeFeedSortMode(value: string | null | undefined): FeedSortMode {
+  if (
+    value === "normal" ||
+    value === "weighted" ||
+    value === "likes" ||
+    value === "comments" ||
+    value === "time"
+  ) {
+    return value;
+  }
+
+  return DEFAULT_FEED_SORT_MODE;
+}
+
+function buildFeedOrderBy(sortMode: FeedSortMode): Prisma.PostOrderByWithRelationInput[] {
+  switch (sortMode) {
+    case "normal":
+      return [{ score: "desc" }, { createdAt: "desc" }, { id: "desc" }];
+    case "weighted":
+      return [
+        { score: "desc" },
+        { engagementScore: "desc" },
+        { freshnessScore: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ];
+    case "likes":
+      return [{ likes: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
+    case "comments":
+      return [{ comments: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
+    case "time":
+      return [{ createdAt: "desc" }, { id: "desc" }];
+    case "current":
+    default:
+      return [{ score: "desc" }, { createdAt: "desc" }, { id: "desc" }];
+  }
 }
 
 function rerankFirstFeedPage(posts: FeedPostRecord[], viewerId: string) {
@@ -73,6 +114,7 @@ export async function getFeedPage({
   viewMode = "all",
   feedSourceIds,
   query,
+  sortMode = DEFAULT_FEED_SORT_MODE,
 }: {
   viewerId: string;
   hideViolentFeed: boolean;
@@ -80,12 +122,14 @@ export async function getFeedPage({
   viewMode?: FeedViewMode;
   feedSourceIds?: string[];
   query?: string;
+  sortMode?: FeedSortMode;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const trimmedQuery = query?.trim() ?? "";
   const groupFeedSourceIds = Array.from(
     new Set((feedSourceIds ?? []).filter((value) => typeof value === "string" && value.trim().length > 0))
   );
 
+  const orderBy = buildFeedOrderBy(sortMode);
   if (viewMode === "group" && groupFeedSourceIds.length === 0) {
     return { posts: [], nextCursor: null };
   }
@@ -210,7 +254,7 @@ export async function getFeedPage({
                 },
               ],
             },
-      orderBy: [{ score: "desc" }, { createdAt: "desc" }],
+          orderBy,
       include: postInclude,
       take: chunkSize,
       ...(nextDbCursor ? { cursor: { id: nextDbCursor }, skip: 1 } : {}),
@@ -231,7 +275,9 @@ export async function getFeedPage({
   const hasMore = collected.length > FEED_PAGE_SIZE;
   const items = hasMore ? collected.slice(0, FEED_PAGE_SIZE) : collected;
   const orderedItems =
-    cursor || viewMode === "group" ? items : rerankFirstFeedPage(items, viewerId);
+    cursor || viewMode === "group" || sortMode !== "current"
+      ? items
+      : rerankFirstFeedPage(items, viewerId);
 
   const postIds = orderedItems.map((post) => post.id);
   const previewRows = postIds.length

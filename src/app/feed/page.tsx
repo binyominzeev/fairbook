@@ -7,9 +7,10 @@ import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import AdminChildSafetyInbox from "@/components/AdminChildSafetyInbox";
 import AdminDevSidebar from "@/components/AdminDevSidebar";
+import FeedSortSelect from "@/components/FeedSortSelect";
 import { isAdminEmail } from "@/lib/admin";
 import { getFeedGroupsForUser } from "@/lib/feed-groups";
-import { getFeedPage } from "@/lib/feed-posts";
+import { getFeedPage, normalizeFeedSortMode, type FeedSortMode } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
@@ -24,11 +25,13 @@ export default async function FeedPage(props: {
     mode?: string;
     group?: string;
     q?: string;
+    sort?: string;
   }>;
 }) {
-  const { notice, noticeKind, mode, group, q } = await props.searchParams;
+  const { notice, noticeKind, mode, group, q, sort } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
   const query = q?.trim() ?? "";
+  const activeSort: FeedSortMode = normalizeFeedSortMode(sort);
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -61,9 +64,31 @@ export default async function FeedPage(props: {
     viewMode: activeMode,
     feedSourceIds: activeGroup?.feedSourceIds,
     query,
+    sortMode: activeSort,
   });
 
-  const querySuffix = query ? `&q=${encodeURIComponent(query)}` : "";
+  function buildFeedHref(nextMode: FeedMode, nextGroupId: string | null = activeGroup?.id ?? null) {
+    const params = new URLSearchParams();
+
+    if (nextMode === "following") {
+      params.set("mode", "following");
+    }
+
+    if (nextMode === "group" && nextGroupId) {
+      params.set("group", nextGroupId);
+    }
+
+    if (query) {
+      params.set("q", query);
+    }
+
+    if (activeSort !== "current") {
+      params.set("sort", activeSort);
+    }
+
+    const search = params.toString();
+    return search ? `/feed?${search}` : "/feed";
+  }
 
   const followingPeopleCount = await prisma.connection.count({
     where: {
@@ -105,7 +130,7 @@ export default async function FeedPage(props: {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-fit">
               <Link
-                href={`/feed?mode=all${querySuffix}`}
+                href={buildFeedHref("all")}
                 className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeMode === "all"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -115,7 +140,7 @@ export default async function FeedPage(props: {
                 All
               </Link>
               <Link
-                href={`/feed?mode=following${querySuffix}`}
+                href={buildFeedHref("following")}
                 className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                   activeMode === "following"
                     ? "bg-white text-slate-900 shadow-sm"
@@ -127,7 +152,7 @@ export default async function FeedPage(props: {
               {feedGroups.map((feedGroup) => (
                 <Link
                   key={feedGroup.id}
-                  href={`/feed?group=${encodeURIComponent(feedGroup.id)}${querySuffix}`}
+                  href={buildFeedHref("group", feedGroup.id)}
                   className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
                     activeMode === "group" && activeGroup?.id === feedGroup.id
                       ? "bg-white text-slate-900 shadow-sm"
@@ -138,9 +163,18 @@ export default async function FeedPage(props: {
                 </Link>
               ))}
             </div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
-              <p className="text-xs text-slate-400">Following people</p>
-              <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
+            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
+                <p className="text-xs text-slate-400">Following people</p>
+                <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
+              </div>
+              <FeedSortSelect
+                key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}`}
+                initialSort={activeSort}
+                mode={activeMode}
+                groupId={activeGroup?.id ?? null}
+                query={query}
+              />
             </div>
           </div>
 
@@ -149,6 +183,7 @@ export default async function FeedPage(props: {
             {activeMode === "group" && activeGroup?.id && (
               <input type="hidden" name="group" value={activeGroup.id} />
             )}
+            <input type="hidden" name="sort" value={activeSort} />
             <QuerySyncSearchInput
               initialValue={query}
               placeholder="Filter posts by text, source, author or tag"
@@ -174,13 +209,14 @@ export default async function FeedPage(props: {
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${activeMode}:${activeGroup?.id ?? "none"}:${query}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
             mode={activeMode}
             groupId={activeGroup?.id ?? null}
             query={query}
+            sort={activeSort}
           />
         </div>
 

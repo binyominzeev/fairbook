@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import PostCard from "@/components/PostCard";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import type { SerializedPost } from "@/lib/post-presentation";
+import type { FeedSortMode } from "@/lib/feed-posts";
 
 const NEW_VISIBLE_POST_EVENT = "fairbook:new-visible-post";
 
@@ -14,6 +15,7 @@ export default function FeedInfiniteList({
   mode,
   groupId,
   query,
+  sort,
 }: {
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
@@ -21,26 +23,26 @@ export default function FeedInfiniteList({
   mode: "all" | "following" | "group";
   groupId: string | null;
   query: string;
+  sort: FeedSortMode;
 }) {
   const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
     useInfiniteCursorLoader({
-    initialItems: initialPosts,
-    initialNextCursor,
-    loadPage: async (cursor) => {
-      const searchParams = new URLSearchParams({
-        cursor,
-        mode,
-      });
-      if (groupId) {
-        searchParams.set("group", groupId);
-      }
-      if (query) {
-        searchParams.set("q", query);
-      }
+      initialItems: initialPosts,
+      initialNextCursor,
+      loadPage: async (cursor) => {
+        const searchParams = new URLSearchParams({
+          cursor,
+          mode,
+          sort,
+        });
+        if (groupId) {
+          searchParams.set("group", groupId);
+        }
+        if (query) {
+          searchParams.set("q", query);
+        }
 
-      const response = await fetch(
-        `/api/posts?${searchParams.toString()}`
-      );
+        const response = await fetch(`/api/posts?${searchParams.toString()}`);
 
       if (!response.ok) {
         throw new Error("Failed to load feed page.");
@@ -55,7 +57,7 @@ export default function FeedInfiniteList({
         items: data.posts,
         nextCursor: data.nextCursor,
       };
-    },
+      },
     });
 
   useEffect(() => {
@@ -66,6 +68,10 @@ export default function FeedInfiniteList({
         return;
       }
 
+      if (sort === "likes" || sort === "comments") {
+        return;
+      }
+
       prependItem(post, (candidate) => candidate.id === post.id);
     };
 
@@ -73,7 +79,7 @@ export default function FeedInfiniteList({
     return () => {
       window.removeEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
     };
-  }, [prependItem]);
+  }, [prependItem, sort]);
 
   if (items.length === 0) {
     return (
