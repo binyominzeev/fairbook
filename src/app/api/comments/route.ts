@@ -145,12 +145,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const ancestor = await prisma.comment.findUnique({
+      const ancestorRow: { parentId: string | null } | null = await prisma.comment.findUnique({
         where: { id: currentParentId },
         select: { parentId: true },
       });
       parentDepth += 1;
-      currentParentId = ancestor?.parentId ?? null;
+      currentParentId = ancestorRow?.parentId ?? null;
     }
 
     parentContent = parent.content;
