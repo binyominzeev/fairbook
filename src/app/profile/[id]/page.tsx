@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Avatar from "@/components/Avatar";
+import IconNavLink from "@/components/IconNavLink";
 import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
@@ -21,6 +22,7 @@ import { buildProfilePath } from "@/lib/profile-path";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 import { isAdminEmail } from "@/lib/admin";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
+import { Bookmark, EyeOff, Grid2x2, Heart, MessageSquare } from "lucide-react";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
@@ -290,39 +292,39 @@ export default async function ProfilePage(props: {
 
             <div className="flex items-start justify-between gap-3 px-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <Link
+                <IconNavLink
                   href={buildProfileHref("posts")}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "posts" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                >
-                  Posts
-                </Link>
-                <Link
+                  label="Posts"
+                  icon={Grid2x2}
+                  active={activeTab === "posts"}
+                />
+                <IconNavLink
                   href={buildProfileHref("likes")}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "likes" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                >
-                  Likes
-                </Link>
-                <Link
+                  label="Likes"
+                  icon={Heart}
+                  active={activeTab === "likes"}
+                />
+                <IconNavLink
                   href={buildProfileHref("comments")}
-                  className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "comments" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                >
-                  Comments
-                </Link>
+                  label="Comments"
+                  icon={MessageSquare}
+                  active={activeTab === "comments"}
+                />
                 {isOwnProfile && (
-                  <Link
+                  <IconNavLink
                     href={buildProfileHref("bookmarks")}
-                    className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "bookmarks" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                  >
-                    Bookmarks
-                  </Link>
+                    label="Bookmarks"
+                    icon={Bookmark}
+                    active={activeTab === "bookmarks"}
+                  />
                 )}
                 {isOwnProfile && (
-                  <Link
+                  <IconNavLink
                     href={buildProfileHref("hidden")}
-                    className={`rounded-lg px-3 py-1.5 transition-colors ${activeTab === "hidden" ? "bg-slate-100 font-medium text-slate-900" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                  >
-                    Hidden
-                  </Link>
+                    label="Hidden"
+                    icon={EyeOff}
+                    active={activeTab === "hidden"}
+                  />
                 )}
               </div>
               <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />

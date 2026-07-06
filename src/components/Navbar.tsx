@@ -1,8 +1,9 @@
 "use client";
 
 import BrandLink from "@/components/BrandLink";
+import IconNavLink from "@/components/IconNavLink";
 import { buildProfilePath } from "@/lib/profile-path";
-import Link from "next/link";
+import { Bell, FileText, Home, LogOut, UserRound, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -70,10 +71,10 @@ export default function Navbar({ user }: Props) {
   };
 
   const navLinks = [
-    { href: "/feed", label: "Feed" },
-    { href: "/connections", label: "People" },
-    { href: "/pages", label: "Pages" },
-    { href: "/notifications", label: "Notifications" },
+    { href: "/feed", label: "Feed", icon: Home },
+    { href: "/connections", label: "People", icon: Users },
+    { href: "/pages", label: "Pages", icon: FileText },
+    { href: "/notifications", label: "Notifications", icon: Bell },
   ];
   const profileHref = buildProfilePath(user);
 
@@ -81,41 +82,32 @@ export default function Navbar({ user }: Props) {
     <header className="z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm sm:sticky sm:top-0">
       <div className="mx-auto flex max-w-2xl flex-col items-start gap-3 px-3 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-0">
         <BrandLink href="/feed" size="sm" subtitle="Discourse" />
-        <nav className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:justify-end">
+        <nav className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {navLinks.map((link) => (
-            <Link
+            <IconNavLink
               key={link.href}
               href={link.href}
-              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                pathname.startsWith(link.href)
-                  ? "bg-slate-100 text-slate-900 font-medium"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              {link.href === "/notifications" ? (
-                <span className="inline-flex items-center gap-1.5">
-                  {link.label}
-                  {unreadCount > 0 && (
-                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </span>
-              ) : (
-                link.label
-              )}
-            </Link>
+              label={link.label}
+              icon={link.icon}
+              active={pathname.startsWith(link.href)}
+              badge={link.href === "/notifications" ? unreadCount : undefined}
+            />
           ))}
-          <Link
+          <IconNavLink
             href={profileHref}
-            className={`ml-auto flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors sm:ml-2 ${pathname.startsWith(profileHref) ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`}
-          >Profile
-          </Link>
+            label="Profile"
+            icon={UserRound}
+            active={pathname.startsWith(profileHref)}
+            className="ml-auto sm:ml-2"
+          />
           <button
             onClick={logout}
-            className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            aria-label="Sign out"
+            title="Sign out"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
           >
-            Sign out
+            <LogOut aria-hidden="true" className="h-5 w-5" strokeWidth={2} />
+            <span className="sr-only">Sign out</span>
           </button>
         </nav>
       </div>
