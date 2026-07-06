@@ -6,6 +6,8 @@ import { analyzeComment, moderateComment } from "@/lib/ai";
 import { createCommentNotifications } from "@/lib/notifications";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
 
+const MAX_COMMENT_REPLY_DEPTH = 6;
+
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderateComment>>) {
   if (moderation.source === "fallback") {
     return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Comment is visible only to you until this is fixed.`;
@@ -127,11 +129,30 @@ export async function POST(request: NextRequest) {
   if (parentId) {
     const parent = await prisma.comment.findUnique({
       where: { id: parentId },
-      select: { postId: true, content: true, authorId: true },
+      select: { id: true, postId: true, content: true, authorId: true, parentId: true },
     });
     if (!parent || parent.postId !== postId) {
       return Response.json({ error: "Parent comment not found." }, { status: 404 });
     }
+
+    let parentDepth = 0;
+    let currentParentId: string | null = parent.id;
+    while (currentParentId) {
+      if (parentDepth >= MAX_COMMENT_REPLY_DEPTH) {
+        return Response.json(
+          { error: "Reply thread is too deep. Please reply higher in the thread." },
+          { status: 400 }
+        );
+      }
+
+      const ancestor = await prisma.comment.findUnique({
+        where: { id: currentParentId },
+        select: { parentId: true },
+      });
+      parentDepth += 1;
+      currentParentId = ancestor?.parentId ?? null;
+    }
+
     parentContent = parent.content;
     parentCommentAuthorId = parent.authorId;
   }

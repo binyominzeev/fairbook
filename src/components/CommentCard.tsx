@@ -11,6 +11,8 @@ import LikersListTrigger from "./LikersListTrigger";
 import type { DiscourseSignal } from "@/lib/ai";
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+const MAX_INDENT_DEPTH = 2;
+const INITIAL_VISIBLE_REPLIES = 5;
 
 interface Author {
   id: string;
@@ -113,6 +115,10 @@ export default function CommentCard({
   const [liked, setLiked] = useState(Boolean(comment.likedByCurrentUser));
   const [likeCount, setLikeCount] = useState(Number(comment.likeCount ?? 0));
   const [liking, setLiking] = useState(false);
+  const [showAllReplies, setShowAllReplies] = useState(false);
+  const [expandRepliesForHash, setExpandRepliesForHash] = useState(() =>
+    typeof window !== "undefined" ? window.location.hash.startsWith("#comment-") : false
+  );
 
   const isOwnComment = localComment.author.id === currentUserId;
 
@@ -156,6 +162,16 @@ export default function CommentCard({
     return () => window.clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    const syncHashExpansion = () => {
+      setExpandRepliesForHash(window.location.hash.startsWith("#comment-"));
+    };
+
+    syncHashExpansion();
+    window.addEventListener("hashchange", syncHashExpansion);
+    return () => window.removeEventListener("hashchange", syncHashExpansion);
+  }, []);
+
   const submitReply = useCallback(async () => {
     if (!replyText.trim()) return;
     setSubmitting(true);
@@ -172,6 +188,7 @@ export default function CommentCard({
       const data = await res.json();
       if (res.ok) {
         setLocalReplies((prev) => [...prev, { ...data.comment, replies: [] }]);
+        setShowAllReplies(true);
         setReplyNotice({
           kind: data.moderation?.status === "author_only" ? "warning" : "success",
           message: data.message ?? "Comment accepted.",
@@ -316,10 +333,18 @@ export default function CommentCard({
 
   if (deleted) return null;
 
+  const shouldIndent = depth > 0 && depth <= MAX_INDENT_DEPTH;
+  const repliesExpanded = showAllReplies || expandRepliesForHash;
+  const visibleReplies = repliesExpanded
+    ? localReplies
+    : localReplies.slice(0, INITIAL_VISIBLE_REPLIES);
+  const hiddenReplyCount = Math.max(0, localReplies.length - visibleReplies.length);
+  const canCollapseReplies = !expandRepliesForHash && showAllReplies && localReplies.length > INITIAL_VISIBLE_REPLIES;
+
   return (
     <div
       id={`comment-${localComment.id}`}
-      className={`scroll-mt-24 ${depth > 0 ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}
+      className={`scroll-mt-24 ${shouldIndent ? "ml-3 border-l-2 border-slate-100 pl-3 sm:ml-6 sm:pl-4" : ""}`}
     >
       <div className="flex gap-3 py-3">
         <Avatar
@@ -499,7 +524,25 @@ export default function CommentCard({
           )}
         </div>
       </div>
-      {localReplies.map((reply) => (
+      {hiddenReplyCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAllReplies(true)}
+          className="mb-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+        >
+          Show {hiddenReplyCount} more repl{hiddenReplyCount === 1 ? "y" : "ies"}
+        </button>
+      )}
+      {canCollapseReplies && (
+        <button
+          type="button"
+          onClick={() => setShowAllReplies(false)}
+          className="mb-2 text-xs font-medium text-slate-500 hover:text-slate-700"
+        >
+          Show fewer replies
+        </button>
+      )}
+      {visibleReplies.map((reply) => (
         <CommentCard
           key={reply.id}
           comment={reply}

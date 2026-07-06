@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { partitionNotificationsByVisibility } from "@/lib/notification-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const notifications = await prisma.notification.findMany({
     where: { recipientId: session.userId },
     orderBy: [{ createdAt: "desc" }],
-    take: 31,
+    take: 81,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       actor: { select: { id: true, slug: true, name: true, avatarUrl: true } },
@@ -28,13 +29,56 @@ export async function GET(request: Request) {
           author: { select: { id: true, slug: true } },
         },
       },
-      comment: { select: { id: true, content: true } },
+      comment: {
+        select: {
+          id: true,
+          content: true,
+          parentId: true,
+          authorId: true,
+          moderationStatus: true,
+        },
+      },
     },
   });
 
-  const hasMore = notifications.length > 30;
-  const pageItems = hasMore ? notifications.slice(0, 30) : notifications;
-  const nextCursor = hasMore ? pageItems[pageItems.length - 1]?.id ?? null : null;
+  const notificationsWithRecipient = notifications.map((item) => ({
+    ...item,
+    recipientId: session.userId,
+  }));
+
+  const { visibleItems: visibleNotifications, staleNotificationIds } =
+    await partitionNotificationsByVisibility(notificationsWithRecipient, async (ids) => {
+      if (ids.length === 0) return [];
+      return prisma.comment.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          parentId: true,
+          authorId: true,
+          moderationStatus: true,
+        },
+      });
+    });
+
+  if (staleNotificationIds.length > 0) {
+    await prisma.notification.deleteMany({
+      where: {
+        recipientId: session.userId,
+        id: { in: staleNotificationIds },
+      },
+    });
+  }
+
+  const hasMoreVisible = visibleNotifications.length > 30;
+  const hasMoreRaw = notifications.length > 80;
+  const pageItems = hasMoreVisible
+    ? visibleNotifications.slice(0, 30)
+    : visibleNotifications;
+  const nextCursor = hasMoreVisible
+    ? pageItems[pageItems.length - 1]?.id ?? null
+    : hasMoreRaw
+      ? notifications[notifications.length - 1]?.id ?? null
+      : null;
 
   return Response.json({
     notifications: pageItems.map((item) => ({

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import PostCard from "@/components/PostCard";
 import CommentCard from "@/components/CommentCard";
+import CommentHashScroller from "@/components/CommentHashScroller";
 import ThreadReflection from "@/components/ThreadReflection";
 import GenerateReflectionButton from "@/components/GenerateReflectionButton";
 import CommentForm from "@/components/CommentForm";
@@ -122,34 +123,8 @@ export default async function PostPermalinkPage(props: {
       analysis: true,
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
       _count: { select: { likes: true } },
-      replies: {
-        where: {
-          OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-        },
-        include: {
-          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-          analysis: true,
-          likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-          _count: { select: { likes: true } },
-          replies: {
-            where: {
-              OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-            },
-            include: {
-              author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-              analysis: true,
-              likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-              _count: { select: { likes: true } },
-            },
-            orderBy: { createdAt: "asc" },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
-
-  const topLevel = rawComments.filter((c) => c.parentId === null);
 
   const parseAnalysis = (a: {
     positiveSignals: string;
@@ -169,6 +144,7 @@ export default async function PostPermalinkPage(props: {
 
   type RawReply = {
     id: string;
+    parentId: string | null;
     content: string;
     moderationStatus: string;
     moderationReason: string | null;
@@ -183,8 +159,19 @@ export default async function PostPermalinkPage(props: {
     } | null;
     likes: { id: string }[];
     _count: { likes: number };
-    replies?: RawReply[];
   };
+
+  const commentsByParentId = new Map<string | null, RawReply[]>();
+  for (const comment of rawComments as RawReply[]) {
+    const siblings = commentsByParentId.get(comment.parentId) ?? [];
+    siblings.push(comment);
+    commentsByParentId.set(comment.parentId, siblings);
+  }
+
+  const commentIds = new Set((rawComments as RawReply[]).map((comment) => comment.id));
+  const topLevel = (rawComments as RawReply[]).filter(
+    (comment) => comment.parentId === null || !commentIds.has(comment.parentId)
+  );
 
   const mapComment = (c: RawReply): object => ({
     ...c,
@@ -192,7 +179,7 @@ export default async function PostPermalinkPage(props: {
     analysis: parseAnalysis(c.analysis),
     likedByCurrentUser: c.likes.length > 0,
     likeCount: c._count.likes,
-    replies: c.replies?.map(mapComment) ?? [],
+    replies: (commentsByParentId.get(c.id) ?? []).map(mapComment),
   });
 
   const comments = topLevel.map(mapComment);
@@ -264,6 +251,7 @@ export default async function PostPermalinkPage(props: {
           ))}
 
         <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <CommentHashScroller />
           <h2 className="text-sm font-semibold text-slate-700 mb-4">
             Discussion ({commentCount})
           </h2>

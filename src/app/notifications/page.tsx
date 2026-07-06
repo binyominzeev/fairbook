@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import { getSession } from "@/lib/auth";
+import { partitionNotificationsByVisibility } from "@/lib/notification-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -18,7 +19,7 @@ export default async function NotificationsPage() {
   const rows = await prisma.notification.findMany({
     where: { recipientId: session.userId },
     orderBy: [{ createdAt: "desc" }],
-    take: 31,
+    take: 81,
     include: {
       actor: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       post: {
@@ -31,12 +32,50 @@ export default async function NotificationsPage() {
           author: { select: { id: true, slug: true } },
         },
       },
-      comment: { select: { id: true, content: true } },
+      comment: {
+        select: {
+          id: true,
+          content: true,
+          parentId: true,
+          authorId: true,
+          moderationStatus: true,
+        },
+      },
     },
   });
 
-  const hasMore = rows.length > 30;
-  const initialItems = (hasMore ? rows.slice(0, 30) : rows).map((item) => ({
+  const rowsWithRecipient = rows.map((item) => ({
+    ...item,
+    recipientId: session.userId,
+  }));
+
+  const { visibleItems: visibleRows, staleNotificationIds } =
+    await partitionNotificationsByVisibility(rowsWithRecipient, async (ids) => {
+      if (ids.length === 0) return [];
+      return prisma.comment.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          parentId: true,
+          authorId: true,
+          moderationStatus: true,
+        },
+      });
+    });
+
+  if (staleNotificationIds.length > 0) {
+    await prisma.notification.deleteMany({
+      where: {
+        recipientId: session.userId,
+        id: { in: staleNotificationIds },
+      },
+    });
+  }
+
+  const hasMoreVisible = visibleRows.length > 30;
+  const hasMoreRaw = rows.length > 80;
+  const pageRows = hasMoreVisible ? visibleRows.slice(0, 30) : visibleRows;
+  const initialItems = pageRows.map((item) => ({
     ...item,
     createdAt: item.createdAt.toISOString(),
     post: {
@@ -57,7 +96,11 @@ export default async function NotificationsPage() {
     },
   }));
 
-  const initialNextCursor = hasMore ? initialItems[initialItems.length - 1]?.id ?? null : null;
+  const initialNextCursor = hasMoreVisible
+    ? initialItems[initialItems.length - 1]?.id ?? null
+    : hasMoreRaw
+      ? rows[rows.length - 1]?.id ?? null
+      : null;
 
   return (
     <>

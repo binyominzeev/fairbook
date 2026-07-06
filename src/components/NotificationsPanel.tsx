@@ -176,20 +176,21 @@ export default function NotificationsPanel({
     event: React.MouseEvent<HTMLAnchorElement>,
     item: NotificationItem
   ) => {
-    if (item.isRead) return;
-
     event.preventDefault();
     setError("");
-    try {
-      await markNotificationsRead([item.id]);
-      setItems((current) =>
-        current.map((currentItem) =>
-          currentItem.id === item.id ? { ...currentItem, isRead: true } : currentItem
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to open notification.");
-      return;
+
+    if (!item.isRead) {
+      try {
+        await markNotificationsRead([item.id]);
+        setItems((current) =>
+          current.map((currentItem) =>
+            currentItem.id === item.id ? { ...currentItem, isRead: true } : currentItem
+          )
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to open notification.");
+        return;
+      }
     }
 
     window.location.assign(item.post.targetPath || item.post.permalinkPath);
