@@ -9,6 +9,9 @@ export default function ServiceWorkerRegistration() {
     }
 
     let cancelled = false;
+    const globalWindow = window as Window & {
+      __fairbookServiceWorkerCleanupDone?: boolean;
+    };
 
     const unregisterServiceWorkers = async () => {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -23,6 +26,11 @@ export default function ServiceWorkerRegistration() {
     const registerServiceWorker = async () => {
       try {
         if (process.env.NODE_ENV !== "production") {
+          if (globalWindow.__fairbookServiceWorkerCleanupDone) {
+            return;
+          }
+
+          globalWindow.__fairbookServiceWorkerCleanupDone = true;
           await unregisterServiceWorkers();
           return;
         }

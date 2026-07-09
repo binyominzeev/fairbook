@@ -17,6 +17,7 @@ type BackgroundPreset = {
 type FontPreset = {
   id: string;
   name: string;
+  category: "sans" | "serif" | "handwritten";
   family: string;
   weight: number;
   letterSpacing: number;
@@ -548,96 +549,154 @@ const BACKGROUNDS: BackgroundPreset[] = [
 
 const FONTS: FontPreset[] = [
   {
-    id: "clean",
-    name: "Clean Sans",
-    family: "'Trebuchet MS', 'Segoe UI', sans-serif",
+    id: "roboto",
+    name: "Roboto",
+    category: "sans",
+    family: "'Roboto', 'Segoe UI', sans-serif",
     weight: 700,
-    letterSpacing: 0.2,
-    lineHeight: 1.14,
+    letterSpacing: 0.08,
+    lineHeight: 1.15,
     transform: "none",
   },
   {
-    id: "editorial",
-    name: "Editorial",
-    family: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
-    weight: 700,
-    letterSpacing: 0,
-    lineHeight: 1.12,
-    transform: "none",
-  },
-  {
-    id: "garamond",
-    name: "Garamond",
-    family: "Garamond, 'Times New Roman', serif",
+    id: "poppins",
+    name: "Poppins",
+    category: "sans",
+    family: "'Poppins', 'Segoe UI', sans-serif",
     weight: 700,
     letterSpacing: 0.1,
     lineHeight: 1.14,
     transform: "none",
   },
   {
-    id: "baskerville",
-    name: "Baskerville",
-    family: "Baskerville, 'Palatino Linotype', serif",
+    id: "noto-sans",
+    name: "Noto Sans",
+    category: "sans",
+    family: "'Noto Sans', 'Segoe UI', sans-serif",
     weight: 700,
-    letterSpacing: 0.05,
-    lineHeight: 1.13,
-    transform: "none",
-  },
-  {
-    id: "optima",
-    name: "Optima",
-    family: "Optima, 'Trebuchet MS', 'Segoe UI', sans-serif",
-    weight: 700,
-    letterSpacing: 0.18,
-    lineHeight: 1.16,
-    transform: "none",
-  },
-  {
-    id: "avenir",
-    name: "Avenir",
-    family: "'Avenir Next', 'Helvetica Neue', 'Segoe UI', sans-serif",
-    weight: 800,
-    letterSpacing: 0.16,
+    letterSpacing: 0.06,
     lineHeight: 1.15,
     transform: "none",
   },
   {
-    id: "source-sans-3",
-    name: "Source Sans 3",
-    family: "'Source Sans 3', 'Segoe UI', 'Helvetica Neue', sans-serif",
+    id: "outfit",
+    name: "Outfit",
+    category: "sans",
+    family: "'Outfit', 'Segoe UI', sans-serif",
     weight: 700,
-    letterSpacing: 0.14,
-    lineHeight: 1.15,
-    transform: "none",
-  },
-  {
-    id: "lora",
-    name: "Lora",
-    family: "Lora, Georgia, serif",
-    weight: 700,
-    letterSpacing: 0.04,
+    letterSpacing: 0.1,
     lineHeight: 1.14,
     transform: "none",
   },
   {
-    id: "merriweather",
-    name: "Merriweather",
-    family: "Merriweather, Georgia, serif",
+    id: "pt-sans",
+    name: "PT Sans",
+    category: "sans",
+    family: "'PT Sans', 'Segoe UI', sans-serif",
+    weight: 700,
+    letterSpacing: 0.08,
+    lineHeight: 1.15,
+    transform: "none",
+  },
+  {
+    id: "crimson-text",
+    name: "Crimson Text",
+    category: "serif",
+    family: "'Crimson Text', Georgia, serif",
     weight: 700,
     letterSpacing: 0.02,
+    lineHeight: 1.12,
+    transform: "none",
+  },
+  {
+    id: "newsreader",
+    name: "Newsreader",
+    category: "serif",
+    family: "'Newsreader', Georgia, serif",
+    weight: 700,
+    letterSpacing: 0.02,
+    lineHeight: 1.12,
+    transform: "none",
+  },
+  {
+    id: "forum",
+    name: "Forum",
+    category: "serif",
+    family: "'Forum', Georgia, serif",
+    weight: 700,
+    letterSpacing: 0.04,
     lineHeight: 1.13,
     transform: "none",
   },
   {
-    id: "ibm-plex-sans",
-    name: "IBM Plex Sans",
-    family: "'IBM Plex Sans', 'Segoe UI', 'Helvetica Neue', sans-serif",
+    id: "playpen-sans-hebrew",
+    name: "Playpen Sans Hebrew",
+    category: "handwritten",
+    family: "'Playpen Sans Hebrew', 'Segoe UI', sans-serif",
     weight: 700,
-    letterSpacing: 0.12,
-    lineHeight: 1.15,
+    letterSpacing: 0.06,
+    lineHeight: 1.14,
+    transform: "none",
+  },
+  {
+    id: "caveat",
+    name: "Caveat",
+    category: "handwritten",
+    family: "'Caveat', 'Segoe UI', sans-serif",
+    weight: 700,
+    letterSpacing: 0.02,
+    lineHeight: 1.1,
+    transform: "none",
+  },
+  {
+    id: "kalam",
+    name: "Kalam",
+    category: "handwritten",
+    family: "'Kalam', 'Segoe UI', sans-serif",
+    weight: 700,
+    letterSpacing: 0.02,
+    lineHeight: 1.11,
+    transform: "none",
+  },
+  {
+    id: "baloo-2",
+    name: "Baloo 2",
+    category: "handwritten",
+    family: "'Baloo 2', 'Segoe UI', sans-serif",
+    weight: 700,
+    letterSpacing: 0,
+    lineHeight: 1.11,
     transform: "none",
   },
 ];
+
+const FONT_CATEGORIES: Array<{ id: FontPreset["category"]; name: string }> = [
+  { id: "sans", name: "Sans Serif" },
+  { id: "serif", name: "Serif" },
+  { id: "handwritten", name: "Handwritten & Playful" },
+];
+
+const DEFAULT_FONT_PICK_IDS = [
+  "roboto",
+  "poppins",
+  "noto-sans",
+  "crimson-text",
+  "playpen-sans-hebrew",
+  "caveat",
+];
+const DEFAULT_RECENT_FONT_IDS = ["roboto", "newsreader", "caveat"];
+const DEFAULT_RECENT_BACKGROUND_IDS = [
+  "golden-hour",
+  "mint-breeze",
+  "copper-ink",
+  "paper-sky",
+  "forest-night",
+  "powder-rose",
+];
+const RECENT_FONT_LIMIT = 6;
+const RECENT_BACKGROUND_LIMIT = 6;
+const GOOGLE_FONTS_STYLESHEET =
+  "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Poppins:wght@400;500;700&family=Noto+Sans:wght@400;500;700&family=Outfit:wght@400;500;700&family=PT+Sans:wght@400;700&family=Crimson+Text:wght@400;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,700&family=Forum&family=Playpen+Sans+Hebrew:wght@400;500;700&family=Caveat:wght@400;500;700&family=Kalam:wght@400;700&family=Baloo+2:wght@400;500;700&display=swap";
 
 const DEFAULT_TEXT = "Great conversations start where attention does not run out.";
 
@@ -649,6 +708,7 @@ type TextCardCreatorProps = {
 };
 
 type BackgroundGalleryTab = "gradients" | "solids";
+type FontMapByCategory = Record<FontPreset["category"], FontPreset[]>;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -939,6 +999,7 @@ export default function TextCardCreator({
   const [isPosting, setIsPosting] = useState(false);
   const [includeCaptionInPost, setIncludeCaptionInPost] = useState(true);
   const [isBackgroundGalleryOpen, setIsBackgroundGalleryOpen] = useState(false);
+  const [isFontGalleryOpen, setIsFontGalleryOpen] = useState(false);
   const [backgroundGalleryTab, setBackgroundGalleryTab] =
     useState<BackgroundGalleryTab>("gradients");
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
@@ -947,6 +1008,9 @@ export default function TextCardCreator({
   const [hiddenBackgroundIds, setHiddenBackgroundIds] = useState<string[]>(() =>
     Array.from(new Set(initialHiddenBackgroundIds))
   );
+  const [recentFontIds, setRecentFontIds] = useState<string[]>(() => DEFAULT_RECENT_FONT_IDS);
+  const [recentBackgroundIds, setRecentBackgroundIds] =
+    useState<string[]>(() => DEFAULT_RECENT_BACKGROUND_IDS);
   const [isSavingPresetVisibility, setIsSavingPresetVisibility] = useState(false);
   const [error, setError] = useState("");
 
@@ -982,6 +1046,45 @@ export default function TextCardCreator({
         : preset.render.kind !== "solid"
     );
   }, [availableBackgrounds, backgroundGalleryTab, isAdmin]);
+  const quickFonts = useMemo(() => {
+    const source = isAdmin ? FONTS : availableFonts;
+    const sourceMap = new Map(source.map((preset) => [preset.id, preset]));
+    const orderedIds = [
+      ...recentFontIds,
+      ...DEFAULT_FONT_PICK_IDS,
+      ...DEFAULT_RECENT_FONT_IDS,
+      ...source.map((preset) => preset.id),
+    ];
+    const uniqueIds = Array.from(new Set(orderedIds));
+    const filled = uniqueIds
+      .map((id) => sourceMap.get(id))
+      .filter((preset): preset is FontPreset => Boolean(preset));
+    return filled.slice(0, RECENT_FONT_LIMIT);
+  }, [availableFonts, isAdmin, recentFontIds]);
+  const quickBackgrounds = useMemo(() => {
+    const source = isAdmin ? BACKGROUNDS : availableBackgrounds;
+    const sourceMap = new Map(source.map((preset) => [preset.id, preset]));
+    const orderedIds = [
+      ...recentBackgroundIds,
+      ...DEFAULT_RECENT_BACKGROUND_IDS,
+      ...source.map((preset) => preset.id),
+    ];
+    const uniqueIds = Array.from(new Set(orderedIds));
+    const filled = uniqueIds
+      .map((id) => sourceMap.get(id))
+      .filter((preset): preset is BackgroundPreset => Boolean(preset));
+    return filled.slice(0, RECENT_BACKGROUND_LIMIT);
+  }, [availableBackgrounds, isAdmin, recentBackgroundIds]);
+  const fontGalleryByCategory = useMemo(() => {
+    const source = isAdmin ? FONTS : availableFonts;
+    return source.reduce<FontMapByCategory>(
+      (acc, preset) => {
+        acc[preset.category].push(preset);
+        return acc;
+      },
+      { sans: [], serif: [], handwritten: [] }
+    );
+  }, [availableFonts, isAdmin]);
   const textColor = useMemo(() => pickReadableColor(activeBackground), [activeBackground]);
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
@@ -989,16 +1092,20 @@ export default function TextCardCreator({
   );
 
   useEffect(() => {
-    if (!availableBackgrounds.some((preset) => preset.id === backgroundId)) {
-      setBackgroundId(availableBackgrounds[0].id);
+    const existing = document.querySelector(`link[href=\"${GOOGLE_FONTS_STYLESHEET}\"]`);
+    if (existing) {
+      return;
     }
-  }, [availableBackgrounds, backgroundId]);
 
-  useEffect(() => {
-    if (!availableFonts.some((preset) => preset.id === fontId)) {
-      setFontId(availableFonts[0].id);
-    }
-  }, [availableFonts, fontId]);
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = GOOGLE_FONTS_STYLESHEET;
+    document.head.appendChild(link);
+  }, []);
+
+  const handleSelectFont = useCallback((nextFontId: string) => {
+    setFontId(nextFontId);
+  }, []);
 
   const renderCardBlob = useCallback(async () => {
     const canvas = document.createElement("canvas");
@@ -1115,6 +1222,18 @@ export default function TextCardCreator({
         return;
       }
 
+      setRecentFontIds((previous) => {
+        const next = [activeFont.id, ...previous.filter((id) => id !== activeFont.id)];
+        return next.slice(0, RECENT_FONT_LIMIT);
+      });
+      setRecentBackgroundIds((previous) => {
+        const next = [
+          activeBackground.id,
+          ...previous.filter((id) => id !== activeBackground.id),
+        ];
+        return next.slice(0, RECENT_BACKGROUND_LIMIT);
+      });
+
       router.push("/feed?notice=Text+card+posted.&noticeKind=success");
       router.refresh();
     } catch {
@@ -1122,7 +1241,15 @@ export default function TextCardCreator({
     } finally {
       setIsPosting(false);
     }
-  }, [includeCaptionInPost, isPosting, renderCardBlob, router, text]);
+  }, [
+    activeBackground.id,
+    activeFont.id,
+    includeCaptionInPost,
+    isPosting,
+    renderCardBlob,
+    router,
+    text,
+  ]);
 
   const updatePresetVisibility = useCallback(
     async (nextHiddenFontIds: string[], nextHiddenBackgroundIds: string[]) => {
@@ -1226,6 +1353,7 @@ export default function TextCardCreator({
 
       if (event.key === "Escape") {
         setIsBackgroundGalleryOpen(false);
+        setIsFontGalleryOpen(false);
       }
     };
 
@@ -1336,6 +1464,88 @@ export default function TextCardCreator({
         </div>
       )}
 
+      {isFontGalleryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-8 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={() => setIsFontGalleryOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-5"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Font Gallery</h2>
+                <p className="text-xs text-slate-500">
+                  Browse all fonts grouped by category and pick the best tone for your card.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFontGalleryOpen(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {FONT_CATEGORIES.map((category) => {
+                const presets = fontGalleryByCategory[category.id];
+                if (presets.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <section key={category.id} className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      {category.name}
+                    </h3>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {presets.map((preset) => {
+                        const active = preset.id === activeFont.id;
+                        const isHidden = hiddenFontIds.includes(preset.id);
+                        return (
+                          <div key={preset.id} className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectFont(preset.id);
+                                setIsFontGalleryOpen(false);
+                              }}
+                              className={`w-full rounded-xl border px-3 py-2 pr-14 text-left text-sm transition-colors ${
+                                active
+                                  ? "border-slate-900 bg-slate-900 text-white"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                              } ${isHidden && isAdmin ? "opacity-70" : ""}`}
+                              style={{ fontFamily: preset.family }}
+                            >
+                              {preset.name}
+                            </button>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => toggleFontHidden(preset.id)}
+                                disabled={isSavingPresetVisibility}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                              >
+                                {isHidden ? "Restore" : "Hide"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-5">
           <div>
@@ -1368,7 +1578,7 @@ export default function TextCardCreator({
               Backgrounds
             </p>
             <div className="grid grid-cols-3 gap-2">
-              {availableBackgrounds.slice(0, 6).map((preset) => {
+              {quickBackgrounds.map((preset) => {
                 const active = preset.id === activeBackground.id;
                 return (
                   <button
@@ -1412,14 +1622,14 @@ export default function TextCardCreator({
               Font Style
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {(isAdmin ? FONTS : availableFonts).map((preset) => {
+              {quickFonts.map((preset) => {
                 const active = preset.id === activeFont.id;
                 const isHidden = hiddenFontIds.includes(preset.id);
                 return (
                   <div key={preset.id} className="relative">
                     <button
                       type="button"
-                      onClick={() => setFontId(preset.id)}
+                      onClick={() => handleSelectFont(preset.id)}
                       className={`w-full rounded-xl border px-3 py-2 pr-14 text-left text-sm transition-colors ${
                         active
                           ? "border-slate-900 bg-slate-900 text-white"
@@ -1443,6 +1653,13 @@ export default function TextCardCreator({
                 );
               })}
             </div>
+            <button
+              type="button"
+              onClick={() => setIsFontGalleryOpen(true)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              More Fonts
+            </button>
             {isAdmin && (
               <p className="text-[11px] text-slate-500">
                 Hidden presets are not shown for non-admin users.
@@ -1489,7 +1706,7 @@ export default function TextCardCreator({
           </div>
         </aside>
 
-        <div className="space-y-3">
+        <div className="space-y-3 self-start lg:sticky lg:top-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Live Preview
           </p>
