@@ -8,6 +8,22 @@ interface Props {
   postId: string;
 }
 
+type CommentModerationResult = {
+  moderation?: {
+    status?: string;
+    explanation?: string;
+  };
+};
+
+type CommentSubmitPayload = {
+  postId: string;
+  content: string;
+  preModeration?: {
+    content: string;
+    moderation: CommentModerationResult["moderation"];
+  };
+};
+
 export default function CommentForm({ postId }: Props) {
   const router = useRouter();
   const [content, setContent] = useState("");
@@ -19,7 +35,7 @@ export default function CommentForm({ postId }: Props) {
     message: string;
   } | null>(null);
   const [lastTestContent, setLastTestContent] = useState<string | null>(null);
-  const [lastTestResult, setLastTestResult] = useState<any | null>(null);
+  const [lastTestResult, setLastTestResult] = useState<CommentModerationResult | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +44,7 @@ export default function CommentForm({ postId }: Props) {
     setError("");
     setNotice(null);
     try {
-      const body: any = { postId, content };
+      const body: CommentSubmitPayload = { postId, content };
       if (lastTestContent === content && lastTestResult) {
         body.preModeration = { content: lastTestContent, moderation: lastTestResult.moderation };
       }

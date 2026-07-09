@@ -1,7 +1,6 @@
 import BrandLink from "@/components/BrandLink";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import ManifestoContent from "@/components/ManifestoContent";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -62,7 +61,7 @@ export default async function AboutPage() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-slate-900 pt-4">1. Bevezetés</h2>
               <p>
-                A Fairbook (a továbbiakban: 'Platform') elkötelezett a felhasználók személyes adatainak védelme iránt. Ez az Adatvédelmi Szabályzat ismerteti, hogy milyen adatokat gyűjtünk, hogyan kezeljük azokat, és milyen jogok illetik meg a felhasználókat.
+                A Fairbook (a továbbiakban: &apos;Platform&apos;) elkötelezett a felhasználók személyes adatainak védelme iránt. Ez az Adatvédelmi Szabályzat ismerteti, hogy milyen adatokat gyűjtünk, hogyan kezeljük azokat, és milyen jogok illetik meg a felhasználókat.
               </p>
               <p>
                 A Platform üzemeltetője dr. Szántó-Várnagy Benjámin (email:{" "}
@@ -141,7 +140,7 @@ export default async function AboutPage() {
                 A Platform tárhelyszolgáltatója az Infotipp Rendszerház Kft. (székhely: 1212 Budapest, Maros u. 32.) amely az adatok tárolásához szükséges infrastruktúrát biztosítja. Adatkezelési tájékoztatójuk a <a href="https://olcso-vps.hu/adatkezelesi-tajekoztato" target="_blank" rel="noopener noreferrer">https://olcso-vps.hu/adatkezelesi-tajekoztato</a> címen érhető el.
               </p>
               <p>
-                A felhasználók adatait a <a href="/profile/remove">fiók törléséig</a> megőrizzük. A fiók törlését követően a személyes adatokat indokolatlan késedelem nélkül töröljük vagy anonimizáljuk. A biztonsági mentésekben szereplő adatok legfeljebb 60 napig maradhatnak meg, ezt követően automatikusan felülíródnak, kivéve, ha jogszabály hosszabb megőrzést ír elő.
+                A felhasználók adatait a <Link href="/profile/remove">fiók törléséig</Link> megőrizzük. A fiók törlését követően a személyes adatokat indokolatlan késedelem nélkül töröljük vagy anonimizáljuk. A biztonsági mentésekben szereplő adatok legfeljebb 60 napig maradhatnak meg, ezt követően automatikusan felülíródnak, kivéve, ha jogszabály hosszabb megőrzést ír elő.
               </p>
             </section>
 
@@ -177,7 +176,7 @@ export default async function AboutPage() {
               <ul className="list-disc pl-5 space-y-1">
                 <li><strong className="text-slate-800">Hozzáférési jog:</strong> a tárolt adatok megismerése</li>
                 <li><strong className="text-slate-800">Helyesbítési jog:</strong> pontatlan adatok kijavítása</li>
-                <li><strong className="text-slate-800">Törlési jog ("elfeledtetés joga"):</strong> a felhasználó kérheti személyes adatainak törlését, amennyiben annak nincs jogszabályi vagy egyéb jogszerű akadálya.</li>
+                <li><strong className="text-slate-800">Törlési jog (&quot;elfeledtetés joga&quot;):</strong> a felhasználó kérheti személyes adatainak törlését, amennyiben annak nincs jogszabályi vagy egyéb jogszerű akadálya.</li>
                 <li><strong className="text-slate-800">Adathordozhatóság joga:</strong> az adatok géppel olvasható formában való kiadása</li>
                 <li><strong className="text-slate-800">Tiltakozási jog:</strong> az adatkezelés ellen való tiltakozás</li>
                 <li><strong className="text-slate-800">Korlátozási jog:</strong> az adatkezelés korlátozásának kérése</li>

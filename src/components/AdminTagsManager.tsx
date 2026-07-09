@@ -11,7 +11,6 @@ export default function AdminTagsManager() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [suggestedDescription, setSuggestedDescription] = useState<string | null>(null);
   const [generatingDescription, setGeneratingDescription] = useState(false);
 
   const fetchTags = async () => {
@@ -38,7 +37,6 @@ export default function AdminTagsManager() {
       });
       const data = await res.json();
       if (res.ok && data.description) {
-        setSuggestedDescription(data.description);
         setDescription(data.description);
       }
     } finally {
@@ -67,7 +65,6 @@ export default function AdminTagsManager() {
         setName("");
         setColor("#9CA3AF");
         setDescription("");
-        setSuggestedDescription(null);
         await fetchTags();
       }
     } finally {
@@ -119,7 +116,6 @@ export default function AdminTagsManager() {
             value={name}
             onChange={(e) => {
               setName(e.target.value);
-              setSuggestedDescription(null);
             }}
             placeholder="Tag name, e.g. Sport"
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"

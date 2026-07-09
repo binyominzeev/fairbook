@@ -210,6 +210,24 @@ export default async function FeedPage(props: {
             />
           )}
 
+          <Link
+            href="/feed/text-cards"
+            className="group block overflow-hidden rounded-2xl border border-slate-200 bg-[linear-gradient(140deg,_#fff8e7_0%,_#ffe4cc_32%,_#fde68a_100%)] p-4 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+              New
+            </p>
+            <p className="mt-1 text-base font-semibold text-slate-900">
+              Text Card Creator
+            </p>
+            <p className="mt-1 text-sm text-slate-700">
+              Write your text, pick a style, and export to PNG in one click.
+            </p>
+            <p className="mt-2 text-xs font-medium text-slate-800 transition-colors group-hover:text-slate-950">
+              Open -&gt;
+            </p>
+          </Link>
+
           <CreatePostForm />
 
           <FeedInfiniteList

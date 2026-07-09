@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
 // Helper function to generate tag descriptions using AI
 async function generateTagDescription(tagName: string): Promise<string | null> {
   try {
-    const { classifyFeedArticlesByTags } = await import("@/lib/ai");
     // Using the AI to generate a description for the tag
     // We'll call a simple prompt instead
     const OpenAI = (await import("openai")).default;
