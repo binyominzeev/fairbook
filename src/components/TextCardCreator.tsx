@@ -400,6 +400,150 @@ const BACKGROUNDS: BackgroundPreset[] = [
       ],
     },
   },
+  {
+    id: "solid-cloud",
+    name: "Cloud",
+    preview: "#f8fafc",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#f8fafc" }] },
+  },
+  {
+    id: "solid-ivory",
+    name: "Ivory",
+    preview: "#fffaf0",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#fffaf0" }] },
+  },
+  {
+    id: "solid-sand",
+    name: "Sand",
+    preview: "#f5e9d5",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#f5e9d5" }] },
+  },
+  {
+    id: "solid-blush",
+    name: "Blush",
+    preview: "#f8d7da",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#f8d7da" }] },
+  },
+  {
+    id: "solid-peach",
+    name: "Peach",
+    preview: "#ffd8b1",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#ffd8b1" }] },
+  },
+  {
+    id: "solid-amber",
+    name: "Amber",
+    preview: "#fbbf24",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#fbbf24" }] },
+  },
+  {
+    id: "solid-lemon",
+    name: "Lemon",
+    preview: "#fde68a",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#fde68a" }] },
+  },
+  {
+    id: "solid-lime",
+    name: "Lime",
+    preview: "#bef264",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#bef264" }] },
+  },
+  {
+    id: "solid-mint",
+    name: "Mint",
+    preview: "#bbf7d0",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#bbf7d0" }] },
+  },
+  {
+    id: "solid-emerald",
+    name: "Emerald",
+    preview: "#34d399",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#34d399" }] },
+  },
+  {
+    id: "solid-teal",
+    name: "Teal",
+    preview: "#2dd4bf",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#2dd4bf" }] },
+  },
+  {
+    id: "solid-cyan",
+    name: "Cyan",
+    preview: "#67e8f9",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#67e8f9" }] },
+  },
+  {
+    id: "solid-sky",
+    name: "Sky",
+    preview: "#7dd3fc",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#7dd3fc" }] },
+  },
+  {
+    id: "solid-blue",
+    name: "Blue",
+    preview: "#60a5fa",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#60a5fa" }] },
+  },
+  {
+    id: "solid-indigo",
+    name: "Indigo",
+    preview: "#818cf8",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#818cf8" }] },
+  },
+  {
+    id: "solid-violet",
+    name: "Violet",
+    preview: "#a78bfa",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#a78bfa" }] },
+  },
+  {
+    id: "solid-purple",
+    name: "Purple",
+    preview: "#c084fc",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#c084fc" }] },
+  },
+  {
+    id: "solid-fuchsia",
+    name: "Fuchsia",
+    preview: "#e879f9",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#e879f9" }] },
+  },
+  {
+    id: "solid-rose",
+    name: "Rose",
+    preview: "#fb7185",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#fb7185" }] },
+  },
+  {
+    id: "solid-crimson",
+    name: "Crimson",
+    preview: "#ef4444",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#ef4444" }] },
+  },
+  {
+    id: "solid-copper",
+    name: "Copper",
+    preview: "#c08457",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#c08457" }] },
+  },
+  {
+    id: "solid-stone",
+    name: "Stone",
+    preview: "#a8a29e",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#a8a29e" }] },
+  },
+  {
+    id: "solid-slate",
+    name: "Slate",
+    preview: "#64748b",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#64748b" }] },
+  },
+  {
+    id: "solid-ink",
+    name: "Ink",
+    preview: "#1f2937",
+    render: { kind: "solid", stops: [{ offset: 0, color: "#1f2937" }] },
+  },
 ];
 
 const FONTS: FontPreset[] = [
@@ -503,6 +647,8 @@ type TextCardCreatorProps = {
   initialHiddenFontIds?: string[];
   initialHiddenBackgroundIds?: string[];
 };
+
+type BackgroundGalleryTab = "gradients" | "solids";
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -793,6 +939,8 @@ export default function TextCardCreator({
   const [isPosting, setIsPosting] = useState(false);
   const [includeCaptionInPost, setIncludeCaptionInPost] = useState(true);
   const [isBackgroundGalleryOpen, setIsBackgroundGalleryOpen] = useState(false);
+  const [backgroundGalleryTab, setBackgroundGalleryTab] =
+    useState<BackgroundGalleryTab>("gradients");
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
     Array.from(new Set(initialHiddenFontIds))
   );
@@ -826,6 +974,14 @@ export default function TextCardCreator({
     () => availableFonts.find((preset) => preset.id === fontId) ?? availableFonts[0],
     [availableFonts, fontId]
   );
+  const galleryBackgrounds = useMemo(() => {
+    const source = isAdmin ? BACKGROUNDS : availableBackgrounds;
+    return source.filter((preset) =>
+      backgroundGalleryTab === "solids"
+        ? preset.render.kind === "solid"
+        : preset.render.kind !== "solid"
+    );
+  }, [availableBackgrounds, backgroundGalleryTab, isAdmin]);
   const textColor = useMemo(() => pickReadableColor(activeBackground), [activeBackground]);
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
@@ -1108,8 +1264,33 @@ export default function TextCardCreator({
               </button>
             </div>
 
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setBackgroundGalleryTab("gradients")}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  backgroundGalleryTab === "gradients"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Gradients
+              </button>
+              <button
+                type="button"
+                onClick={() => setBackgroundGalleryTab("solids")}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  backgroundGalleryTab === "solids"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Solid Colors
+              </button>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {(isAdmin ? BACKGROUNDS : availableBackgrounds).map((preset) => {
+              {galleryBackgrounds.map((preset) => {
                 const active = preset.id === activeBackground.id;
                 const isHidden = hiddenBackgroundIds.includes(preset.id);
                 return (
@@ -1150,10 +1331,6 @@ export default function TextCardCreator({
                   </div>
                 );
               })}
-
-              <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-xs text-slate-500">
-                Placeholder: future background packs can be added to this gallery.
-              </div>
             </div>
           </div>
         </div>
@@ -1218,7 +1395,12 @@ export default function TextCardCreator({
             </div>
             <button
               type="button"
-              onClick={() => setIsBackgroundGalleryOpen(true)}
+              onClick={() => {
+                setBackgroundGalleryTab(
+                  activeBackground.render.kind === "solid" ? "solids" : "gradients"
+                );
+                setIsBackgroundGalleryOpen(true);
+              }}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-colors hover:bg-slate-50"
             >
               Open Gallery
