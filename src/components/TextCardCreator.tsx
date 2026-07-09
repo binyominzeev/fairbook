@@ -37,6 +37,7 @@ type CreatePostPayload = {
   sharedDescription: string | null;
   sharedSource: string | null;
   imageUrls: string[];
+  isTextCard: boolean;
 };
 
 const EXPORT_SIZE = 1080;
@@ -135,6 +136,270 @@ const BACKGROUNDS: BackgroundPreset[] = [
       ],
     },
   },
+  {
+    id: "amber-peach",
+    name: "Amber Peach",
+    preview: "linear-gradient(145deg, #ffe9b3 0%, #ffd3a6 55%, #ffb988 100%)",
+    render: {
+      kind: "linear",
+      angle: 145,
+      stops: [
+        { offset: 0, color: "#ffe9b3" },
+        { offset: 0.55, color: "#ffd3a6" },
+        { offset: 1, color: "#ffb988" },
+      ],
+    },
+  },
+  {
+    id: "burnt-coral",
+    name: "Burnt Coral",
+    preview: "linear-gradient(150deg, #ffd7c2 0%, #f7a989 52%, #d9745f 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#ffd7c2" },
+        { offset: 0.52, color: "#f7a989" },
+        { offset: 1, color: "#d9745f" },
+      ],
+    },
+  },
+  {
+    id: "clay-sunrise",
+    name: "Clay Sunrise",
+    preview: "linear-gradient(155deg, #fbe7d2 0%, #e8bfa6 54%, #c78972 100%)",
+    render: {
+      kind: "linear",
+      angle: 155,
+      stops: [
+        { offset: 0, color: "#fbe7d2" },
+        { offset: 0.54, color: "#e8bfa6" },
+        { offset: 1, color: "#c78972" },
+      ],
+    },
+  },
+  {
+    id: "honey-sand",
+    name: "Honey Sand",
+    preview: "linear-gradient(140deg, #fff4cc 0%, #f7dfa2 56%, #d6b36f 100%)",
+    render: {
+      kind: "linear",
+      angle: 140,
+      stops: [
+        { offset: 0, color: "#fff4cc" },
+        { offset: 0.56, color: "#f7dfa2" },
+        { offset: 1, color: "#d6b36f" },
+      ],
+    },
+  },
+  {
+    id: "copper-bloom",
+    name: "Copper Bloom",
+    preview: "linear-gradient(150deg, #f8dec8 0%, #dfab87 50%, #b9754f 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#f8dec8" },
+        { offset: 0.5, color: "#dfab87" },
+        { offset: 1, color: "#b9754f" },
+      ],
+    },
+  },
+  {
+    id: "glacier-blue",
+    name: "Glacier Blue",
+    preview: "linear-gradient(145deg, #e8f4ff 0%, #b9ddff 52%, #7fb5ea 100%)",
+    render: {
+      kind: "linear",
+      angle: 145,
+      stops: [
+        { offset: 0, color: "#e8f4ff" },
+        { offset: 0.52, color: "#b9ddff" },
+        { offset: 1, color: "#7fb5ea" },
+      ],
+    },
+  },
+  {
+    id: "teal-mist",
+    name: "Teal Mist",
+    preview: "linear-gradient(150deg, #dff5f3 0%, #9cd7cf 55%, #4ea09a 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#dff5f3" },
+        { offset: 0.55, color: "#9cd7cf" },
+        { offset: 1, color: "#4ea09a" },
+      ],
+    },
+  },
+  {
+    id: "cloud-cyan",
+    name: "Cloud Cyan",
+    preview: "radial-gradient(circle at 20% 20%, #f2fcff 0%, #cdeff8 55%, #8fc9da 100%)",
+    render: {
+      kind: "radial",
+      stops: [
+        { offset: 0, color: "#f2fcff" },
+        { offset: 0.55, color: "#cdeff8" },
+        { offset: 1, color: "#8fc9da" },
+      ],
+    },
+  },
+  {
+    id: "arctic-slate",
+    name: "Arctic Slate",
+    preview: "linear-gradient(150deg, #e8eef5 0%, #c2d0df 55%, #8497ae 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#e8eef5" },
+        { offset: 0.55, color: "#c2d0df" },
+        { offset: 1, color: "#8497ae" },
+      ],
+    },
+  },
+  {
+    id: "rainline",
+    name: "Rainline",
+    preview: "linear-gradient(160deg, #edf3ff 0%, #c4d5f6 54%, #7f9acb 100%)",
+    render: {
+      kind: "linear",
+      angle: 160,
+      stops: [
+        { offset: 0, color: "#edf3ff" },
+        { offset: 0.54, color: "#c4d5f6" },
+        { offset: 1, color: "#7f9acb" },
+      ],
+    },
+  },
+  {
+    id: "ivory-grain",
+    name: "Ivory Grain",
+    preview: "linear-gradient(145deg, #fffdf6 0%, #f0e8d7 57%, #d9cbb5 100%)",
+    render: {
+      kind: "linear",
+      angle: 145,
+      stops: [
+        { offset: 0, color: "#fffdf6" },
+        { offset: 0.57, color: "#f0e8d7" },
+        { offset: 1, color: "#d9cbb5" },
+      ],
+    },
+  },
+  {
+    id: "stone-paper",
+    name: "Stone Paper",
+    preview: "linear-gradient(150deg, #f6f4ef 0%, #ddd8cf 55%, #b8afa0 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#f6f4ef" },
+        { offset: 0.55, color: "#ddd8cf" },
+        { offset: 1, color: "#b8afa0" },
+      ],
+    },
+  },
+  {
+    id: "ink-wash",
+    name: "Ink Wash",
+    preview: "linear-gradient(155deg, #eef1f5 0%, #b8c1ce 53%, #5f6d82 100%)",
+    render: {
+      kind: "linear",
+      angle: 155,
+      stops: [
+        { offset: 0, color: "#eef1f5" },
+        { offset: 0.53, color: "#b8c1ce" },
+        { offset: 1, color: "#5f6d82" },
+      ],
+    },
+  },
+  {
+    id: "fog-linen",
+    name: "Fog Linen",
+    preview: "radial-gradient(circle at 25% 20%, #faf8f3 0%, #e5e1d7 57%, #bcb7ab 100%)",
+    render: {
+      kind: "radial",
+      stops: [
+        { offset: 0, color: "#faf8f3" },
+        { offset: 0.57, color: "#e5e1d7" },
+        { offset: 1, color: "#bcb7ab" },
+      ],
+    },
+  },
+  {
+    id: "soft-charcoal",
+    name: "Soft Charcoal",
+    preview: "linear-gradient(160deg, #d8dce3 0%, #a7aeb9 54%, #5f6773 100%)",
+    render: {
+      kind: "linear",
+      angle: 160,
+      stops: [
+        { offset: 0, color: "#d8dce3" },
+        { offset: 0.54, color: "#a7aeb9" },
+        { offset: 1, color: "#5f6773" },
+      ],
+    },
+  },
+  {
+    id: "deep-navy-glow",
+    name: "Deep Navy Glow",
+    preview: "linear-gradient(155deg, #0d1a34 0%, #1a355f 52%, #4b6ca1 100%)",
+    render: {
+      kind: "linear",
+      angle: 155,
+      stops: [
+        { offset: 0, color: "#0d1a34" },
+        { offset: 0.52, color: "#1a355f" },
+        { offset: 1, color: "#4b6ca1" },
+      ],
+    },
+  },
+  {
+    id: "graphite-plum",
+    name: "Graphite Plum",
+    preview: "linear-gradient(150deg, #16151f 0%, #342a3f 52%, #6a4c70 100%)",
+    render: {
+      kind: "linear",
+      angle: 150,
+      stops: [
+        { offset: 0, color: "#16151f" },
+        { offset: 0.52, color: "#342a3f" },
+        { offset: 1, color: "#6a4c70" },
+      ],
+    },
+  },
+  {
+    id: "night-olive",
+    name: "Night Olive",
+    preview: "linear-gradient(155deg, #131c15 0%, #243828 50%, #56704f 100%)",
+    render: {
+      kind: "linear",
+      angle: 155,
+      stops: [
+        { offset: 0, color: "#131c15" },
+        { offset: 0.5, color: "#243828" },
+        { offset: 1, color: "#56704f" },
+      ],
+    },
+  },
+  {
+    id: "onyx-ember",
+    name: "Onyx Ember",
+    preview: "linear-gradient(160deg, #120f12 0%, #3a2523 52%, #8a4f3a 100%)",
+    render: {
+      kind: "linear",
+      angle: 160,
+      stops: [
+        { offset: 0, color: "#120f12" },
+        { offset: 0.52, color: "#3a2523" },
+        { offset: 1, color: "#8a4f3a" },
+      ],
+    },
+  },
 ];
 
 const FONTS: FontPreset[] = [
@@ -157,24 +422,87 @@ const FONTS: FontPreset[] = [
     transform: "none",
   },
   {
-    id: "marker",
-    name: "Marker",
-    family: "'Gill Sans', 'Trebuchet MS', sans-serif",
-    weight: 800,
-    letterSpacing: 0.6,
-    lineHeight: 1.18,
-    transform: "uppercase",
+    id: "garamond",
+    name: "Garamond",
+    family: "Garamond, 'Times New Roman', serif",
+    weight: 700,
+    letterSpacing: 0.1,
+    lineHeight: 1.14,
+    transform: "none",
   },
   {
-    id: "mono-poster",
-    name: "Mono Poster",
-    family: "'Courier New', Courier, monospace",
+    id: "baskerville",
+    name: "Baskerville",
+    family: "Baskerville, 'Palatino Linotype', serif",
     weight: 700,
-    letterSpacing: 0.4,
-    lineHeight: 1.2,
+    letterSpacing: 0.05,
+    lineHeight: 1.13,
+    transform: "none",
+  },
+  {
+    id: "optima",
+    name: "Optima",
+    family: "Optima, 'Trebuchet MS', 'Segoe UI', sans-serif",
+    weight: 700,
+    letterSpacing: 0.18,
+    lineHeight: 1.16,
+    transform: "none",
+  },
+  {
+    id: "avenir",
+    name: "Avenir",
+    family: "'Avenir Next', 'Helvetica Neue', 'Segoe UI', sans-serif",
+    weight: 800,
+    letterSpacing: 0.16,
+    lineHeight: 1.15,
+    transform: "none",
+  },
+  {
+    id: "source-sans-3",
+    name: "Source Sans 3",
+    family: "'Source Sans 3', 'Segoe UI', 'Helvetica Neue', sans-serif",
+    weight: 700,
+    letterSpacing: 0.14,
+    lineHeight: 1.15,
+    transform: "none",
+  },
+  {
+    id: "lora",
+    name: "Lora",
+    family: "Lora, Georgia, serif",
+    weight: 700,
+    letterSpacing: 0.04,
+    lineHeight: 1.14,
+    transform: "none",
+  },
+  {
+    id: "merriweather",
+    name: "Merriweather",
+    family: "Merriweather, Georgia, serif",
+    weight: 700,
+    letterSpacing: 0.02,
+    lineHeight: 1.13,
+    transform: "none",
+  },
+  {
+    id: "ibm-plex-sans",
+    name: "IBM Plex Sans",
+    family: "'IBM Plex Sans', 'Segoe UI', 'Helvetica Neue', sans-serif",
+    weight: 700,
+    letterSpacing: 0.12,
+    lineHeight: 1.15,
     transform: "none",
   },
 ];
+
+const DEFAULT_TEXT = "Great conversations start where attention does not run out.";
+
+type TextCardCreatorProps = {
+  initialText?: string;
+  isAdmin?: boolean;
+  initialHiddenFontIds?: string[];
+  initialHiddenBackgroundIds?: string[];
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -302,6 +630,29 @@ function wrapLinesForWidth(
   return lines;
 }
 
+function trimLineToWidth(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  maxWidth: number,
+  letterSpacing: number,
+  suffix = "..."
+) {
+  if (measureTextWidth(ctx, line, letterSpacing) <= maxWidth) {
+    return line;
+  }
+
+  let current = line;
+  while (current.length > 0) {
+    const candidate = `${current}${suffix}`;
+    if (measureTextWidth(ctx, candidate, letterSpacing) <= maxWidth) {
+      return candidate;
+    }
+    current = current.slice(0, -1);
+  }
+
+  return suffix;
+}
+
 function drawCenteredLine(
   ctx: CanvasRenderingContext2D,
   line: string,
@@ -314,7 +665,8 @@ function drawCenteredLine(
   }
 
   if (letterSpacing <= 0) {
-    ctx.fillText(line, centerX, y);
+    const x = centerX - ctx.measureText(line).width / 2;
+    ctx.fillText(line, x, y);
     return;
   }
 
@@ -334,10 +686,20 @@ function buildLayout(
   maxHeight: number
 ): TextLayout {
   const content = text.length > 0 ? text : " ";
+  if (maxWidth <= 0 || maxHeight <= 0) {
+    return {
+      fontSize: MIN_FONT_SIZE,
+      lines: [content],
+      lineHeightPx: MIN_FONT_SIZE * font.lineHeight,
+    };
+  }
+
+  // Keep a sane fallback when no tested size can fully fit the frame.
+  ctx.font = `${font.weight} ${MIN_FONT_SIZE}px ${font.family}`;
+  let bestLines: string[] = wrapLinesForWidth(ctx, content, maxWidth, font.letterSpacing);
   let low = MIN_FONT_SIZE;
   let high = MAX_FONT_SIZE;
   let bestSize = MIN_FONT_SIZE;
-  let bestLines: string[] = [content];
 
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
@@ -355,10 +717,27 @@ function buildLayout(
     }
   }
 
+  const lineHeightPx = bestSize * font.lineHeight;
+  const maxLines = Math.max(1, Math.floor(maxHeight / lineHeightPx));
+  if (bestLines.length > maxLines) {
+    ctx.font = `${font.weight} ${bestSize}px ${font.family}`;
+    const truncated = bestLines.slice(0, maxLines);
+    const lastIndex = truncated.length - 1;
+    const baseLastLine = (truncated[lastIndex] ?? "").trimEnd();
+    truncated[lastIndex] = trimLineToWidth(
+      ctx,
+      baseLastLine,
+      maxWidth,
+      font.letterSpacing,
+      "..."
+    );
+    bestLines = truncated;
+  }
+
   return {
     fontSize: bestSize,
     lines: bestLines,
-    lineHeightPx: bestSize * font.lineHeight,
+    lineHeightPx,
   };
 }
 
@@ -398,9 +777,14 @@ function drawBackground(ctx: CanvasRenderingContext2D, background: BackgroundPre
   ctx.fillRect(0, 0, size, size);
 }
 
-export default function TextCardCreator() {
+export default function TextCardCreator({
+  initialText,
+  isAdmin = false,
+  initialHiddenFontIds = [],
+  initialHiddenBackgroundIds = [],
+}: TextCardCreatorProps) {
   const router = useRouter();
-  const [text, setText] = useState("Great conversations start where attention does not run out.");
+  const [text, setText] = useState(() => initialText?.trim() || DEFAULT_TEXT);
   const [backgroundId, setBackgroundId] = useState(BACKGROUNDS[0].id);
   const [fontId, setFontId] = useState(FONTS[0].id);
   const [fontSize, setFontSize] = useState(72);
@@ -408,24 +792,57 @@ export default function TextCardCreator() {
   const [isExporting, setIsExporting] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [includeCaptionInPost, setIncludeCaptionInPost] = useState(true);
+  const [isBackgroundGalleryOpen, setIsBackgroundGalleryOpen] = useState(false);
+  const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
+    Array.from(new Set(initialHiddenFontIds))
+  );
+  const [hiddenBackgroundIds, setHiddenBackgroundIds] = useState<string[]>(() =>
+    Array.from(new Set(initialHiddenBackgroundIds))
+  );
+  const [isSavingPresetVisibility, setIsSavingPresetVisibility] = useState(false);
   const [error, setError] = useState("");
 
   const textFrameRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const availableBackgrounds = useMemo(() => {
+    const visible = isAdmin
+      ? BACKGROUNDS
+      : BACKGROUNDS.filter((preset) => !hiddenBackgroundIds.includes(preset.id));
+    return visible.length > 0 ? visible : [BACKGROUNDS[0]];
+  }, [hiddenBackgroundIds, isAdmin]);
+  const availableFonts = useMemo(() => {
+    const visible = isAdmin ? FONTS : FONTS.filter((preset) => !hiddenFontIds.includes(preset.id));
+    return visible.length > 0 ? visible : [FONTS[0]];
+  }, [hiddenFontIds, isAdmin]);
+
   const activeBackground = useMemo(
-    () => BACKGROUNDS.find((preset) => preset.id === backgroundId) ?? BACKGROUNDS[0],
-    [backgroundId]
+    () =>
+      availableBackgrounds.find((preset) => preset.id === backgroundId) ??
+      availableBackgrounds[0],
+    [availableBackgrounds, backgroundId]
   );
   const activeFont = useMemo(
-    () => FONTS.find((preset) => preset.id === fontId) ?? FONTS[0],
-    [fontId]
+    () => availableFonts.find((preset) => preset.id === fontId) ?? availableFonts[0],
+    [availableFonts, fontId]
   );
   const textColor = useMemo(() => pickReadableColor(activeBackground), [activeBackground]);
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
     [activeFont.transform, text]
   );
+
+  useEffect(() => {
+    if (!availableBackgrounds.some((preset) => preset.id === backgroundId)) {
+      setBackgroundId(availableBackgrounds[0].id);
+    }
+  }, [availableBackgrounds, backgroundId]);
+
+  useEffect(() => {
+    if (!availableFonts.some((preset) => preset.id === fontId)) {
+      setFontId(availableFonts[0].id);
+    }
+  }, [availableFonts, fontId]);
 
   const renderCardBlob = useCallback(async () => {
     const canvas = document.createElement("canvas");
@@ -527,6 +944,7 @@ export default function TextCardCreator() {
         sharedDescription: null,
         sharedSource: null,
         imageUrls,
+        isTextCard: true,
       };
 
       const postRes = await fetch("/api/posts", {
@@ -549,6 +967,64 @@ export default function TextCardCreator() {
       setIsPosting(false);
     }
   }, [includeCaptionInPost, isPosting, renderCardBlob, router, text]);
+
+  const updatePresetVisibility = useCallback(
+    async (nextHiddenFontIds: string[], nextHiddenBackgroundIds: string[]) => {
+      if (!isAdmin) return;
+
+      setIsSavingPresetVisibility(true);
+      try {
+        const response = await fetch("/api/admin/text-card-presets", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            hiddenFontIds: nextHiddenFontIds,
+            hiddenBackgroundIds: nextHiddenBackgroundIds,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          setError(data.error ?? "Failed to save preset visibility.");
+          return;
+        }
+
+        setHiddenFontIds(Array.isArray(data.hiddenFontIds) ? data.hiddenFontIds : []);
+        setHiddenBackgroundIds(
+          Array.isArray(data.hiddenBackgroundIds) ? data.hiddenBackgroundIds : []
+        );
+      } catch {
+        setError("Failed to save preset visibility.");
+      } finally {
+        setIsSavingPresetVisibility(false);
+      }
+    },
+    [isAdmin]
+  );
+
+  const toggleFontHidden = useCallback(
+    (fontPresetId: string) => {
+      if (!isAdmin || isSavingPresetVisibility) return;
+
+      const nextHiddenFontIds = hiddenFontIds.includes(fontPresetId)
+        ? hiddenFontIds.filter((id) => id !== fontPresetId)
+        : [...hiddenFontIds, fontPresetId];
+      void updatePresetVisibility(nextHiddenFontIds, hiddenBackgroundIds);
+    },
+    [hiddenBackgroundIds, hiddenFontIds, isAdmin, isSavingPresetVisibility, updatePresetVisibility]
+  );
+
+  const toggleBackgroundHidden = useCallback(
+    (backgroundPresetId: string) => {
+      if (!isAdmin || isSavingPresetVisibility) return;
+
+      const nextHiddenBackgroundIds = hiddenBackgroundIds.includes(backgroundPresetId)
+        ? hiddenBackgroundIds.filter((id) => id !== backgroundPresetId)
+        : [...hiddenBackgroundIds, backgroundPresetId];
+      void updatePresetVisibility(hiddenFontIds, nextHiddenBackgroundIds);
+    },
+    [hiddenBackgroundIds, hiddenFontIds, isAdmin, isSavingPresetVisibility, updatePresetVisibility]
+  );
 
   useLayoutEffect(() => {
     const frame = textFrameRef.current;
@@ -591,6 +1067,10 @@ export default function TextCardCreator() {
         event.preventDefault();
         void handleDownloadPng();
       }
+
+      if (event.key === "Escape") {
+        setIsBackgroundGalleryOpen(false);
+      }
     };
 
     window.addEventListener("keydown", onShortcut);
@@ -601,6 +1081,84 @@ export default function TextCardCreator() {
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      {isBackgroundGalleryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-8 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={() => setIsBackgroundGalleryOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-5"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Background Gallery</h2>
+                <p className="text-xs text-slate-500">
+                  Pick from all available presets. More backgrounds can be added here later.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBackgroundGalleryOpen(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {(isAdmin ? BACKGROUNDS : availableBackgrounds).map((preset) => {
+                const active = preset.id === activeBackground.id;
+                const isHidden = hiddenBackgroundIds.includes(preset.id);
+                return (
+                  <div
+                    key={preset.id}
+                    className={`relative overflow-hidden rounded-xl border bg-white ${
+                      active ? "border-slate-900" : "border-slate-200"
+                    } ${isHidden && isAdmin ? "opacity-70" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBackgroundId(preset.id);
+                        setIsBackgroundGalleryOpen(false);
+                      }}
+                      className="w-full text-left"
+                    >
+                      <span className="block h-24 w-full" style={{ background: preset.preview }} />
+                      <span className="flex items-center justify-between bg-white px-2 py-1.5 text-xs font-medium text-slate-700">
+                        <span>{preset.name}</span>
+                        {isHidden && isAdmin && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                            Hidden
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => toggleBackgroundHidden(preset.id)}
+                        disabled={isSavingPresetVisibility}
+                        className="absolute right-2 top-2 rounded bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+                      >
+                        {isHidden ? "Restore" : "Hide"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-xs text-slate-500">
+                Placeholder: future background packs can be added to this gallery.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-5">
           <div>
@@ -633,7 +1191,7 @@ export default function TextCardCreator() {
               Backgrounds
             </p>
             <div className="grid grid-cols-3 gap-2">
-              {BACKGROUNDS.map((preset) => {
+              {availableBackgrounds.slice(0, 6).map((preset) => {
                 const active = preset.id === activeBackground.id;
                 return (
                   <button
@@ -658,6 +1216,13 @@ export default function TextCardCreator() {
                 );
               })}
             </div>
+            <button
+              type="button"
+              onClick={() => setIsBackgroundGalleryOpen(true)}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              Open Gallery
+            </button>
           </div>
 
           <div className="space-y-2">
@@ -665,25 +1230,43 @@ export default function TextCardCreator() {
               Font Style
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {FONTS.map((preset) => {
+              {(isAdmin ? FONTS : availableFonts).map((preset) => {
                 const active = preset.id === activeFont.id;
+                const isHidden = hiddenFontIds.includes(preset.id);
                 return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setFontId(preset.id)}
-                    className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
-                      active
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                    style={{ fontFamily: preset.family }}
-                  >
-                    {preset.name}
-                  </button>
+                  <div key={preset.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setFontId(preset.id)}
+                      className={`w-full rounded-xl border px-3 py-2 pr-14 text-left text-sm transition-colors ${
+                        active
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      } ${isHidden && isAdmin ? "opacity-70" : ""}`}
+                      style={{ fontFamily: preset.family }}
+                    >
+                      {preset.name}
+                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => toggleFontHidden(preset.id)}
+                        disabled={isSavingPresetVisibility}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {isHidden ? "Restore" : "Hide"}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
+            {isAdmin && (
+              <p className="text-[11px] text-slate-500">
+                Hidden presets are not shown for non-admin users.
+                {isSavingPresetVisibility ? " Saving..." : ""}
+              </p>
+            )}
           </div>
 
           <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">

@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     sharedSource,
     sharedImageUrl,
     imageUrls,
+    isTextCard,
     preModeration,
   } =
     await request.json();
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
       sharedSource,
       sharedImageUrl,
       imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
+      isTextCard: isTextCard === true,
       moderationStatus: moderation.status,
       moderationReason:
         moderation.status === "author_only" ? moderation.reasonShort : null,

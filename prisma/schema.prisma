@@ -67,6 +67,7 @@ model Post {
   sharedSource       String?
   sharedImageUrl     String?
   imageUrls          String?
+  isTextCard         Boolean  @default(false)
   sharedPostId       String?
   communityId        String?
   score              Float    @default(0)
@@ -270,6 +271,8 @@ model Comment {
 model AppConfig {
   id                      Int      @id
   commentInsightsEnabled  Boolean  @default(true)
+  hiddenTextCardFontIds   String   @default("[]")
+  hiddenTextCardBackgroundIds String @default("[]")
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }

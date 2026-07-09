@@ -18,6 +18,7 @@ export interface SerializedSharedPost {
   sharedSource: string | null;
   sharedImageUrl: string | null;
   imageUrls: string[];
+  isTextCard: boolean;
   createdAt: string;
   author: SerializedAuthor;
 }
@@ -44,6 +45,7 @@ export interface SerializedPost {
   sharedSource: string | null;
   sharedImageUrl: string | null;
   imageUrls: string[];
+  isTextCard: boolean;
   createdAt: string;
   author: SerializedAuthor;
   likedByCurrentUser: boolean;
@@ -86,6 +88,7 @@ export const buildPostInclude = (viewerId: string) =>
         sharedSource: true,
         sharedImageUrl: true,
         imageUrls: true,
+        isTextCard: true,
         createdAt: true,
         author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
       },
@@ -115,6 +118,7 @@ type PostForPresentation = {
   sharedSource: string | null;
   sharedImageUrl: string | null;
   imageUrls: string | null;
+  isTextCard: boolean;
   createdAt: Date;
   author: SerializedAuthor;
   likes: { id: string }[];
@@ -130,6 +134,7 @@ type PostForPresentation = {
     sharedSource: string | null;
     sharedImageUrl: string | null;
     imageUrls: string | null;
+    isTextCard: boolean;
     createdAt: Date;
     author: SerializedAuthor;
   } | null;

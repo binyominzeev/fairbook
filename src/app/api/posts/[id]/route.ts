@@ -2,6 +2,8 @@ import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
+import { unlink } from "fs/promises";
+import path from "path";
 
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
   if (moderation.source === "fallback") {
@@ -65,6 +67,66 @@ function buildPreModerationKey(input: {
     input.sharedDescription ?? "",
     input.sharedSource ?? "",
   ].join("||");
+}
+
+function parseImageUrls(value: string | null) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.startsWith("/uploads/posts/"));
+  } catch {
+    return [];
+  }
+}
+
+function toAbsoluteUploadPath(imageUrl: string) {
+  const relativePath = imageUrl.replace(/^\/+/, "");
+  return path.join(process.cwd(), "public", relativePath);
+}
+
+async function cleanupDeletedPostImages(post: {
+  id: string;
+  imageUrls: string | null;
+  sharedImageUrl: string | null;
+}) {
+  const candidates = new Set(parseImageUrls(post.imageUrls));
+  if (post.sharedImageUrl && post.sharedImageUrl.startsWith("/uploads/posts/")) {
+    candidates.add(post.sharedImageUrl);
+  }
+
+  if (candidates.size === 0) {
+    return;
+  }
+
+  for (const imageUrl of candidates) {
+    const referencedElsewhere = await prisma.post.count({
+      where: {
+        id: { not: post.id },
+        OR: [
+          { imageUrls: { contains: imageUrl } },
+          { sharedImageUrl: imageUrl },
+        ],
+      },
+    });
+
+    if (referencedElsewhere > 0) {
+      continue;
+    }
+
+    const absolutePath = toAbsoluteUploadPath(imageUrl);
+    try {
+      await unlink(absolutePath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code !== "ENOENT") {
+        console.warn("Failed to delete uploaded image file:", absolutePath, err.message);
+      }
+    }
+  }
 }
 
 export async function GET(
@@ -239,7 +301,15 @@ export async function DELETE(
   }
 
   const { id } = await ctx.params;
-  const post = await prisma.post.findUnique({ where: { id } });
+  const post = await prisma.post.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      authorId: true,
+      imageUrls: true,
+      sharedImageUrl: true,
+    },
+  });
   if (!post) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
@@ -248,5 +318,6 @@ export async function DELETE(
   }
 
   await prisma.post.delete({ where: { id } });
+  await cleanupDeletedPostImages(post);
   return Response.json({ success: true });
 }

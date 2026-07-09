@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import type { SerializedPost } from "@/lib/post-presentation";
+import { useRouter } from "next/navigation";
 
 type ComposerImage = {
   id: string;
@@ -78,6 +79,7 @@ async function compressImage(file: File) {
 }
 
 export default function CreatePostForm() {
+  const router = useRouter();
   const [content, setContent] = useState("");
   const [sharedUrl, setSharedUrl] = useState("");
   const [sharedTitle, setSharedTitle] = useState("");
@@ -288,6 +290,17 @@ export default function CreatePostForm() {
     }
   };
 
+  const openTextCardCreator = () => {
+    const params = new URLSearchParams();
+    if (content.trim().length > 0) {
+      params.set("text", content);
+    }
+
+    const query = params.toString();
+    setIsComposerOpen(false);
+    router.push(query ? `/feed/text-cards?${query}` : "/feed/text-cards");
+  };
+
   return (
     <div>
       <button
@@ -475,7 +488,14 @@ export default function CreatePostForm() {
               >
                 {showLinkFields ? "Hide link fields" : "Add a link"}
               </button>
-              <div className="flex w-full gap-2 sm:w-auto">
+              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={openTextCardCreator}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto"
+                >
+                  Text Card Creator
+                </button>
                 <button
                   type="button"
                   onClick={handleTest}

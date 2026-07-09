@@ -28,6 +28,7 @@ interface SharedPostData {
   sharedSource?: string | null;
   sharedImageUrl?: string | null;
   imageUrls?: string[];
+  isTextCard: boolean;
   createdAt: string;
   author: Author;
 }
@@ -54,6 +55,7 @@ interface PostData {
   sharedSource?: string | null;
   sharedImageUrl?: string | null;
   imageUrls?: string[];
+  isTextCard: boolean;
   sharedPost?: SharedPostData | null;
   createdAt: string;
   author: Author;
@@ -599,24 +601,39 @@ export default function PostCard({
     });
   };
 
-  const renderImageGallery = (imageUrls: string[]) => {
+  const renderImageGallery = (imageUrls: string[], options?: { isTextCard?: boolean }) => {
     if (imageUrls.length === 0) return null;
 
-    const renderClickableImage = (url: string, index: number, className: string) => (
-      <button
-        type="button"
-        onClick={() => openLightbox(imageUrls, index)}
-        className="block h-full w-full"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={`Post image ${index + 1}`} className={className} />
-      </button>
-    );
+    const isTextCard = options?.isTextCard === true;
+    const singleImageClass = isTextCard ? "w-full h-auto" : "h-80 w-full object-cover";
+    const canOpenLightbox = !isTextCard;
+
+    const renderImage = (url: string, index: number, className: string) => {
+      if (!canOpenLightbox) {
+        return (
+          <div className="block h-full w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={`Post image ${index + 1}`} className={className} />
+          </div>
+        );
+      }
+
+      return (
+        <button
+          type="button"
+          onClick={() => openLightbox(imageUrls, index)}
+          className="block h-full w-full"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={`Post image ${index + 1}`} className={className} />
+        </button>
+      );
+    };
 
     if (imageUrls.length === 1) {
       return (
         <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-          {renderClickableImage(imageUrls[0], 0, "h-80 w-full object-cover")}
+          {renderImage(imageUrls[0], 0, singleImageClass)}
         </div>
       );
     }
@@ -626,7 +643,7 @@ export default function PostCard({
         <div className="mb-3 grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
           {imageUrls.map((url, index) => (
             <div key={`${url}:${index}`} className="border border-slate-200 bg-slate-100">
-              {renderClickableImage(url, index, "h-56 w-full object-cover")}
+              {renderImage(url, index, "h-56 w-full object-cover")}
             </div>
           ))}
         </div>
@@ -642,8 +659,8 @@ export default function PostCard({
           const shouldShowOverlay = index === 3 && remainingCount > 0;
           return (
             <div key={`${url}:${index}`} className="relative border border-slate-200 bg-slate-100">
-              {renderClickableImage(url, index, "h-44 w-full object-cover sm:h-48")}
-              {shouldShowOverlay && (
+              {renderImage(url, index, "h-44 w-full object-cover sm:h-48")}
+              {canOpenLightbox && shouldShowOverlay && (
                 <button
                   type="button"
                   onClick={() => openLightbox(imageUrls, index)}
@@ -788,7 +805,9 @@ export default function PostCard({
                   renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800", highlightQuery)
                 )}
 
-                {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
+                {post.imageUrls &&
+                  post.imageUrls.length > 0 &&
+                  renderImageGallery(post.imageUrls, { isTextCard: post.isTextCard })}
 
                 {post.sharedUrl && (
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -830,7 +849,9 @@ export default function PostCard({
 
                     {post.sharedPost.imageUrls &&
                       post.sharedPost.imageUrls.length > 0 &&
-                      renderImageGallery(post.sharedPost.imageUrls)}
+                      renderImageGallery(post.sharedPost.imageUrls, {
+                        isTextCard: post.sharedPost.isTextCard,
+                      })}
 
                     {post.sharedPost.sharedUrl && (
                       <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -1118,7 +1139,9 @@ export default function PostCard({
             highlightQuery
           )}
 
-        {post.imageUrls && post.imageUrls.length > 0 && renderImageGallery(post.imageUrls)}
+        {post.imageUrls &&
+          post.imageUrls.length > 0 &&
+          renderImageGallery(post.imageUrls, { isTextCard: post.isTextCard })}
 
         {actionNotice && !editComposerOpen && (
           <p
@@ -1208,7 +1231,9 @@ export default function PostCard({
 
           {post.sharedPost.imageUrls &&
             post.sharedPost.imageUrls.length > 0 &&
-            renderImageGallery(post.sharedPost.imageUrls)}
+            renderImageGallery(post.sharedPost.imageUrls, {
+              isTextCard: post.sharedPost.isTextCard,
+            })}
 
           {post.sharedPost.sharedUrl && (
             <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
