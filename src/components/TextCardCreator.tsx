@@ -670,12 +670,6 @@ const FONTS: FontPreset[] = [
   },
 ];
 
-const FONT_CATEGORIES: Array<{ id: FontPreset["category"]; name: string }> = [
-  { id: "sans", name: "Sans Serif" },
-  { id: "serif", name: "Serif" },
-  { id: "handwritten", name: "Handwritten & Playful" },
-];
-
 const DEFAULT_FONT_PICK_IDS = [
   "roboto",
   "poppins",
@@ -708,7 +702,6 @@ type TextCardCreatorProps = {
 };
 
 type BackgroundGalleryTab = "gradients" | "solids";
-type FontMapByCategory = Record<FontPreset["category"], FontPreset[]>;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -999,7 +992,6 @@ export default function TextCardCreator({
   const [isPosting, setIsPosting] = useState(false);
   const [includeCaptionInPost, setIncludeCaptionInPost] = useState(true);
   const [isBackgroundGalleryOpen, setIsBackgroundGalleryOpen] = useState(false);
-  const [isFontGalleryOpen, setIsFontGalleryOpen] = useState(false);
   const [backgroundGalleryTab, setBackgroundGalleryTab] =
     useState<BackgroundGalleryTab>("gradients");
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
@@ -1046,7 +1038,7 @@ export default function TextCardCreator({
         : preset.render.kind !== "solid"
     );
   }, [availableBackgrounds, backgroundGalleryTab, isAdmin]);
-  const quickFonts = useMemo(() => {
+  const orderedFonts = useMemo(() => {
     const source = isAdmin ? FONTS : availableFonts;
     const sourceMap = new Map(source.map((preset) => [preset.id, preset]));
     const orderedIds = [
@@ -1056,10 +1048,9 @@ export default function TextCardCreator({
       ...source.map((preset) => preset.id),
     ];
     const uniqueIds = Array.from(new Set(orderedIds));
-    const filled = uniqueIds
+    return uniqueIds
       .map((id) => sourceMap.get(id))
       .filter((preset): preset is FontPreset => Boolean(preset));
-    return filled.slice(0, RECENT_FONT_LIMIT);
   }, [availableFonts, isAdmin, recentFontIds]);
   const quickBackgrounds = useMemo(() => {
     const source = isAdmin ? BACKGROUNDS : availableBackgrounds;
@@ -1075,21 +1066,18 @@ export default function TextCardCreator({
       .filter((preset): preset is BackgroundPreset => Boolean(preset));
     return filled.slice(0, RECENT_BACKGROUND_LIMIT);
   }, [availableBackgrounds, isAdmin, recentBackgroundIds]);
-  const fontGalleryByCategory = useMemo(() => {
-    const source = isAdmin ? FONTS : availableFonts;
-    return source.reduce<FontMapByCategory>(
-      (acc, preset) => {
-        acc[preset.category].push(preset);
-        return acc;
-      },
-      { sans: [], serif: [], handwritten: [] }
-    );
-  }, [availableFonts, isAdmin]);
   const textColor = useMemo(() => pickReadableColor(activeBackground), [activeBackground]);
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
     [activeFont.transform, text]
   );
+  const fontPreviewText = useMemo(() => {
+    const flattened = text.replace(/\s+/g, " ").trim();
+    if (!flattened) {
+      return "The quick brown fox jumps over the lazy dog.";
+    }
+    return flattened.slice(0, 72);
+  }, [text]);
 
   useEffect(() => {
     const existing = document.querySelector(`link[href=\"${GOOGLE_FONTS_STYLESHEET}\"]`);
@@ -1353,7 +1341,6 @@ export default function TextCardCreator({
 
       if (event.key === "Escape") {
         setIsBackgroundGalleryOpen(false);
-        setIsFontGalleryOpen(false);
       }
     };
 
@@ -1464,97 +1451,8 @@ export default function TextCardCreator({
         </div>
       )}
 
-      {isFontGalleryOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-8 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          onMouseDown={() => setIsFontGalleryOpen(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-5"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Font Gallery</h2>
-                <p className="text-xs text-slate-500">
-                  Browse all fonts grouped by category and pick the best tone for your card.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsFontGalleryOpen(false)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {FONT_CATEGORIES.map((category) => {
-                const presets = fontGalleryByCategory[category.id];
-                if (presets.length === 0) {
-                  return null;
-                }
-
-                return (
-                  <section key={category.id} className="space-y-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {category.name}
-                    </h3>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {presets.map((preset) => {
-                        const active = preset.id === activeFont.id;
-                        const isHidden = hiddenFontIds.includes(preset.id);
-                        return (
-                          <div key={preset.id} className="relative">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleSelectFont(preset.id);
-                                setIsFontGalleryOpen(false);
-                              }}
-                              className={`w-full rounded-xl border px-3 py-2 pr-14 text-left text-sm transition-colors ${
-                                active
-                                  ? "border-slate-900 bg-slate-900 text-white"
-                                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                              } ${isHidden && isAdmin ? "opacity-70" : ""}`}
-                              style={{ fontFamily: preset.family }}
-                            >
-                              {preset.name}
-                            </button>
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => toggleFontHidden(preset.id)}
-                                disabled={isSavingPresetVisibility}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                              >
-                                {isHidden ? "Restore" : "Hide"}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-5">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">Text Card Creator</h1>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Write freely, choose a style, then either download PNG or post directly.
-            </p>
-          </div>
-
           <div className="space-y-2">
             <label
               htmlFor="text-card-input"
@@ -1621,45 +1519,50 @@ export default function TextCardCreator({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Font Style
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {quickFonts.map((preset) => {
-                const active = preset.id === activeFont.id;
-                const isHidden = hiddenFontIds.includes(preset.id);
-                return (
-                  <div key={preset.id} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectFont(preset.id)}
-                      className={`w-full rounded-xl border px-3 py-2 pr-14 text-left text-sm transition-colors ${
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {orderedFonts.map((preset) => {
+                  const active = preset.id === activeFont.id;
+                  const isHidden = hiddenFontIds.includes(preset.id);
+                  return (
+                    <div
+                      key={preset.id}
+                      className={`relative overflow-hidden rounded-xl border bg-white ${
+                        active ? "border-slate-900 shadow-sm" : "border-slate-200"
                       } ${isHidden && isAdmin ? "opacity-70" : ""}`}
-                      style={{ fontFamily: preset.family }}
                     >
-                      {preset.name}
-                    </button>
-                    {isAdmin && (
                       <button
                         type="button"
-                        onClick={() => toggleFontHidden(preset.id)}
-                        disabled={isSavingPresetVisibility}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                        onClick={() => handleSelectFont(preset.id)}
+                        className="w-full px-3 py-2 text-left"
                       >
-                        {isHidden ? "Restore" : "Hide"}
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                          {preset.name}
+                        </p>
+                        <p
+                          className={`mt-1 line-clamp-2 text-lg leading-tight ${
+                            active ? "text-slate-950" : "text-slate-800"
+                          }`}
+                          style={{ fontFamily: preset.family }}
+                        >
+                          {fontPreviewText}
+                        </p>
                       </button>
-                    )}
-                  </div>
-                );
-              })}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => toggleFontHidden(preset.id)}
+                          disabled={isSavingPresetVisibility}
+                          className="absolute right-2 top-2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          {isHidden ? "Restore" : "Hide"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsFontGalleryOpen(true)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              More Fonts
-            </button>
             {isAdmin && (
               <p className="text-[11px] text-slate-500">
                 Hidden presets are not shown for non-admin users.
