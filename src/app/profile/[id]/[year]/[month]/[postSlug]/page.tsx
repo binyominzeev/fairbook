@@ -70,6 +70,7 @@ export default async function PostPermalinkPage(props: {
           id: true,
           permalinkSlug: true,
           content: true,
+          isTextCard: true,
           feedSourceId: true,
           sharedUrl: true,
           sharedTitle: true,

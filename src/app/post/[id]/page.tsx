@@ -38,6 +38,7 @@ export default async function PostPage(props: {
           id: true,
           permalinkSlug: true,
           content: true,
+          isTextCard: true,
           feedSourceId: true,
           sharedUrl: true,
           sharedTitle: true,
