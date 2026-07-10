@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { unlink } from "fs/promises";
 import path from "path";
 
+const MAX_IMAGE_COUNT = 4;
+
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
   if (moderation.source === "fallback") {
     return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Post is visible only to you until this is fixed.`;
@@ -83,6 +85,18 @@ function parseImageUrls(value: string | null) {
   }
 }
 
+function normalizeImageUrls(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => item.startsWith("/uploads/posts/"));
+
+  return normalized.slice(0, MAX_IMAGE_COUNT);
+}
+
 function toAbsoluteUploadPath(imageUrl: string) {
   const relativePath = imageUrl.replace(/^\/+/, "");
   return path.join(process.cwd(), "public", relativePath);
@@ -124,6 +138,45 @@ async function cleanupDeletedPostImages(post: {
       const err = error as NodeJS.ErrnoException;
       if (err.code !== "ENOENT") {
         console.warn("Failed to delete uploaded image file:", absolutePath, err.message);
+      }
+    }
+  }
+}
+
+async function cleanupRemovedPostImages(input: {
+  postId: string;
+  previousImageUrls: string[];
+  nextImageUrls: string[];
+}) {
+  const nextSet = new Set(input.nextImageUrls);
+  const removedUrls = input.previousImageUrls.filter((url) => !nextSet.has(url));
+
+  if (removedUrls.length === 0) {
+    return;
+  }
+
+  for (const imageUrl of removedUrls) {
+    const referencedElsewhere = await prisma.post.count({
+      where: {
+        id: { not: input.postId },
+        OR: [
+          { imageUrls: { contains: imageUrl } },
+          { sharedImageUrl: imageUrl },
+        ],
+      },
+    });
+
+    if (referencedElsewhere > 0) {
+      continue;
+    }
+
+    const absolutePath = toAbsoluteUploadPath(imageUrl);
+    try {
+      await unlink(absolutePath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code !== "ENOENT") {
+        console.warn("Failed to delete removed image file:", absolutePath, err.message);
       }
     }
   }
@@ -199,6 +252,7 @@ export async function PATCH(
   const sharedTitle = normalizeOptionalString(payload?.sharedTitle);
   const sharedDescription = normalizeOptionalString(payload?.sharedDescription);
   const sharedSource = normalizeOptionalString(payload?.sharedSource);
+  const hasImageUrlsInPayload = Array.isArray(payload?.imageUrls);
   const moderationKey = buildPreModerationKey({
     content,
     sharedUrl,
@@ -234,7 +288,11 @@ export async function PATCH(
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  const hasImages = typeof post.imageUrls === "string" && post.imageUrls.trim().length > 0;
+  const previousImageUrls = parseImageUrls(post.imageUrls);
+  const normalizedImageUrls = hasImageUrlsInPayload
+    ? normalizeImageUrls(payload?.imageUrls)
+    : previousImageUrls;
+  const hasImages = normalizedImageUrls.length > 0;
   const hasSharedPost = Boolean(post.sharedPost);
 
   if (!content && !sharedUrl && !hasImages && !hasSharedPost) {
@@ -274,6 +332,7 @@ export async function PATCH(
       sharedTitle,
       sharedDescription,
       sharedSource,
+      imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       moderationStatus: moderation.status,
       moderationReason:
         moderation.status === "author_only" ? moderation.reasonShort : null,
@@ -282,6 +341,12 @@ export async function PATCH(
       moderatedAt: new Date(),
     },
     include: buildPostInclude(session.userId),
+  });
+
+  await cleanupRemovedPostImages({
+    postId: post.id,
+    previousImageUrls,
+    nextImageUrls: normalizedImageUrls,
   });
 
   return Response.json({

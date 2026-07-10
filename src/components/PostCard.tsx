@@ -40,6 +40,21 @@ type ShareTestResult = {
   };
 };
 
+type LocalEditImage = {
+  id: string;
+  kind: "local";
+  file: File;
+  previewUrl: string;
+};
+
+type RemoteEditImage = {
+  id: string;
+  kind: "remote";
+  url: string;
+};
+
+type EditComposerImage = LocalEditImage | RemoteEditImage;
+
 interface PostData {
   id: string;
   permalinkSlug?: string | null;
@@ -79,6 +94,68 @@ interface Props {
   showPermalinkEditor?: boolean;
   initiallyHidden?: boolean;
   highlightQuery?: string;
+}
+
+const MAX_EDIT_IMAGES = 4;
+const MAX_EDIT_IMAGE_DIMENSION = 1600;
+const EDIT_WEBP_QUALITY = 0.82;
+
+function buildEditImageId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function revokeLocalEditPreviewUrls(images: EditComposerImage[]) {
+  for (const image of images) {
+    if (image.kind === "local") {
+      URL.revokeObjectURL(image.previewUrl);
+    }
+  }
+}
+
+async function compressEditImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+
+  let targetWidth = width;
+  let targetHeight = height;
+  const largestSide = Math.max(width, height);
+  if (largestSide > MAX_EDIT_IMAGE_DIMENSION) {
+    const ratio = MAX_EDIT_IMAGE_DIMENSION / largestSide;
+    targetWidth = Math.round(width * ratio);
+    targetHeight = Math.round(height * ratio);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Failed to process image.");
+  }
+
+  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", EDIT_WEBP_QUALITY);
+  });
+
+  if (!blob) {
+    throw new Error("Failed to compress image.");
+  }
+
+  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "image";
+  return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
+}
+
+function buildRemoteEditImages(imageUrls: string[]) {
+  return imageUrls.map<RemoteEditImage>((url, index) => ({
+    id: `remote-${index}-${url}`,
+    kind: "remote",
+    url,
+  }));
 }
 
 function renderTextWithLinks(text: string, className: string, query?: string) {
@@ -155,7 +232,12 @@ export default function PostCard({
   const [editTesting, setEditTesting] = useState(false);
   const [lastEditTestKey, setLastEditTestKey] = useState<string | null>(null);
   const [lastEditTestResult, setLastEditTestResult] = useState<ShareTestResult | null>(null);
+  const [editImages, setEditImages] = useState<EditComposerImage[]>(() =>
+    buildRemoteEditImages(post.imageUrls ?? [])
+  );
   const menuRef = useRef<HTMLDetailsElement | null>(null);
+  const editImageInputRef = useRef<HTMLInputElement | null>(null);
+  const editImagesRef = useRef<EditComposerImage[]>(editImages);
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
   const canEditPost = post.author.id === currentUserId;
@@ -167,6 +249,16 @@ export default function PostCard({
     }, 60000);
 
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    editImagesRef.current = editImages;
+  }, [editImages]);
+
+  useEffect(() => {
+    return () => {
+      revokeLocalEditPreviewUrls(editImagesRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -420,12 +512,69 @@ export default function PostCard({
     setEditShowLinkFields(
       Boolean(post.sharedUrl || post.sharedTitle || post.sharedDescription || post.sharedSource)
     );
+    setEditImages((current) => {
+      revokeLocalEditPreviewUrls(current);
+      return buildRemoteEditImages(post.imageUrls ?? []);
+    });
     setLastEditTestKey(null);
     setLastEditTestResult(null);
     setActionError("");
     setActionNotice(null);
     setEditComposerOpen(true);
     menuRef.current?.removeAttribute("open");
+  };
+
+  const closeEditComposer = () => {
+    setEditImages((current) => {
+      revokeLocalEditPreviewUrls(current);
+      return buildRemoteEditImages(post.imageUrls ?? []);
+    });
+    setEditComposerOpen(false);
+  };
+
+  const addFilesToEditComposer = async (incomingFiles: FileList | File[]) => {
+    const rawFiles = Array.from(incomingFiles);
+    const imageFiles = rawFiles.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    const remainingSlots = MAX_EDIT_IMAGES - editImages.length;
+    if (remainingSlots <= 0) {
+      setActionNotice({
+        kind: "error",
+        message: `You can attach at most ${MAX_EDIT_IMAGES} images.`,
+      });
+      return;
+    }
+
+    const filesToProcess = imageFiles.slice(0, remainingSlots);
+    setActionNotice(null);
+
+    try {
+      const compressedFiles = await Promise.all(filesToProcess.map(compressEditImage));
+      const newImages: LocalEditImage[] = compressedFiles.map((file) => ({
+        id: buildEditImageId(),
+        kind: "local",
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+
+      setEditImages((current) => [...current, ...newImages]);
+    } catch {
+      setActionNotice({
+        kind: "error",
+        message: "One or more images could not be processed.",
+      });
+    }
+  };
+
+  const removeEditImage = (id: string) => {
+    setEditImages((current) => {
+      const removedImage = current.find((image) => image.id === id);
+      if (removedImage?.kind === "local") {
+        URL.revokeObjectURL(removedImage.previewUrl);
+      }
+      return current.filter((image) => image.id !== id);
+    });
   };
 
   const handleEditTest = async () => {
@@ -505,7 +654,7 @@ export default function PostCard({
 
     const hasLinkFields =
       normalizedSharedUrl || normalizedSharedTitle || normalizedSharedDescription || normalizedSharedSource;
-    const hasStaticContent = (post.imageUrls?.length ?? 0) > 0 || Boolean(post.sharedPost);
+    const hasStaticContent = editImages.length > 0 || Boolean(post.sharedPost);
 
     if (!normalizedContent && !normalizedSharedUrl && !hasStaticContent) {
       setActionNotice({
@@ -521,15 +670,27 @@ export default function PostCard({
     const sharedDescriptionUnchanged =
       normalizedSharedDescription === (post.sharedDescription ?? "").trim();
     const sharedSourceUnchanged = normalizedSharedSource === (post.sharedSource ?? "").trim();
+    const remoteImageUrls = editImages
+      .filter((image): image is RemoteEditImage => image.kind === "remote")
+      .map((image) => image.url);
+    const localImages = editImages.filter(
+      (image): image is LocalEditImage => image.kind === "local"
+    );
+    const existingImageUrls = post.imageUrls ?? [];
+    const imageOrderUnchanged =
+      localImages.length === 0 &&
+      existingImageUrls.length === remoteImageUrls.length &&
+      existingImageUrls.every((url, index) => url === remoteImageUrls[index]);
 
     if (
       contentUnchanged &&
       sharedUrlUnchanged &&
       sharedTitleUnchanged &&
       sharedDescriptionUnchanged &&
-      sharedSourceUnchanged
+      sharedSourceUnchanged &&
+      imageOrderUnchanged
     ) {
-      setEditComposerOpen(false);
+      closeEditComposer();
       return;
     }
 
@@ -538,12 +699,37 @@ export default function PostCard({
     setActionNotice(null);
 
     try {
+      let uploadedImageUrls: string[] = [];
+      if (localImages.length > 0) {
+        const uploadPayload = new FormData();
+        for (const image of localImages) {
+          uploadPayload.append("files", image.file);
+        }
+
+        const uploadResponse = await fetch("/api/uploads/images", {
+          method: "POST",
+          body: uploadPayload,
+        });
+        const uploadData = await uploadResponse.json();
+        if (!uploadResponse.ok) {
+          setActionNotice({
+            kind: "error",
+            message: uploadData.error ?? "Failed to upload images.",
+          });
+          return;
+        }
+
+        uploadedImageUrls = Array.isArray(uploadData.urls) ? uploadData.urls : [];
+      }
+
+      const finalImageUrls = [...remoteImageUrls, ...uploadedImageUrls];
       const body: Record<string, unknown> = {
         content: normalizedContent || null,
         sharedUrl: normalizedSharedUrl || null,
         sharedTitle: hasLinkFields ? normalizedSharedTitle || null : null,
         sharedDescription: hasLinkFields ? normalizedSharedDescription || null : null,
         sharedSource: hasLinkFields ? normalizedSharedSource || null : null,
+        imageUrls: finalImageUrls,
       };
 
       const key = buildEditTestKey({
@@ -579,6 +765,12 @@ export default function PostCard({
       setActionNotice({
         kind: data.moderation?.status === "author_only" ? "warning" : "success",
         message: data.message ?? "Post updated.",
+      });
+      setEditImages((current) => {
+        revokeLocalEditPreviewUrls(current);
+        return buildRemoteEditImages(
+          Array.isArray(data.post?.imageUrls) ? data.post.imageUrls : finalImageUrls
+        );
       });
       setEditComposerOpen(false);
       setEditContent(data.post?.content ?? normalizedContent);
@@ -918,7 +1110,7 @@ export default function PostCard({
                 type="button"
                 onClick={() => {
                   if (!savingEdit) {
-                    setEditComposerOpen(false);
+                    closeEditComposer();
                   }
                 }}
                 className="text-sm text-slate-400 transition-colors hover:text-slate-600"
@@ -928,6 +1120,20 @@ export default function PostCard({
             </div>
 
             <div className="mt-4 space-y-3">
+              <input
+                ref={editImageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  if (event.target.files) {
+                    void addFilesToEditComposer(event.target.files);
+                    event.target.value = "";
+                  }
+                }}
+              />
+
               <AutoResizeTextarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
@@ -986,6 +1192,50 @@ export default function PostCard({
                 )}
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Images</p>
+                    <p className="text-xs text-slate-500">
+                      Add new images or remove existing ones. Up to {MAX_EDIT_IMAGES} images.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => editImageInputRef.current?.click()}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    Add photos
+                  </button>
+                </div>
+
+                {editImages.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {editImages.map((image) => {
+                      const src = image.kind === "local" ? image.previewUrl : image.url;
+                      return (
+                        <div
+                          key={image.id}
+                          className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt="Post image" className="h-24 w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeEditImage(image.id)}
+                            className="absolute right-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-white"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-slate-500">No images attached.</p>
+                )}
+              </div>
+
               <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <p>Test moderation before saving this update.</p>
                 <button
@@ -1018,12 +1268,6 @@ export default function PostCard({
                   </p>
                 )}
 
-              {(post.imageUrls?.length ?? 0) > 0 && (
-                <p className="text-xs text-slate-500">
-                  Existing images stay attached during editing.
-                </p>
-              )}
-
               {post.sharedPost && (
                 <p className="text-xs text-slate-500">
                   The shared post stays attached; only your own note can be changed here.
@@ -1048,7 +1292,7 @@ export default function PostCard({
             <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setEditComposerOpen(false)}
+                onClick={closeEditComposer}
                 disabled={savingEdit || editTesting}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:border-slate-100 disabled:text-slate-300"
               >
