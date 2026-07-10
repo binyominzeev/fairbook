@@ -4,7 +4,6 @@ import { isAdminEmail } from "@/lib/admin";
 import { getTextCardPresetVisibility } from "@/lib/app-config";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function TextCardsPage(props: {
@@ -31,7 +30,6 @@ export default async function TextCardsPage(props: {
           initialText={typeof text === "string" ? text.slice(0, 4000) : ""}
           isAdmin={admin}
           initialHiddenFontIds={presetVisibility.hiddenFontIds}
-          initialHiddenBackgroundIds={presetVisibility.hiddenBackgroundIds}
         />
       </main>
     </>

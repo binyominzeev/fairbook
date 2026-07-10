@@ -4,7 +4,6 @@ const APP_CONFIG_ID = 1;
 
 type TextCardPresetVisibility = {
   hiddenFontIds: string[];
-  hiddenBackgroundIds: string[];
 };
 
 function parseStringArray(value: string | null | undefined) {
@@ -48,13 +47,11 @@ export async function getTextCardPresetVisibility(): Promise<TextCardPresetVisib
     where: { id: APP_CONFIG_ID },
     select: {
       hiddenTextCardFontIds: true,
-      hiddenTextCardBackgroundIds: true,
     },
   });
 
   return {
     hiddenFontIds: parseStringArray(config?.hiddenTextCardFontIds),
-    hiddenBackgroundIds: parseStringArray(config?.hiddenTextCardBackgroundIds),
   };
 }
 
@@ -65,24 +62,16 @@ export async function setTextCardPresetVisibility(input: TextCardPresetVisibilit
       id: APP_CONFIG_ID,
       commentInsightsEnabled: true,
       hiddenTextCardFontIds: JSON.stringify(Array.from(new Set(input.hiddenFontIds))),
-      hiddenTextCardBackgroundIds: JSON.stringify(
-        Array.from(new Set(input.hiddenBackgroundIds))
-      ),
     },
     update: {
       hiddenTextCardFontIds: JSON.stringify(Array.from(new Set(input.hiddenFontIds))),
-      hiddenTextCardBackgroundIds: JSON.stringify(
-        Array.from(new Set(input.hiddenBackgroundIds))
-      ),
     },
     select: {
       hiddenTextCardFontIds: true,
-      hiddenTextCardBackgroundIds: true,
     },
   });
 
   return {
     hiddenFontIds: parseStringArray(config.hiddenTextCardFontIds),
-    hiddenBackgroundIds: parseStringArray(config.hiddenTextCardBackgroundIds),
   };
 }

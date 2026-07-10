@@ -807,7 +807,6 @@ type TextCardCreatorProps = {
   initialText?: string;
   isAdmin?: boolean;
   initialHiddenFontIds?: string[];
-  initialHiddenBackgroundIds?: string[];
 };
 
 const BACKGROUND_CATEGORY_LABELS: Record<BackgroundCategory, string> = {
@@ -1315,7 +1314,6 @@ export default function TextCardCreator({
   initialText,
   isAdmin = false,
   initialHiddenFontIds = [],
-  initialHiddenBackgroundIds = [],
 }: TextCardCreatorProps) {
   const router = useRouter();
   const [text, setText] = useState(() => initialText?.trim() || DEFAULT_TEXT);
@@ -1348,9 +1346,6 @@ export default function TextCardCreator({
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
     Array.from(new Set(initialHiddenFontIds))
   );
-  const [hiddenBackgroundIds, setHiddenBackgroundIds] = useState<string[]>(() =>
-    Array.from(new Set(initialHiddenBackgroundIds))
-  );
   const [recentFontIds, setRecentFontIds] = useState<string[]>(() => DEFAULT_RECENT_FONT_IDS);
   const [, setRecentBackgroundIds] = useState<string[]>(() => DEFAULT_RECENT_BACKGROUND_IDS);
   const [isSavingPresetVisibility, setIsSavingPresetVisibility] = useState(false);
@@ -1362,16 +1357,15 @@ export default function TextCardCreator({
   const mobilePreviewAnchorRef = useRef<HTMLDivElement | null>(null);
   const mobilePreviewCardRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const backgroundGalleryScrollRef = useRef<HTMLDivElement | null>(null);
+  const backgroundGalleryHeaderRef = useRef<HTMLDivElement | null>(null);
   const gradientSectionRef = useRef<HTMLDivElement | null>(null);
   const solidSectionRef = useRef<HTMLDivElement | null>(null);
   const patternSectionRef = useRef<HTMLDivElement | null>(null);
 
   const availableBackgrounds = useMemo(() => {
-    const visible = isAdmin
-      ? BACKGROUNDS
-      : BACKGROUNDS.filter((preset) => !hiddenBackgroundIds.includes(preset.id));
-    return visible.length > 0 ? visible : [BACKGROUNDS[0]];
-  }, [hiddenBackgroundIds, isAdmin]);
+    return BACKGROUNDS;
+  }, []);
   const availableFonts = useMemo(() => {
     const visible = isAdmin ? FONTS : FONTS.filter((preset) => !hiddenFontIds.includes(preset.id));
     return visible.length > 0 ? visible : [FONTS[0]];
@@ -1636,7 +1630,22 @@ export default function TextCardCreator({
         : category === "solids"
           ? solidSectionRef
           : patternSectionRef;
-    targetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const scrollContainer = backgroundGalleryScrollRef.current;
+    const stickyHeader = backgroundGalleryHeaderRef.current;
+    const target = targetRef.current;
+
+    if (!scrollContainer || !target) {
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const stickyHeight = stickyHeader?.getBoundingClientRect().height ?? 0;
+    const nextTop =
+      scrollContainer.scrollTop + (targetRect.top - containerRect.top) - stickyHeight - 12;
+
+    scrollContainer.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
   }, []);
 
   const renderCardBlob = useCallback(async () => {
@@ -1809,8 +1818,7 @@ export default function TextCardCreator({
     }
   }, [text]);
 
-  const updatePresetVisibility = useCallback(
-    async (nextHiddenFontIds: string[], nextHiddenBackgroundIds: string[]) => {
+  const updatePresetVisibility = useCallback(async (nextHiddenFontIds: string[]) => {
       if (!isAdmin) return;
 
       setIsSavingPresetVisibility(true);
@@ -1820,7 +1828,6 @@ export default function TextCardCreator({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             hiddenFontIds: nextHiddenFontIds,
-            hiddenBackgroundIds: nextHiddenBackgroundIds,
           }),
         });
 
@@ -1831,9 +1838,6 @@ export default function TextCardCreator({
         }
 
         setHiddenFontIds(Array.isArray(data.hiddenFontIds) ? data.hiddenFontIds : []);
-        setHiddenBackgroundIds(
-          Array.isArray(data.hiddenBackgroundIds) ? data.hiddenBackgroundIds : []
-        );
       } catch {
         setError("Failed to save preset visibility.");
       } finally {
@@ -1850,21 +1854,9 @@ export default function TextCardCreator({
       const nextHiddenFontIds = hiddenFontIds.includes(fontPresetId)
         ? hiddenFontIds.filter((id) => id !== fontPresetId)
         : [...hiddenFontIds, fontPresetId];
-      void updatePresetVisibility(nextHiddenFontIds, hiddenBackgroundIds);
+      void updatePresetVisibility(nextHiddenFontIds);
     },
-    [hiddenBackgroundIds, hiddenFontIds, isAdmin, isSavingPresetVisibility, updatePresetVisibility]
-  );
-
-  const toggleBackgroundHidden = useCallback(
-    (backgroundPresetId: string) => {
-      if (!isAdmin || isSavingPresetVisibility) return;
-
-      const nextHiddenBackgroundIds = hiddenBackgroundIds.includes(backgroundPresetId)
-        ? hiddenBackgroundIds.filter((id) => id !== backgroundPresetId)
-        : [...hiddenBackgroundIds, backgroundPresetId];
-      void updatePresetVisibility(hiddenFontIds, nextHiddenBackgroundIds);
-    },
-    [hiddenBackgroundIds, hiddenFontIds, isAdmin, isSavingPresetVisibility, updatePresetVisibility]
+    [hiddenFontIds, isAdmin, isSavingPresetVisibility, updatePresetVisibility]
   );
 
   useLayoutEffect(() => {
@@ -2017,8 +2009,14 @@ export default function TextCardCreator({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Backgrounds
             </p>
-            <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
-              <div className="sticky top-0 z-10 mb-3 -mx-2 px-2 pb-2 pt-0.5 backdrop-blur-[1px]">
+            <div
+              ref={backgroundGalleryScrollRef}
+              className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 scroll-pt-32"
+            >
+              <div
+                ref={backgroundGalleryHeaderRef}
+                className="sticky top-0 z-10 mb-3 -mx-2 px-2 pb-2 pt-0.5 backdrop-blur-[1px]"
+              >
                 <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/95 p-2">
                   {(["gradients", "patterns", "solids"] as BackgroundCategory[]).map((category) => (
                     <button
@@ -2059,7 +2057,7 @@ export default function TextCardCreator({
                   }
 
                   return (
-                    <section key={category} ref={ref} className="scroll-mt-24">
+                    <section key={category} ref={ref} className="scroll-mt-32">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
                           {title}
@@ -2090,12 +2088,8 @@ export default function TextCardCreator({
                             (shouldApplyPatternSolidMix &&
                               category === "solids" &&
                               preset.id === selectedSolidBackground?.id);
-                          const isHidden = hiddenBackgroundIds.includes(preset.id);
                           return (
-                            <div
-                              key={preset.id}
-                              className={`relative ${isHidden && isAdmin ? "opacity-60" : ""}`}
-                            >
+                            <div key={preset.id} className="relative">
                               <button
                                 type="button"
                                 onClick={() => handleSelectBackgroundPreset(preset)}
@@ -2121,16 +2115,6 @@ export default function TextCardCreator({
                                   {preset.name}
                                 </span>
                               </button>
-                              {isAdmin && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleBackgroundHidden(preset.id)}
-                                  disabled={isSavingPresetVisibility}
-                                  className="absolute bottom-1 right-1 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm transition-colors hover:bg-white disabled:opacity-60"
-                                >
-                                  {isHidden ? "Restore" : "Hide"}
-                                </button>
-                              )}
                             </div>
                           );
                         })}

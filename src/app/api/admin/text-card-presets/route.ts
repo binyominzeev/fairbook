@@ -7,7 +7,6 @@ import {
 
 type VisibilityPayload = {
   hiddenFontIds?: unknown;
-  hiddenBackgroundIds?: unknown;
 };
 
 function normalizeIds(value: unknown) {
@@ -50,12 +49,8 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => ({}))) as VisibilityPayload;
 
   const hiddenFontIds = normalizeIds(body.hiddenFontIds);
-  const hiddenBackgroundIds = normalizeIds(body.hiddenBackgroundIds);
 
-  const visibility = await setTextCardPresetVisibility({
-    hiddenFontIds,
-    hiddenBackgroundIds,
-  });
+  const visibility = await setTextCardPresetVisibility({ hiddenFontIds });
 
   return Response.json(visibility);
 }
