@@ -1180,9 +1180,46 @@ async function getTintedPatternDataUrl(
     ctx.drawImage(image, 0, 0, width, height);
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = imageData.data;
-    const sourceBase = hexToRgb(sourceBaseColor);
+    const configuredSourceBase = hexToRgb(sourceBaseColor);
     const targetBase = hexToRgb(targetBaseColor);
     const boost = Math.max(1, contrastBoost);
+
+    // Estimate the real base color from the source pixels so tinting works even
+    // when preset metadata baseColor does not match the SVG's dominant tone.
+    let sumR = 0;
+    let sumG = 0;
+    let sumB = 0;
+    let opaqueCount = 0;
+    for (let index = 0; index < pixels.length; index += 16) {
+      // Sampling every 4th pixel is enough and keeps this cheap.
+      if (pixels[index + 3] < 16) {
+        continue;
+      }
+      sumR += pixels[index];
+      sumG += pixels[index + 1];
+      sumB += pixels[index + 2];
+      opaqueCount += 1;
+    }
+
+    const sampledSourceBase =
+      opaqueCount > 0
+        ? {
+            r: sumR / opaqueCount,
+            g: sumG / opaqueCount,
+            b: sumB / opaqueCount,
+          }
+        : configuredSourceBase;
+
+    const sourceDelta =
+      Math.abs(sampledSourceBase.r - configuredSourceBase.r) +
+      Math.abs(sampledSourceBase.g - configuredSourceBase.g) +
+      Math.abs(sampledSourceBase.b - configuredSourceBase.b);
+    const blendWeight = clamp((sourceDelta - 24) / 120, 0, 1);
+    const sourceBase = {
+      r: configuredSourceBase.r + (sampledSourceBase.r - configuredSourceBase.r) * blendWeight,
+      g: configuredSourceBase.g + (sampledSourceBase.g - configuredSourceBase.g) * blendWeight,
+      b: configuredSourceBase.b + (sampledSourceBase.b - configuredSourceBase.b) * blendWeight,
+    };
 
     for (let index = 0; index < pixels.length; index += 4) {
       if (pixels[index + 3] === 0) {
