@@ -1335,6 +1335,7 @@ export default function TextCardCreator({
   const [pendingComposerContent, setPendingComposerContent] = useState("");
   const [pendingComposerImageUrl, setPendingComposerImageUrl] = useState<string | null>(null);
   const [isPatternSolidMixEnabled, setIsPatternSolidMixEnabled] = useState(false);
+  const [isDesktopPreviewLayout, setIsDesktopPreviewLayout] = useState(false);
   const [selectedPatternId, setSelectedPatternId] = useState(() => {
     const firstPattern = BACKGROUNDS.find((preset) => preset.render.kind === "pattern");
     return firstPattern?.id ?? BACKGROUNDS[0].id;
@@ -1354,8 +1355,12 @@ export default function TextCardCreator({
   const [, setRecentBackgroundIds] = useState<string[]>(() => DEFAULT_RECENT_BACKGROUND_IDS);
   const [isSavingPresetVisibility, setIsSavingPresetVisibility] = useState(false);
   const [error, setError] = useState("");
+  const [isMobilePreviewPinned, setIsMobilePreviewPinned] = useState(false);
+  const [mobilePreviewSpacerHeight, setMobilePreviewSpacerHeight] = useState(0);
 
   const textFrameRef = useRef<HTMLDivElement | null>(null);
+  const mobilePreviewAnchorRef = useRef<HTMLDivElement | null>(null);
+  const mobilePreviewCardRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const gradientSectionRef = useRef<HTMLDivElement | null>(null);
   const solidSectionRef = useRef<HTMLDivElement | null>(null);
@@ -1555,6 +1560,58 @@ export default function TextCardCreator({
     link.href = GOOGLE_FONTS_STYLESHEET;
     document.head.appendChild(link);
   }, []);
+
+  useLayoutEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+
+    const updateLayout = () => {
+      setIsDesktopPreviewLayout(mediaQuery.matches);
+    };
+
+    updateLayout();
+    mediaQuery.addEventListener("change", updateLayout);
+    return () => {
+      mediaQuery.removeEventListener("change", updateLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isDesktopPreviewLayout) {
+      return;
+    }
+
+    const updateMobilePreviewPosition = () => {
+      const anchor = mobilePreviewAnchorRef.current;
+      const card = mobilePreviewCardRef.current;
+      if (card) {
+        setMobilePreviewSpacerHeight(card.offsetHeight);
+      }
+      if (!anchor) {
+        return;
+      }
+
+      const anchorTop = anchor.getBoundingClientRect().top + window.scrollY;
+      setIsMobilePreviewPinned(window.scrollY >= anchorTop);
+    };
+
+    updateMobilePreviewPosition();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateMobilePreviewPosition();
+    });
+    if (mobilePreviewCardRef.current) {
+      resizeObserver.observe(mobilePreviewCardRef.current);
+    }
+
+    window.addEventListener("scroll", updateMobilePreviewPosition, { passive: true });
+    window.addEventListener("resize", updateMobilePreviewPosition);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("scroll", updateMobilePreviewPosition);
+      window.removeEventListener("resize", updateMobilePreviewPosition);
+    };
+  }, [isDesktopPreviewLayout]);
 
   const handleSelectFont = useCallback((nextFontId: string) => {
     setFontId(nextFontId);
@@ -1843,7 +1900,7 @@ export default function TextCardCreator({
     return () => {
       observer.disconnect();
     };
-  }, [activeFont, displayText]);
+  }, [activeFont, displayText, isDesktopPreviewLayout]);
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -1900,6 +1957,62 @@ export default function TextCardCreator({
             )}
           </div>
 
+          {!isDesktopPreviewLayout && (
+            <div ref={mobilePreviewAnchorRef} className="lg:hidden">
+              <div
+                ref={mobilePreviewCardRef}
+                className={`border-y border-slate-200 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur-sm ${
+                  isMobilePreviewPinned
+                    ? "fixed inset-x-4 top-0 z-30"
+                    : "relative z-10"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Live Preview
+                  </p>
+                </div>
+                <div
+                  className="relative mt-2.5 h-[22vh] max-h-[190px] overflow-hidden rounded-[1.4rem] border border-slate-300 shadow-[0_18px_40px_rgba(15,23,42,0.18)]"
+                  style={previewBackgroundStyle}
+                >
+                  <div
+                    ref={textFrameRef}
+                    className="absolute inset-0 grid place-items-center px-[10%] py-[10%]"
+                  >
+                    <div
+                      className="w-full text-center"
+                      style={{
+                        color: textColor,
+                        fontSize: `${fontSize}px`,
+                        fontFamily: activeFont.family,
+                        fontWeight: activeFont.weight,
+                        letterSpacing: `${activeFont.letterSpacing}px`,
+                        lineHeight: activeFont.lineHeight,
+                        textTransform: "none",
+                        textShadow:
+                          textColor === "#0f172a"
+                            ? "0 2px 16px rgba(255,255,255,0.28)"
+                            : "0 2px 16px rgba(0,0,0,0.42)",
+                      }}
+                    >
+                      {previewLines.map((line, index) => (
+                        <p key={`${index}-${line}`} className="m-0 [overflow-wrap:anywhere]">
+                          {line || "\u00A0"}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(15,23,42,0.2),_transparent_48%)]" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white/80 to-transparent" />
+                </div>
+              </div>
+              {isMobilePreviewPinned && (
+                <div aria-hidden="true" style={{ height: mobilePreviewSpacerHeight }} />
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Backgrounds
@@ -1914,7 +2027,7 @@ export default function TextCardCreator({
                       onClick={() => scrollToGalleryCategory(category)}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
                     >
-                      {BACKGROUND_CATEGORY_LABELS[category]}
+                      {category === "gradients" ? "Grad" : category === "patterns" ? "Pattern" : "Solid"}
                     </button>
                   ))}
                 </div>
@@ -2125,7 +2238,8 @@ export default function TextCardCreator({
           </div>
         </aside>
 
-        <div className="space-y-3 self-start lg:sticky lg:top-6">
+        {isDesktopPreviewLayout && (
+        <div className="hidden space-y-3 self-start lg:block lg:sticky lg:top-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Live Preview
           </p>
@@ -2163,6 +2277,7 @@ export default function TextCardCreator({
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.22),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(15,23,42,0.2),_transparent_48%)]" />
           </div>
         </div>
+        )}
       </div>
 
       {isComposerOpen && (
