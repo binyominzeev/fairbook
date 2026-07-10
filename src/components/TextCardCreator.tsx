@@ -2,17 +2,25 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import PostComposerDialog, { type PostComposerSuccessResult } from "./PostComposerDialog";
 
 type BackgroundPreset = {
   id: string;
   name: string;
   preview: string;
   render: {
-    kind: "solid" | "linear" | "radial";
+    kind: "solid" | "linear" | "radial" | "pattern";
     angle?: number;
     stops: Array<{ offset: number; color: string }>;
+    patternPath?: string;
+    patternBaseColor?: string;
+    patternTintColor?: string;
+    patternContrastBoost?: number;
+    textColor?: string;
   };
 };
+
+type BackgroundCategory = "gradients" | "solids" | "patterns";
 
 type FontPreset = {
   id: string;
@@ -31,21 +39,121 @@ type TextLayout = {
   lineHeightPx: number;
 };
 
-type CreatePostPayload = {
-  content: string | null;
-  sharedUrl: string | null;
-  sharedTitle: string | null;
-  sharedDescription: string | null;
-  sharedSource: string | null;
-  imageUrls: string[];
-  isTextCard: boolean;
-};
-
 const EXPORT_SIZE = 1080;
 const MIN_FONT_SIZE = 20;
 const MAX_FONT_SIZE = 240;
 const HORIZONTAL_PADDING = 0.1;
 const VERTICAL_PADDING = 0.1;
+
+const SVG_BACKGROUNDS_ATTRIBUTION = "Backgrounds by SVGBackgrounds.com";
+const SVG_BACKGROUNDS_BASE_PATH = "/text-card-backgrounds/svgbackgrounds-free";
+
+function createPatternPreset(params: {
+  id: string;
+  name: string;
+  fileName: string;
+  baseColor: string;
+  stops: Array<{ offset: number; color: string }>;
+  contrastBoost?: number;
+}): BackgroundPreset {
+  const imagePath = `${SVG_BACKGROUNDS_BASE_PATH}/${params.fileName}`;
+  return {
+    id: params.id,
+    name: params.name,
+    preview: `url("${imagePath}") center/cover no-repeat, ${params.baseColor}`,
+    render: {
+      kind: "pattern",
+      stops: params.stops,
+      patternPath: imagePath,
+      patternBaseColor: params.baseColor,
+      patternContrastBoost: params.contrastBoost,
+    },
+  };
+}
+
+const PATTERN_BACKGROUNDS: BackgroundPreset[] = [
+  createPatternPreset({
+    id: "pattern-liquid-cheese",
+    name: "Liquid Cheese",
+    fileName: "liquid-cheese.svg",
+    baseColor: "#f97316",
+    stops: [
+      { offset: 0, color: "#f59e0b" },
+      { offset: 1, color: "#f43f5e" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-wintery-sunburst",
+    name: "Wintery Sunburst",
+    fileName: "wintery-sunburst.svg",
+    baseColor: "#38bdf8",
+    stops: [
+      { offset: 0, color: "#0ea5e9" },
+      { offset: 1, color: "#e0f2fe" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-zig-zag",
+    name: "Zig Zag",
+    fileName: "zig-zag.svg",
+    baseColor: "#f59e0b",
+    stops: [
+      { offset: 0, color: "#fcd34d" },
+      { offset: 1, color: "#fb7185" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-endless-constellation",
+    name: "Endless Constellation",
+    fileName: "endless-constellation.svg",
+    baseColor: "#0f172a",
+    contrastBoost: 2.2,
+    stops: [
+      { offset: 0, color: "#0f172a" },
+      { offset: 1, color: "#334155" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-rose-petals",
+    name: "Rose Petals",
+    fileName: "rose-petals.svg",
+    baseColor: "#fb7185",
+    stops: [
+      { offset: 0, color: "#fda4af" },
+      { offset: 1, color: "#be123c" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-varying-stripes",
+    name: "Varying Stripes",
+    fileName: "varying-stripes.svg",
+    baseColor: "#f59e0b",
+    stops: [
+      { offset: 0, color: "#fbbf24" },
+      { offset: 1, color: "#7c2d12" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-page-turner",
+    name: "Page Turner",
+    fileName: "page-turner.svg",
+    baseColor: "#94a3b8",
+    stops: [
+      { offset: 0, color: "#f8fafc" },
+      { offset: 1, color: "#475569" },
+    ],
+  }),
+  createPatternPreset({
+    id: "pattern-rainbow-vortex",
+    name: "Rainbow Vortex",
+    fileName: "rainbow-vortex.svg",
+    baseColor: "#111827",
+    stops: [
+      { offset: 0, color: "#1e293b" },
+      { offset: 1, color: "#f472b6" },
+    ],
+  }),
+];
 
 const BACKGROUNDS: BackgroundPreset[] = [
   {
@@ -401,6 +509,7 @@ const BACKGROUNDS: BackgroundPreset[] = [
       ],
     },
   },
+  ...PATTERN_BACKGROUNDS,
   {
     id: "solid-cloud",
     name: "Cloud",
@@ -701,7 +810,21 @@ type TextCardCreatorProps = {
   initialHiddenBackgroundIds?: string[];
 };
 
-type BackgroundGalleryTab = "gradients" | "solids";
+const BACKGROUND_CATEGORY_LABELS: Record<BackgroundCategory, string> = {
+  gradients: "Gradients",
+  solids: "Solid Colors",
+  patterns: "Background Patterns",
+};
+
+function getBackgroundCategory(preset: BackgroundPreset): BackgroundCategory {
+  if (preset.render.kind === "solid") {
+    return "solids";
+  }
+  if (preset.render.kind === "pattern") {
+    return "patterns";
+  }
+  return "gradients";
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -739,6 +862,35 @@ function relativeLuminance(color: string) {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
+function rgbToHex(rgb: { r: number; g: number; b: number }) {
+  const toHex = (value: number) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0");
+  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+}
+
+function shiftColorTowardTarget(color: string, fromBase: string, toBase: string) {
+  const source = hexToRgb(color);
+  const sourceBase = hexToRgb(fromBase);
+  const targetBase = hexToRgb(toBase);
+  const delta = {
+    r: targetBase.r - sourceBase.r,
+    g: targetBase.g - sourceBase.g,
+    b: targetBase.b - sourceBase.b,
+  };
+
+  return rgbToHex({
+    r: source.r + delta.r,
+    g: source.g + delta.g,
+    b: source.b + delta.b,
+  });
+}
+
+function recolorStopsWithBaseShift(stops: Array<{ offset: number; color: string }>, fromBase: string, toBase: string) {
+  return stops.map((stop) => ({
+    offset: stop.offset,
+    color: shiftColorTowardTarget(stop.color, fromBase, toBase),
+  }));
+}
+
 function getBackgroundLuminance(background: BackgroundPreset) {
   if (background.render.stops.length === 0) {
     return 0.5;
@@ -754,12 +906,49 @@ function getBackgroundLuminance(background: BackgroundPreset) {
     totalWeight += weight;
   }
 
-  return weighted / totalWeight;
+  const weightedLuminance = weighted / totalWeight;
+  if (background.render.kind !== "pattern") {
+    return weightedLuminance;
+  }
+
+  const patternBase =
+    background.render.patternTintColor ?? background.render.patternBaseColor ?? null;
+  if (!patternBase) {
+    return weightedLuminance;
+  }
+
+  const baseLuminance = relativeLuminance(patternBase);
+  // Patterned surfaces are visually busier; bias luminance toward the darker side
+  // to avoid accidentally choosing dark text on dark-ish mixed presets.
+  return Math.min(weightedLuminance, baseLuminance);
+}
+
+function contrastRatio(luminanceA: number, luminanceB: number) {
+  const lighter = Math.max(luminanceA, luminanceB);
+  const darker = Math.min(luminanceA, luminanceB);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 function pickReadableColor(background: BackgroundPreset) {
+  if (background.render.textColor) {
+    return background.render.textColor;
+  }
+
   const luminance = getBackgroundLuminance(background);
-  return luminance > 0.56 ? "#0f172a" : "#f8fafc";
+  const darkText = "#0f172a";
+  const lightText = "#f8fafc";
+  const darkContrast = contrastRatio(luminance, relativeLuminance(darkText));
+  const lightContrast = contrastRatio(luminance, relativeLuminance(lightText));
+
+  if (background.render.kind === "pattern") {
+    const hasComfortableLightContrast = lightContrast >= 4.5;
+    const darkClearlyBetter = darkContrast > lightContrast * 1.25;
+    if (hasComfortableLightContrast && !darkClearlyBetter) {
+      return lightText;
+    }
+  }
+
+  return darkContrast >= lightContrast ? darkText : lightText;
 }
 
 function measureTextWidth(
@@ -940,9 +1129,118 @@ function buildLayout(
   };
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, background: BackgroundPreset, size: number) {
+const patternImageCache = new Map<string, Promise<HTMLImageElement>>();
+const tintedPatternDataUrlCache = new Map<string, Promise<string>>();
+
+function loadPatternImage(path: string) {
+  if (patternImageCache.has(path)) {
+    return patternImageCache.get(path)!;
+  }
+
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to decode pattern background."));
+    image.src = path;
+  });
+
+  patternImageCache.set(path, promise);
+  return promise;
+}
+
+async function getTintedPatternDataUrl(
+  patternPath: string,
+  sourceBaseColor: string,
+  targetBaseColor: string,
+  contrastBoost = 1
+) {
+  if (sourceBaseColor === targetBaseColor) {
+    return patternPath;
+  }
+
+  const cacheKey = `${patternPath}|${sourceBaseColor}|${targetBaseColor}|${contrastBoost}`;
+  if (tintedPatternDataUrlCache.has(cacheKey)) {
+    return tintedPatternDataUrlCache.get(cacheKey)!;
+  }
+
+  const promise = (async () => {
+    const image = await loadPatternImage(patternPath);
+    const canvas = document.createElement("canvas");
+    const width = Math.max(1, image.naturalWidth || image.width || EXPORT_SIZE);
+    const height = Math.max(1, image.naturalHeight || image.height || EXPORT_SIZE);
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return patternPath;
+    }
+
+    ctx.drawImage(image, 0, 0, width, height);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    const sourceBase = hexToRgb(sourceBaseColor);
+    const targetBase = hexToRgb(targetBaseColor);
+    const boost = Math.max(1, contrastBoost);
+
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] === 0) {
+        continue;
+      }
+      const offsetR = pixels[index] - sourceBase.r;
+      const offsetG = pixels[index + 1] - sourceBase.g;
+      const offsetB = pixels[index + 2] - sourceBase.b;
+
+      pixels[index] = clamp(targetBase.r + offsetR * boost, 0, 255);
+      pixels[index + 1] = clamp(targetBase.g + offsetG * boost, 0, 255);
+      pixels[index + 2] = clamp(targetBase.b + offsetB * boost, 0, 255);
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL("image/png");
+  })();
+
+  tintedPatternDataUrlCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  background: BackgroundPreset,
+  size: number
+) {
   if (background.render.kind === "solid") {
     ctx.fillStyle = background.render.stops[0]?.color ?? "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+
+  if (background.render.kind === "pattern") {
+    const baseColor =
+      background.render.patternTintColor ?? background.render.patternBaseColor ?? "#ffffff";
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, size, size);
+
+    const patternPath = background.render.patternPath;
+    if (!patternPath) {
+      return;
+    }
+
+    const sourceBaseColor = background.render.patternBaseColor ?? baseColor;
+    const targetBaseColor = background.render.patternTintColor;
+    const contrastBoost = background.render.patternContrastBoost ?? 1;
+    const resolvedPath = targetBaseColor
+      ? await getTintedPatternDataUrl(
+          patternPath,
+          sourceBaseColor,
+          targetBaseColor,
+          contrastBoost
+        )
+      : patternPath;
+    const image = await loadPatternImage(resolvedPath);
+    ctx.drawImage(image, 0, 0, size, size);
+    return;
   } else if (background.render.kind === "radial") {
     const radial = ctx.createRadialGradient(
       size * 0.2,
@@ -991,9 +1289,24 @@ export default function TextCardCreator({
   const [isExporting, setIsExporting] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [includeCaptionInPost, setIncludeCaptionInPost] = useState(true);
-  const [isBackgroundGalleryOpen, setIsBackgroundGalleryOpen] = useState(false);
-  const [backgroundGalleryTab, setBackgroundGalleryTab] =
-    useState<BackgroundGalleryTab>("gradients");
+  const [isTextTesting, setIsTextTesting] = useState(false);
+  const [textModerationNotice, setTextModerationNotice] = useState<{
+    kind: "success" | "warning";
+    message: string;
+  } | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [pendingComposerContent, setPendingComposerContent] = useState("");
+  const [pendingComposerImageUrl, setPendingComposerImageUrl] = useState<string | null>(null);
+  const [isPatternSolidMixEnabled, setIsPatternSolidMixEnabled] = useState(false);
+  const [selectedPatternId, setSelectedPatternId] = useState(() => {
+    const firstPattern = BACKGROUNDS.find((preset) => preset.render.kind === "pattern");
+    return firstPattern?.id ?? BACKGROUNDS[0].id;
+  });
+  const [selectedSolidId, setSelectedSolidId] = useState(() => {
+    const firstSolid = BACKGROUNDS.find((preset) => preset.render.kind === "solid");
+    return firstSolid?.id ?? BACKGROUNDS[0].id;
+  });
+  const [mixedPatternPreviewUrl, setMixedPatternPreviewUrl] = useState<string | null>(null);
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
     Array.from(new Set(initialHiddenFontIds))
   );
@@ -1001,13 +1314,15 @@ export default function TextCardCreator({
     Array.from(new Set(initialHiddenBackgroundIds))
   );
   const [recentFontIds, setRecentFontIds] = useState<string[]>(() => DEFAULT_RECENT_FONT_IDS);
-  const [recentBackgroundIds, setRecentBackgroundIds] =
-    useState<string[]>(() => DEFAULT_RECENT_BACKGROUND_IDS);
+  const [, setRecentBackgroundIds] = useState<string[]>(() => DEFAULT_RECENT_BACKGROUND_IDS);
   const [isSavingPresetVisibility, setIsSavingPresetVisibility] = useState(false);
   const [error, setError] = useState("");
 
   const textFrameRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const gradientSectionRef = useRef<HTMLDivElement | null>(null);
+  const solidSectionRef = useRef<HTMLDivElement | null>(null);
+  const patternSectionRef = useRef<HTMLDivElement | null>(null);
 
   const availableBackgrounds = useMemo(() => {
     const visible = isAdmin
@@ -1026,18 +1341,84 @@ export default function TextCardCreator({
       availableBackgrounds[0],
     [availableBackgrounds, backgroundId]
   );
+  const availablePatternBackgrounds = useMemo(
+    () => availableBackgrounds.filter((preset) => preset.render.kind === "pattern"),
+    [availableBackgrounds]
+  );
+  const availableSolidBackgrounds = useMemo(
+    () => availableBackgrounds.filter((preset) => preset.render.kind === "solid"),
+    [availableBackgrounds]
+  );
+  const selectedPatternBackground = useMemo(
+    () =>
+      availablePatternBackgrounds.find((preset) => preset.id === selectedPatternId) ??
+      availablePatternBackgrounds[0],
+    [availablePatternBackgrounds, selectedPatternId]
+  );
+  const selectedSolidBackground = useMemo(
+    () =>
+      availableSolidBackgrounds.find((preset) => preset.id === selectedSolidId) ??
+      availableSolidBackgrounds[0],
+    [availableSolidBackgrounds, selectedSolidId]
+  );
+  const shouldApplyPatternSolidMix =
+    isPatternSolidMixEnabled &&
+    getBackgroundCategory(activeBackground) !== "gradients" &&
+    Boolean(selectedPatternBackground) &&
+    Boolean(selectedSolidBackground);
+  const effectiveBackground = useMemo(() => {
+    if (!shouldApplyPatternSolidMix || !selectedPatternBackground || !selectedSolidBackground) {
+      return activeBackground;
+    }
+
+    const patternBaseColor =
+      selectedPatternBackground.render.patternBaseColor ??
+      selectedPatternBackground.render.stops[0]?.color ??
+      "#ffffff";
+    const solidColor = selectedSolidBackground.render.stops[0]?.color ?? patternBaseColor;
+    const shiftedStops = recolorStopsWithBaseShift(
+      selectedPatternBackground.render.stops,
+      patternBaseColor,
+      solidColor
+    );
+
+    return {
+      ...selectedPatternBackground,
+      id: `${selectedPatternBackground.id}__mix__${selectedSolidBackground.id}`,
+      name: `${selectedPatternBackground.name} + ${selectedSolidBackground.name}`,
+      preview: `url("${selectedPatternBackground.render.patternPath ?? ""}") center/cover no-repeat, ${solidColor}`,
+      render: {
+        ...selectedPatternBackground.render,
+        stops: shiftedStops,
+        patternTintColor: solidColor,
+        patternBaseColor,
+        patternContrastBoost: selectedPatternBackground.render.patternContrastBoost,
+      },
+    } satisfies BackgroundPreset;
+  }, [
+    activeBackground,
+    selectedPatternBackground,
+    selectedSolidBackground,
+    shouldApplyPatternSolidMix,
+  ]);
   const activeFont = useMemo(
     () => availableFonts.find((preset) => preset.id === fontId) ?? availableFonts[0],
     [availableFonts, fontId]
   );
-  const galleryBackgrounds = useMemo(() => {
+  const galleryBackgroundsByCategory = useMemo(() => {
     const source = isAdmin ? BACKGROUNDS : availableBackgrounds;
-    return source.filter((preset) =>
-      backgroundGalleryTab === "solids"
-        ? preset.render.kind === "solid"
-        : preset.render.kind !== "solid"
-    );
-  }, [availableBackgrounds, backgroundGalleryTab, isAdmin]);
+    const grouped: Record<BackgroundCategory, BackgroundPreset[]> = {
+      gradients: [],
+      solids: [],
+      patterns: [],
+    };
+
+    for (const preset of source) {
+      grouped[getBackgroundCategory(preset)].push(preset);
+    }
+
+    return grouped;
+  }, [availableBackgrounds, isAdmin]);
   const orderedFonts = useMemo(() => {
     const source = isAdmin ? FONTS : availableFonts;
     const sourceMap = new Map(source.map((preset) => [preset.id, preset]));
@@ -1052,21 +1433,27 @@ export default function TextCardCreator({
       .map((id) => sourceMap.get(id))
       .filter((preset): preset is FontPreset => Boolean(preset));
   }, [availableFonts, isAdmin, recentFontIds]);
-  const quickBackgrounds = useMemo(() => {
-    const source = isAdmin ? BACKGROUNDS : availableBackgrounds;
-    const sourceMap = new Map(source.map((preset) => [preset.id, preset]));
-    const orderedIds = [
-      ...recentBackgroundIds,
-      ...DEFAULT_RECENT_BACKGROUND_IDS,
-      ...source.map((preset) => preset.id),
-    ];
-    const uniqueIds = Array.from(new Set(orderedIds));
-    const filled = uniqueIds
-      .map((id) => sourceMap.get(id))
-      .filter((preset): preset is BackgroundPreset => Boolean(preset));
-    return filled.slice(0, RECENT_BACKGROUND_LIMIT);
-  }, [availableBackgrounds, isAdmin, recentBackgroundIds]);
-  const textColor = useMemo(() => pickReadableColor(activeBackground), [activeBackground]);
+  const textColor = useMemo(() => pickReadableColor(effectiveBackground), [effectiveBackground]);
+  const previewBackgroundStyle = useMemo(() => {
+    if (effectiveBackground.render.kind !== "pattern") {
+      return { background: effectiveBackground.preview };
+    }
+
+    const tintColor = effectiveBackground.render.patternTintColor;
+    if (!tintColor) {
+      return { background: effectiveBackground.preview };
+    }
+
+    const fallbackPath = effectiveBackground.render.patternPath;
+    const resolvedPath = mixedPatternPreviewUrl ?? fallbackPath;
+    if (!resolvedPath) {
+      return { background: tintColor };
+    }
+
+    return {
+      background: `url("${resolvedPath}") center/cover no-repeat, ${tintColor}`,
+    };
+  }, [effectiveBackground, mixedPatternPreviewUrl]);
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
     [activeFont.transform, text]
@@ -1078,6 +1465,47 @@ export default function TextCardCreator({
     }
     return flattened.slice(0, 72);
   }, [text]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const updateMixedPreview = async () => {
+      if (effectiveBackground.render.kind !== "pattern" || !effectiveBackground.render.patternTintColor) {
+        setMixedPatternPreviewUrl(null);
+        return;
+      }
+
+      const patternPath = effectiveBackground.render.patternPath;
+      const sourceBaseColor = effectiveBackground.render.patternBaseColor;
+      const targetBaseColor = effectiveBackground.render.patternTintColor;
+      const contrastBoost = effectiveBackground.render.patternContrastBoost ?? 1;
+      if (!patternPath || !sourceBaseColor || !targetBaseColor) {
+        setMixedPatternPreviewUrl(null);
+        return;
+      }
+
+      try {
+        const dataUrl = await getTintedPatternDataUrl(
+          patternPath,
+          sourceBaseColor,
+          targetBaseColor,
+          contrastBoost
+        );
+        if (!isCancelled) {
+          setMixedPatternPreviewUrl(dataUrl);
+        }
+      } catch {
+        if (!isCancelled) {
+          setMixedPatternPreviewUrl(null);
+        }
+      }
+    };
+
+    void updateMixedPreview();
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveBackground]);
 
   useEffect(() => {
     const existing = document.querySelector(`link[href=\"${GOOGLE_FONTS_STYLESHEET}\"]`);
@@ -1095,6 +1523,28 @@ export default function TextCardCreator({
     setFontId(nextFontId);
   }, []);
 
+  const handleSelectBackgroundPreset = useCallback((preset: BackgroundPreset) => {
+      setBackgroundId(preset.id);
+
+      const category = getBackgroundCategory(preset);
+      if (category === "patterns") {
+        setSelectedPatternId(preset.id);
+      }
+      if (category === "solids") {
+        setSelectedSolidId(preset.id);
+      }
+    }, []);
+
+  const scrollToGalleryCategory = useCallback((category: BackgroundCategory) => {
+    const targetRef =
+      category === "gradients"
+        ? gradientSectionRef
+        : category === "solids"
+          ? solidSectionRef
+          : patternSectionRef;
+    targetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const renderCardBlob = useCallback(async () => {
     const canvas = document.createElement("canvas");
     canvas.width = EXPORT_SIZE;
@@ -1105,7 +1555,7 @@ export default function TextCardCreator({
       throw new Error("Canvas is not supported.");
     }
 
-    drawBackground(ctx, activeBackground, EXPORT_SIZE);
+    await drawBackground(ctx, effectiveBackground, EXPORT_SIZE);
 
     const maxTextWidth = Math.floor(EXPORT_SIZE * (1 - HORIZONTAL_PADDING * 2));
     const maxTextHeight = Math.floor(EXPORT_SIZE * (1 - VERTICAL_PADDING * 2));
@@ -1135,7 +1585,7 @@ export default function TextCardCreator({
     }
 
     return blob;
-  }, [activeBackground, activeFont, displayText, textColor]);
+  }, [activeFont, displayText, effectiveBackground, textColor]);
 
   const handleDownloadPng = useCallback(async () => {
     if (isExporting) return;
@@ -1188,42 +1638,24 @@ export default function TextCardCreator({
         return;
       }
 
-      const body: CreatePostPayload = {
-        content: includeCaptionInPost ? text.trim() || null : null,
-        sharedUrl: null,
-        sharedTitle: null,
-        sharedDescription: null,
-        sharedSource: null,
-        imageUrls,
-        isTextCard: true,
-      };
-
-      const postRes = await fetch("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const postData = await postRes.json();
-
-      if (!postRes.ok) {
-        setError(postData.error ?? "Failed to create post.");
-        return;
-      }
-
       setRecentFontIds((previous) => {
         const next = [activeFont.id, ...previous.filter((id) => id !== activeFont.id)];
         return next.slice(0, RECENT_FONT_LIMIT);
       });
       setRecentBackgroundIds((previous) => {
+        const nextBackgroundId = shouldApplyPatternSolidMix
+          ? selectedPatternBackground?.id ?? backgroundId
+          : activeBackground.id;
         const next = [
-          activeBackground.id,
-          ...previous.filter((id) => id !== activeBackground.id),
+          nextBackgroundId,
+          ...previous.filter((id) => id !== nextBackgroundId),
         ];
         return next.slice(0, RECENT_BACKGROUND_LIMIT);
       });
 
-      router.push("/feed?notice=Text+card+posted.&noticeKind=success");
-      router.refresh();
+      setPendingComposerContent(includeCaptionInPost ? text.trim() : "");
+      setPendingComposerImageUrl(imageUrls[0] ?? null);
+      setIsComposerOpen(true);
     } catch {
       setError("Posting failed. Please try again.");
     } finally {
@@ -1231,13 +1663,57 @@ export default function TextCardCreator({
     }
   }, [
     activeBackground.id,
+    backgroundId,
     activeFont.id,
     includeCaptionInPost,
     isPosting,
     renderCardBlob,
-    router,
+    selectedPatternBackground,
+    shouldApplyPatternSolidMix,
     text,
   ]);
+
+  const handleTestTextModeration = useCallback(async () => {
+    if (!text.trim()) {
+      setTextModerationNotice({
+        kind: "warning",
+        message: "Add text first to run moderation test.",
+      });
+      return;
+    }
+
+    setIsTextTesting(true);
+    setError("");
+    setTextModerationNotice(null);
+
+    try {
+      const response = await fetch("/api/posts/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: text.trim(),
+          sharedUrl: null,
+          sharedTitle: null,
+          sharedDescription: null,
+          sharedSource: null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error ?? "Test failed.");
+        return;
+      }
+
+      setTextModerationNotice({
+        kind: data.moderation?.status === "author_only" ? "warning" : "success",
+        message: data.moderation?.explanation ?? "Test completed.",
+      });
+    } catch {
+      setError("Test failed. Please try again.");
+    } finally {
+      setIsTextTesting(false);
+    }
+  }, [text]);
 
   const updatePresetVisibility = useCallback(
     async (nextHiddenFontIds: string[], nextHiddenBackgroundIds: string[]) => {
@@ -1338,10 +1814,6 @@ export default function TextCardCreator({
         event.preventDefault();
         void handleDownloadPng();
       }
-
-      if (event.key === "Escape") {
-        setIsBackgroundGalleryOpen(false);
-      }
     };
 
     window.addEventListener("keydown", onShortcut);
@@ -1352,114 +1824,25 @@ export default function TextCardCreator({
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      {isBackgroundGalleryOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-8 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          onMouseDown={() => setIsBackgroundGalleryOpen(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-5"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Background Gallery</h2>
-                <p className="text-xs text-slate-500">
-                  Pick from all available presets. More backgrounds can be added here later.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsBackgroundGalleryOpen(false)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
-              <button
-                type="button"
-                onClick={() => setBackgroundGalleryTab("gradients")}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  backgroundGalleryTab === "gradients"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Gradients
-              </button>
-              <button
-                type="button"
-                onClick={() => setBackgroundGalleryTab("solids")}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  backgroundGalleryTab === "solids"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Solid Colors
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {galleryBackgrounds.map((preset) => {
-                const active = preset.id === activeBackground.id;
-                const isHidden = hiddenBackgroundIds.includes(preset.id);
-                return (
-                  <div
-                    key={preset.id}
-                    className={`relative overflow-hidden rounded-xl border bg-white ${
-                      active ? "border-slate-900" : "border-slate-200"
-                    } ${isHidden && isAdmin ? "opacity-70" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBackgroundId(preset.id);
-                        setIsBackgroundGalleryOpen(false);
-                      }}
-                      className="w-full text-left"
-                    >
-                      <span className="block h-24 w-full" style={{ background: preset.preview }} />
-                      <span className="flex items-center justify-between bg-white px-2 py-1.5 text-xs font-medium text-slate-700">
-                        <span>{preset.name}</span>
-                        {isHidden && isAdmin && (
-                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                            Hidden
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => toggleBackgroundHidden(preset.id)}
-                        disabled={isSavingPresetVisibility}
-                        className="absolute right-2 top-2 rounded bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm transition-colors hover:bg-white disabled:opacity-60"
-                      >
-                        {isHidden ? "Restore" : "Hide"}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-5">
           <div className="space-y-2">
-            <label
-              htmlFor="text-card-input"
-              className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
-            >
-              Text
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="text-card-input"
+                className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
+              >
+                Text
+              </label>
+              <button
+                type="button"
+                onClick={() => void handleTestTextModeration()}
+                disabled={isTextTesting || isPosting || isExporting}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isTextTesting ? "Testing..." : "Test AI moderation"}
+              </button>
+            </div>
             <textarea
               id="text-card-input"
               value={text}
@@ -1469,50 +1852,146 @@ export default function TextCardCreator({
               className="w-full resize-y rounded-2xl border border-slate-300 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition-colors focus:border-amber-500"
             />
             <p className="text-xs text-slate-500">Line breaks are preserved in preview and PNG.</p>
+            {textModerationNotice && (
+              <p
+                className={`text-xs ${
+                  textModerationNotice.kind === "warning" ? "text-amber-700" : "text-emerald-700"
+                }`}
+              >
+                {textModerationNotice.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Backgrounds
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {quickBackgrounds.map((preset) => {
-                const active = preset.id === activeBackground.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setBackgroundId(preset.id)}
-                    className={`group relative overflow-hidden rounded-xl border transition-transform hover:scale-[1.02] ${
-                      active ? "border-slate-900" : "border-slate-200"
-                    }`}
-                    title={preset.name}
-                    aria-label={preset.name}
-                  >
-                    <span
-                      className="block h-14 w-full"
-                      style={{ background: preset.preview }}
-                      aria-hidden="true"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 bg-black/25 px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-white">
-                      {preset.name}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              <div className="sticky top-0 z-10 mb-3 -mx-2 px-2 pb-2 pt-0.5 backdrop-blur-[1px]">
+                <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/95 p-2">
+                  {(["gradients", "patterns", "solids"] as BackgroundCategory[]).map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => scrollToGalleryCategory(category)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                    >
+                      {BACKGROUND_CATEGORY_LABELS[category]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {([
+                  {
+                    category: "gradients" as BackgroundCategory,
+                    title: BACKGROUND_CATEGORY_LABELS.gradients,
+                    items: galleryBackgroundsByCategory.gradients,
+                    ref: gradientSectionRef,
+                  },
+                  {
+                    category: "patterns" as BackgroundCategory,
+                    title: BACKGROUND_CATEGORY_LABELS.patterns,
+                    items: galleryBackgroundsByCategory.patterns,
+                    ref: patternSectionRef,
+                  },
+                  {
+                    category: "solids" as BackgroundCategory,
+                    title: BACKGROUND_CATEGORY_LABELS.solids,
+                    items: galleryBackgroundsByCategory.solids,
+                    ref: solidSectionRef,
+                  },
+                ]).map(({ category, title, items, ref }) => {
+                  if (items.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <section key={category} ref={ref} className="scroll-mt-24">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-600">
+                          {title}
+                        </h3>
+                        {category === "solids" && (
+                          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={isPatternSolidMixEnabled}
+                              onChange={(event) => setIsPatternSolidMixEnabled(event.target.checked)}
+                              className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                              disabled={
+                                availablePatternBackgrounds.length === 0 ||
+                                availableSolidBackgrounds.length === 0
+                              }
+                            />
+                            Mix with Pattern
+                          </label>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {items.map((preset) => {
+                          const active =
+                            preset.id === activeBackground.id ||
+                            (shouldApplyPatternSolidMix &&
+                              category === "patterns" &&
+                              preset.id === selectedPatternBackground?.id) ||
+                            (shouldApplyPatternSolidMix &&
+                              category === "solids" &&
+                              preset.id === selectedSolidBackground?.id);
+                          const isHidden = hiddenBackgroundIds.includes(preset.id);
+                          return (
+                            <div
+                              key={preset.id}
+                              className={`relative ${isHidden && isAdmin ? "opacity-60" : ""}`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleSelectBackgroundPreset(preset)}
+                                title={preset.name}
+                                aria-label={preset.name}
+                                className={`group relative w-full overflow-hidden rounded-lg border transition-transform hover:scale-[1.03] ${
+                                  active
+                                    ? "border-slate-900 ring-1 ring-slate-900"
+                                    : "border-slate-200"
+                                }`}
+                              >
+                                <span
+                                  className="block aspect-square w-full"
+                                  style={{ background: preset.preview }}
+                                  aria-hidden="true"
+                                />
+                                {active && (
+                                  <span className="pointer-events-none absolute right-1 top-1 rounded bg-black/65 px-1 text-[10px] font-semibold text-white">
+                                    Active
+                                  </span>
+                                )}
+                                <span className="absolute inset-x-0 bottom-0 bg-black/25 px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-white">
+                                  {preset.name}
+                                </span>
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleBackgroundHidden(preset.id)}
+                                  disabled={isSavingPresetVisibility}
+                                  className="absolute bottom-1 right-1 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+                                >
+                                  {isHidden ? "Restore" : "Hide"}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+
+              <p className="mt-4 text-center text-[11px] text-slate-400">{SVG_BACKGROUNDS_ATTRIBUTION}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setBackgroundGalleryTab(
-                  activeBackground.render.kind === "solid" ? "solids" : "gradients"
-                );
-                setIsBackgroundGalleryOpen(true);
-              }}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Open Gallery
-            </button>
           </div>
 
           <div className="space-y-2">
@@ -1604,7 +2083,7 @@ export default function TextCardCreator({
               disabled={isPosting || isExporting}
               className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPosting ? "Posting..." : "Post to Fairbook"}
+              {isPosting ? "Preparing post..." : "Post to Fairbook"}
             </button>
           </div>
         </aside>
@@ -1615,7 +2094,7 @@ export default function TextCardCreator({
           </p>
           <div
             className="relative aspect-square w-full overflow-hidden rounded-[1.6rem] border border-slate-300 shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
-            style={{ background: activeBackground.preview }}
+            style={previewBackgroundStyle}
           >
             <div
               ref={textFrameRef}
@@ -1648,6 +2127,24 @@ export default function TextCardCreator({
           </div>
         </div>
       </div>
+
+      {isComposerOpen && (
+        <PostComposerDialog
+          onClose={() => setIsComposerOpen(false)}
+          initialContent={pendingComposerContent}
+          initialImageUrls={pendingComposerImageUrl ? [pendingComposerImageUrl] : []}
+          textCardImageUrl={pendingComposerImageUrl}
+          onSuccess={(result: PostComposerSuccessResult) => {
+            const params = new URLSearchParams({
+              notice: result.message ?? "Text card posted.",
+              noticeKind: result.moderation?.status === "author_only" ? "warning" : "success",
+            });
+            setIsComposerOpen(false);
+            router.push(`/feed?${params.toString()}`);
+            router.refresh();
+          }}
+        />
+      )}
     </section>
   );
 }
