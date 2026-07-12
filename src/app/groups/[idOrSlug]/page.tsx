@@ -1,9 +1,10 @@
 import CreatePostForm from "@/components/CreatePostForm";
 import GroupDeleteButton from "@/components/GroupDeleteButton";
 import GroupInvitePanel from "@/components/GroupInvitePanel";
+import GroupJoinRequestsPanel from "@/components/GroupJoinRequestsPanel";
 import GroupJoinButton from "@/components/GroupJoinButton";
 import GroupNotificationToggle from "@/components/GroupNotificationToggle";
-import GroupMemberSearch from "@/components/GroupMemberSearch";
+import GroupMembersPanel from "@/components/GroupMembersPanel";
 import GroupPermalinkEditor from "@/components/GroupPermalinkEditor";
 import GroupPostsInfiniteList from "@/components/GroupPostsInfiniteList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
@@ -131,6 +132,25 @@ export default async function GroupDetailPage(props: {
     initialNextCursor = hasMore ? pageRows[pageRows.length - 1]?.id ?? null : null;
   }
 
+  const sidebarMemberRows = isMember
+    ? await prisma.communityMember.findMany({
+        where: { communityId: community.id },
+        orderBy: [{ joinedAt: "desc" }],
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              avatarUrl: true,
+            },
+          },
+        },
+        take: 20,
+      })
+    : [];
+
   const canonicalSlug = community.permalinkSlug ?? community.id;
 
   return (
@@ -227,7 +247,13 @@ export default async function GroupDetailPage(props: {
             </p>
           </div>
 
-          {isMember && <GroupMemberSearch groupIdOrSlug={canonicalSlug} canModerate={isModerator} />}
+          {isMember && (
+            <GroupMembersPanel
+              members={sidebarMemberRows.map((member) => member.user)}
+              totalCount={community._count.members}
+            />
+          )}
+          {isModerator && <GroupJoinRequestsPanel groupIdOrSlug={canonicalSlug} />}
           {isModerator && <GroupPermalinkEditor groupIdOrSlug={canonicalSlug} initialSlug={community.permalinkSlug} />}
           {isModerator && <GroupInvitePanel groupIdOrSlug={canonicalSlug} />}
           {isOwner && <GroupDeleteButton groupIdOrSlug={canonicalSlug} groupName={community.name} />}

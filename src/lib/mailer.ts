@@ -1,5 +1,3 @@
-import { spawn } from "node:child_process";
-
 interface SendEmailInput {
   to: string;
   subject: string;
@@ -11,6 +9,7 @@ function sanitizeHeader(value: string): string {
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
+  const { spawn } = await import("node:child_process");
   const sendmailPath = process.env.SENDMAIL_PATH || "/usr/sbin/sendmail";
   const from = process.env.EMAIL_FROM || "noreply@fairbook.hu";
 
