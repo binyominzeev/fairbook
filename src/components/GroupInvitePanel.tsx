@@ -28,7 +28,12 @@ type PendingInvite = {
 type PendingInviteByMe = {
   id: string;
   createdAt: string;
-  invitee: FollowedUser;
+  invitee: {
+    id: string;
+    slug: string | null;
+    name: string;
+    avatarUrl: string | null;
+  };
 };
 
 export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: string }) {
@@ -144,7 +149,14 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
               ? data.invite.createdAt
               : new Date().toISOString();
 
-          return [{ id: inviteId, createdAt, invitee: invitedUser }, ...previous].slice(0, 6);
+          const normalizedInvitee = {
+            id: invitedUser.id,
+            slug: invitedUser.slug ?? null,
+            name: invitedUser.name,
+            avatarUrl: invitedUser.avatarUrl ?? null,
+          };
+
+          return [{ id: inviteId, createdAt, invitee: normalizedInvitee }, ...previous].slice(0, 6);
         });
       }
       setMessage("Invite sent.");

@@ -326,7 +326,7 @@ export default async function GroupPostPermalinkPage(props: {
           </div>
         </div>
 
-        {isAdmin && <AdminDevSidebar postId={post.id} />}
+        {isAdmin && <AdminDevSidebar />}
       </div>
     </>
   );
