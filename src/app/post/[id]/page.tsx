@@ -61,6 +61,11 @@ export default async function PostPage(props: {
         select: { id: true },
         take: 1,
       },
+      notificationPreferences: {
+        where: { userId: session.userId },
+        select: { isSubscribed: true },
+        take: 1,
+      },
       _count: { select: { comments: true, likes: true, sharedBy: true } },
       reflections: { orderBy: { createdAt: "desc" }, take: 1 },
       community: {
@@ -196,6 +201,8 @@ export default async function PostPage(props: {
     likedByCurrentUser: post.likes.length > 0,
     bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
+    notificationsSubscribedByCurrentUser:
+      post.notificationPreferences[0]?.isSubscribed !== false,
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,

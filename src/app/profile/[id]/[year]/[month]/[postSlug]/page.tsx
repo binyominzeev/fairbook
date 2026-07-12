@@ -93,6 +93,11 @@ export default async function PostPermalinkPage(props: {
         select: { id: true },
         take: 1,
       },
+      notificationPreferences: {
+        where: { userId: session.userId },
+        select: { isSubscribed: true },
+        take: 1,
+      },
       community: {
         select: {
           id: true,
@@ -228,6 +233,8 @@ export default async function PostPermalinkPage(props: {
     likedByCurrentUser: post.likes.length > 0,
     bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
+    notificationsSubscribedByCurrentUser:
+      post.notificationPreferences[0]?.isSubscribed !== false,
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,
