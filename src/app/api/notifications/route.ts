@@ -29,6 +29,13 @@ export async function GET(request: Request) {
           author: { select: { id: true, slug: true } },
         },
       },
+      community: {
+        select: {
+          id: true,
+          permalinkSlug: true,
+          name: true,
+        },
+      },
       comment: {
         select: {
           id: true,
@@ -83,22 +90,30 @@ export async function GET(request: Request) {
   return Response.json({
     notifications: pageItems.map((item) => ({
       ...item,
-      post: {
-        ...item.post,
-        permalinkPath: buildPostPermalinkPath({
-          author: item.post.author,
-          createdAt: item.post.createdAt,
-          slug: item.post.permalinkSlug,
-          postId: item.post.id,
-        }),
-        previewText: item.post.sharedTitle ?? item.post.content,
-        targetPath: `${buildPostPermalinkPath({
-          author: item.post.author,
-          createdAt: item.post.createdAt,
-          slug: item.post.permalinkSlug,
-          postId: item.post.id,
-        })}${item.comment?.id ? `#comment-${item.comment.id}` : ""}`,
-      },
+      post: item.post
+        ? {
+            ...item.post,
+            permalinkPath: buildPostPermalinkPath({
+              author: item.post.author,
+              createdAt: item.post.createdAt,
+              slug: item.post.permalinkSlug,
+              postId: item.post.id,
+            }),
+            previewText: item.post.sharedTitle ?? item.post.content,
+            targetPath: `${buildPostPermalinkPath({
+              author: item.post.author,
+              createdAt: item.post.createdAt,
+              slug: item.post.permalinkSlug,
+              postId: item.post.id,
+            })}${item.comment?.id ? `#comment-${item.comment.id}` : ""}`,
+          }
+        : null,
+      community: item.community
+        ? {
+            ...item.community,
+            targetPath: `/groups/${item.community.permalinkSlug ?? item.community.id}`,
+          }
+        : null,
     })),
     nextCursor,
   });

@@ -18,6 +18,12 @@ interface Author {
   avatarUrl?: string | null;
 }
 
+interface Community {
+  id: string;
+  permalinkSlug?: string | null;
+  name: string;
+}
+
 interface SharedPostData {
   id: string;
   permalinkPath: string;
@@ -38,6 +44,11 @@ type ShareTestResult = {
     status: string;
     explanation?: string | null;
   };
+};
+
+type ShareDestination = {
+  id: string;
+  name: string;
 };
 
 type LocalEditImage = {
@@ -77,6 +88,9 @@ interface PostData {
   likedByCurrentUser: boolean;
   bookmarkedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
+  notificationsSubscribedByCurrentUser: boolean;
+  canDeleteByViewer?: boolean;
+  community?: Community | null;
   _count: { comments: number; likes: number; sharedBy: number };
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: Array<{
@@ -94,6 +108,9 @@ interface Props {
   showPermalinkEditor?: boolean;
   initiallyHidden?: boolean;
   highlightQuery?: string;
+  defaultShareCommunityId?: string | null;
+  shareRedirectPath?: string | null;
+  showCommunityHeader?: boolean;
 }
 
 const MAX_EDIT_IMAGES = 4;
@@ -194,6 +211,9 @@ export default function PostCard({
   showPermalinkEditor,
   initiallyHidden = false,
   highlightQuery,
+  defaultShareCommunityId = null,
+  shareRedirectPath = null,
+  showCommunityHeader = true,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
@@ -204,8 +224,15 @@ export default function PostCard({
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [shared, setShared] = useState(post.sharedByCurrentUser);
   const [shareCount, setShareCount] = useState(post._count.sharedBy);
+  const [postNotificationsSubscribed, setPostNotificationsSubscribed] = useState(
+    post.notificationsSubscribedByCurrentUser
+  );
+  const [updatingPostNotifications, setUpdatingPostNotifications] = useState(false);
   const [shareContent, setShareContent] = useState("");
   const [shareComposerOpen, setShareComposerOpen] = useState(false);
+  const [shareDestinations, setShareDestinations] = useState<ShareDestination[]>([]);
+  const [loadingShareDestinations, setLoadingShareDestinations] = useState(false);
+  const [shareCommunityId, setShareCommunityId] = useState<string>(defaultShareCommunityId ?? "");
   const [pendingAction, setPendingAction] = useState<"like" | "bookmark" | "share" | null>(null);
   const [shareTesting, setShareTesting] = useState(false);
   const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
@@ -242,6 +269,9 @@ export default function PostCard({
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
   const canEditPost = post.author.id === currentUserId;
   const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
+  const communityHref = post.community
+    ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
+    : null;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -374,6 +404,42 @@ export default function PostCard({
     }
   };
 
+  const handlePostNotificationToggle = async () => {
+    if (updatingPostNotifications) return;
+
+    const nextSubscribed = !postNotificationsSubscribed;
+    setUpdatingPostNotifications(true);
+    setActionError("");
+    setActionNotice(null);
+
+    try {
+      const res = await fetch(`/api/posts/${post.id}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscribed: nextSubscribed }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to update post notifications.");
+        return;
+      }
+
+      const subscribed = Boolean(data.subscribed);
+      setPostNotificationsSubscribed(subscribed);
+      setActionNotice({
+        kind: "success",
+        message: subscribed
+          ? "Post notifications enabled."
+          : "Post notifications disabled.",
+      });
+    } catch {
+      setActionError("Failed to update post notifications.");
+    } finally {
+      setUpdatingPostNotifications(false);
+    }
+  };
+
   const handleShareSubmit = async () => {
     setPendingAction("share");
     setActionError("");
@@ -381,6 +447,9 @@ export default function PostCard({
 
     try {
       const body: Record<string, unknown> = { content: shareContent };
+      if (shareCommunityId) {
+        body.communityId = shareCommunityId;
+      }
       if (lastShareTestContent === shareContent && lastShareTestResult) {
         body.preModeration = {
           content: lastShareTestContent,
@@ -412,9 +481,46 @@ export default function PostCard({
         "noticeKind",
         data.moderation?.status === "author_only" ? "warning" : "success"
       );
-      router.push(`/feed?${params.toString()}`);
+      const redirectBase =
+        shareRedirectPath && shareRedirectPath.startsWith("/") ? shareRedirectPath : "/feed";
+      router.push(`${redirectBase}?${params.toString()}`);
     } finally {
       setPendingAction(null);
+    }
+  };
+
+  const openShareComposer = async () => {
+    setActionError("");
+    setShareComposerOpen(true);
+    setLoadingShareDestinations(true);
+
+    try {
+      const response = await fetch("/api/communities?scope=joined");
+      const data = await response.json();
+      if (!response.ok) {
+        return;
+      }
+
+      const destinations: ShareDestination[] = Array.isArray(data.communities)
+        ? data.communities
+            .map((community: { id?: unknown; name?: unknown }) => {
+              if (typeof community.id !== "string" || typeof community.name !== "string") {
+                return null;
+              }
+              return { id: community.id, name: community.name };
+            })
+            .filter((item: ShareDestination | null): item is ShareDestination => Boolean(item))
+        : [];
+
+      setShareDestinations(destinations);
+      if (
+        defaultShareCommunityId &&
+        destinations.some((destination) => destination.id === defaultShareCommunityId)
+      ) {
+        setShareCommunityId(defaultShareCommunityId);
+      }
+    } finally {
+      setLoadingShareDestinations(false);
     }
   };
 
@@ -959,6 +1065,27 @@ export default function PostCard({
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Share destination
+                </p>
+                <select
+                  value={shareCommunityId}
+                  onChange={(event) => setShareCommunityId(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">My personal feed</option>
+                  {shareDestinations.map((destination) => (
+                    <option key={destination.id} value={destination.id}>
+                      Group: {destination.name}
+                    </option>
+                  ))}
+                </select>
+                {loadingShareDestinations && (
+                  <p className="mt-2 text-xs text-slate-500">Loading groups...</p>
+                )}
+              </div>
+
               {post.feedSourceId && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <p>
@@ -1322,17 +1449,43 @@ export default function PostCard({
               textClassName="text-sm font-semibold"
             />
             <div className="min-w-0">
-              <Link
-                href={buildProfilePath(post.author)}
-                className="block truncate text-sm font-semibold text-slate-900 hover:underline"
-              >
-                <HighlightedText text={post.author.name} query={highlightQuery} />
-              </Link>
-              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
-                <Link href={post.permalinkPath} className="hover:text-slate-600 hover:underline">
-                  {timeAgo(post.createdAt)}
-                </Link>
-              </div>
+              {post.community && communityHref && showCommunityHeader ? (
+                <>
+                  <Link
+                    href={communityHref}
+                    className="block truncate text-sm font-semibold text-slate-900 hover:underline"
+                  >
+                    <HighlightedText text={post.community.name} query={highlightQuery} />
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-500">
+                    <span>by</span>
+                    <Link
+                      href={buildProfilePath(post.author)}
+                      className="truncate font-medium text-slate-600 hover:underline"
+                    >
+                      <HighlightedText text={post.author.name} query={highlightQuery} />
+                    </Link>
+                    <span>·</span>
+                    <Link href={post.permalinkPath} className="hover:text-slate-700 hover:underline">
+                      {timeAgo(post.createdAt)}
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href={buildProfilePath(post.author)}
+                    className="block truncate text-sm font-semibold text-slate-900 hover:underline"
+                  >
+                    <HighlightedText text={post.author.name} query={highlightQuery} />
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
+                    <Link href={post.permalinkPath} className="hover:text-slate-600 hover:underline">
+                      {timeAgo(post.createdAt)}
+                    </Link>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <details ref={menuRef} className="relative">
@@ -1356,13 +1509,27 @@ export default function PostCard({
               >
                 {hidden ? "Unhide post" : "Hide post"}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handlePostNotificationToggle();
+                }}
+                disabled={updatingPostNotifications}
+                className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:text-slate-400"
+              >
+                {updatingPostNotifications
+                  ? "Updating..."
+                  : postNotificationsSubscribed
+                    ? "Unsubscribe from post notifications"
+                    : "Subscribe to post notifications"}
+              </button>
               <Link
                 href={reportHref}
                 className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Report child safety concern
               </Link>
-              {showDelete && post.author.id === currentUserId && (
+              {showDelete && (post.author.id === currentUserId || post.canDeleteByViewer) && (
                 <button
                   type="button"
                   onClick={handleDelete}
@@ -1452,10 +1619,7 @@ export default function PostCard({
       )}
 
       {post.sharedPost && (
-        <Link
-          href={post.sharedPost.permalinkPath}
-          className="mb-3 block rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300"
-        >
+        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300">
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
             <span>Shared from</span>
             <span className="font-medium text-slate-600">
@@ -1509,7 +1673,16 @@ export default function PostCard({
               </p>
             </div>
           )}
-        </Link>
+
+          <div className="mt-2">
+            <Link
+              href={post.sharedPost.permalinkPath}
+              className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+            >
+              Open original post →
+            </Link>
+          </div>
+        </div>
       )}
 
       {canEditPermalink && (
@@ -1559,8 +1732,7 @@ export default function PostCard({
         <button
           type="button"
           onClick={() => {
-            setActionError("");
-            setShareComposerOpen(true);
+            void openShareComposer();
           }}
           disabled={pendingAction !== null || shared}
           className={`text-xs transition-colors ${shared ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}

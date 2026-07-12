@@ -32,6 +32,7 @@ type CreatePostPayload = {
   sharedTitle: string | null;
   sharedDescription: string | null;
   sharedSource: string | null;
+  communityId?: string | null;
   imageUrls: string[];
   isTextCard?: boolean;
   preModeration?: {
@@ -54,6 +55,7 @@ type PostComposerDialogProps = {
   title?: string;
   submitLabel?: string;
   textCardImageUrl?: string | null;
+  communityId?: string | null;
 };
 
 const MAX_IMAGES = 4;
@@ -139,6 +141,7 @@ export default function PostComposerDialog({
   title = "Create post",
   submitLabel = "Post",
   textCardImageUrl = null,
+  communityId = null,
 }: PostComposerDialogProps) {
   const [content, setContent] = useState(initialContent);
   const [sharedUrl, setSharedUrl] = useState(initialSharedUrl);
@@ -267,6 +270,7 @@ export default function PostComposerDialog({
         sharedTitle: sharedTitle.trim() || null,
         sharedDescription: sharedDescription.trim() || null,
         sharedSource: sharedSource.trim() || null,
+        communityId,
         imageUrls: finalImageUrls,
         isTextCard: Boolean(textCardImageUrl && finalImageUrls.includes(textCardImageUrl)),
       };

@@ -5,6 +5,7 @@ import { getFeedGroupSourceIdsForUser } from "@/lib/feed-groups";
 import { getFeedPage, normalizeFeedSortMode } from "@/lib/feed-posts";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
+import { createGroupPostNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
 
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
     sharedImageUrl,
     imageUrls,
     isTextCard,
+    communityId,
     preModeration,
   } =
     await request.json();
@@ -145,9 +147,32 @@ export async function POST(request: NextRequest) {
     }
   );
 
+  let resolvedCommunityId: string | null = null;
+  if (typeof communityId === "string" && communityId.trim()) {
+    const membership = await prisma.communityMember.findUnique({
+      where: {
+        communityId_userId: {
+          communityId,
+          userId: session.userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return Response.json(
+        { error: "You must join the group before posting there." },
+        { status: 403 }
+      );
+    }
+
+    resolvedCommunityId = communityId;
+  }
+
   const post = await prisma.post.create({
     data: {
       authorId: session.userId,
+      communityId: resolvedCommunityId,
       permalinkSlug: initialPermalinkSlug,
       content,
       sharedUrl,
@@ -170,6 +195,14 @@ export async function POST(request: NextRequest) {
     },
     include: buildPostInclude(session.userId),
   });
+
+  if (moderation.status === "visible" && resolvedCommunityId) {
+    void createGroupPostNotifications({
+      actorId: session.userId,
+      communityId: resolvedCommunityId,
+      postId: post.id,
+    });
+  }
 
   return Response.json(
     {

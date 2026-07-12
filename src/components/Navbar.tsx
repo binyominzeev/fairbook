@@ -3,7 +3,7 @@
 import BrandLink from "@/components/BrandLink";
 import IconNavLink from "@/components/IconNavLink";
 import { buildProfilePath } from "@/lib/profile-path";
-import { Bell, FileText, Home, LogOut, UserRound, Users } from "lucide-react";
+import { Bell, FileText, Home, LayoutGrid, LogOut, UserRound, UserSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -72,7 +72,8 @@ export default function Navbar({ user }: Props) {
 
   const navLinks = [
     { href: "/feed", label: "Feed", icon: Home },
-    { href: "/connections", label: "People", icon: Users },
+    { href: "/groups", label: "Groups", icon: LayoutGrid },
+    { href: "/connections", label: "People", icon: UserSearch },
     { href: "/pages", label: "Pages", icon: FileText },
     { href: "/notifications", label: "Notifications", icon: Bell },
   ];

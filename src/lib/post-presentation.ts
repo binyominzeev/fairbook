@@ -8,6 +8,12 @@ export interface SerializedAuthor {
   avatarUrl: string | null;
 }
 
+export interface SerializedCommunity {
+  id: string;
+  permalinkSlug: string | null;
+  name: string;
+}
+
 export interface SerializedSharedPost {
   id: string;
   permalinkPath: string;
@@ -51,7 +57,10 @@ export interface SerializedPost {
   likedByCurrentUser: boolean;
   bookmarkedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
+  notificationsSubscribedByCurrentUser: boolean;
+  canDeleteByViewer: boolean;
   sharedPost: SerializedSharedPost | null;
+  community: SerializedCommunity | null;
   _count: { comments: number; likes: number; sharedBy: number };
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: SerializedCommentPreview[];
@@ -101,7 +110,24 @@ export const buildPostInclude = (viewerId: string) =>
       select: { id: true },
       take: 1,
     },
+    notificationPreferences: {
+      where: { userId: viewerId },
+      select: { isSubscribed: true },
+      take: 1,
+    },
     _count: { select: { comments: true, likes: true, sharedBy: true } },
+    community: {
+      select: {
+        id: true,
+        permalinkSlug: true,
+        name: true,
+        members: {
+          where: { userId: viewerId },
+          select: { role: true },
+          take: 1,
+        },
+      },
+    },
   }) satisfies Prisma.PostInclude;
 
 type PostForPresentation = {
@@ -124,6 +150,13 @@ type PostForPresentation = {
   likes: { id: string }[];
   bookmarkedBy: { id: string }[];
   sharedBy: { id: string }[];
+  notificationPreferences: { isSubscribed: boolean }[];
+  community: {
+    id: string;
+    permalinkSlug: string | null;
+    name: string;
+    members: { role: string }[];
+  } | null;
   sharedPost: {
     id: string;
     permalinkSlug: string | null;
@@ -185,6 +218,19 @@ export function serializePost(post: PostForPresentation): SerializedPost {
     likedByCurrentUser: post.likes.length > 0,
     bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
+    notificationsSubscribedByCurrentUser:
+      post.notificationPreferences[0]?.isSubscribed !== false,
+    canDeleteByViewer:
+      post.community?.members.some(
+        (member) => member.role === "admin" || member.role === "moderator"
+      ) ?? false,
+    community: post.community
+      ? {
+          id: post.community.id,
+          permalinkSlug: post.community.permalinkSlug,
+          name: post.community.name,
+        }
+      : null,
     sharedPost: post.sharedPost
       ? {
           ...post.sharedPost,

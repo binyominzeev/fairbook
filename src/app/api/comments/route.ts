@@ -22,6 +22,7 @@ function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderateCo
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
+  const sessionUserId = session?.userId ?? "";
   const { searchParams } = new URL(request.url);
   const postId = searchParams.get("postId");
 
@@ -39,7 +40,10 @@ export async function GET(request: NextRequest) {
     : { moderationStatus: "visible" as const };
 
   const comments = await prisma.comment.findMany({
-    where: { postId, ...visibilityWhere },
+    where: {
+      postId,
+      ...visibilityWhere,
+    },
     orderBy: { createdAt: "asc" },
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
@@ -74,6 +78,40 @@ export async function GET(request: NextRequest) {
     },
   });
 
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      authorId: true,
+      moderationStatus: true,
+      community: {
+        select: {
+          isPrivate: true,
+          members: {
+            where: { userId: sessionUserId },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  if (!post) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (post.moderationStatus === "author_only" && post.authorId !== session?.userId) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (post.community?.isPrivate) {
+    const memberRows = Array.isArray(post.community.members) ? post.community.members : [];
+    if (memberRows.length === 0) {
+      return Response.json({ error: "Post not found." }, { status: 404 });
+    }
+  }
+
   // Return only top-level comments (parentId is null); replies are nested
   const topLevel = comments.filter((c) => c.parentId === null);
   return Response.json({ comments: topLevel });
@@ -99,6 +137,16 @@ export async function POST(request: NextRequest) {
     select: {
       id: true,
       authorId: true,
+      community: {
+        select: {
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
       moderationStatus: true,
       content: true,
       sharedTitle: true,
@@ -117,6 +165,10 @@ export async function POST(request: NextRequest) {
     },
   });
   if (!post) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (post.community?.isPrivate && post.community.members.length === 0) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 

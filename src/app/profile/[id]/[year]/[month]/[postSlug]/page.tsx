@@ -93,6 +93,19 @@ export default async function PostPermalinkPage(props: {
         select: { id: true },
         take: 1,
       },
+      community: {
+        select: {
+          id: true,
+          name: true,
+          permalinkSlug: true,
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { role: true, userId: true },
+            take: 1,
+          },
+        },
+      },
       _count: { select: { comments: true, likes: true, sharedBy: true } },
       reflections: { orderBy: { createdAt: "desc" }, take: 1 },
     },
@@ -101,7 +114,6 @@ export default async function PostPermalinkPage(props: {
   if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
     notFound();
   }
-
   const canonicalPath = buildPostPermalinkPath({
     author: post.author,
     createdAt: post.createdAt,

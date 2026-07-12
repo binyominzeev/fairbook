@@ -63,10 +63,26 @@ export default async function PostPage(props: {
       },
       _count: { select: { comments: true, likes: true, sharedBy: true } },
       reflections: { orderBy: { createdAt: "desc" }, take: 1 },
+      community: {
+        select: {
+          id: true,
+          name: true,
+          permalinkSlug: true,
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { role: true, userId: true },
+            take: 1,
+          },
+        },
+      },
     },
   });
   if (!post) notFound();
   if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
+    notFound();
+  }
+  if (post.community?.isPrivate && post.community.members.length === 0) {
     notFound();
   }
 
@@ -196,12 +212,27 @@ export default async function PostPage(props: {
   };
 
   const commentCount = rawComments.length;
+  const currentUserCanModerateGroup =
+    isAdmin ||
+    post.community?.members.some(
+      (member) => member.role === "admin" || member.role === "moderator"
+    ) === true;
 
   return (
     <>
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <PostCard post={postForCard} currentUserId={user.id} showDelete />
+        <PostCard
+          post={postForCard}
+          currentUserId={user.id}
+          showDelete
+          defaultShareCommunityId={post.community?.members.length ? post.community.id : null}
+          shareRedirectPath={
+            post.community?.members.length
+              ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
+              : null
+          }
+        />
 
         {/* Thread reflection */}
         {commentInsightsEnabled &&
@@ -234,6 +265,7 @@ export default async function PostPage(props: {
                   postId={id}
                   currentUserId={user.id}
                   currentUserIsAdmin={isAdmin}
+                  currentUserCanModerateGroup={currentUserCanModerateGroup}
                   commentInsightsEnabled={commentInsightsEnabled}
                 />
               )

@@ -47,6 +47,7 @@ interface Props {
   postId: string;
   currentUserId: string;
   currentUserIsAdmin?: boolean;
+  currentUserCanModerateGroup?: boolean;
   depth?: number;
   commentInsightsEnabled?: boolean;
 }
@@ -83,6 +84,7 @@ export default function CommentCard({
   postId,
   currentUserId,
   currentUserIsAdmin = false,
+  currentUserCanModerateGroup = false,
   depth = 0,
   commentInsightsEnabled = true,
 }: Props) {
@@ -121,6 +123,7 @@ export default function CommentCard({
   );
 
   const isOwnComment = localComment.author.id === currentUserId;
+  const canDeleteComment = isOwnComment || currentUserCanModerateGroup;
 
   const submitAppeal = useCallback(async () => {
     if (!isOwnComment || currentUserIsAdmin) return;
@@ -364,18 +367,20 @@ export default function CommentCard({
             <span className="text-xs text-slate-400">
               {timeAgo(localComment.createdAt)}
             </span>
-            {isOwnComment && (
+            {canDeleteComment && (
               <>
-                <button
-                  onClick={() => {
-                    setShowEditForm((value) => !value);
-                    setEditText(localComment.content);
-                    setActionNotice(null);
-                  }}
-                  className="text-xs text-slate-400 hover:text-blue-600"
-                >
-                  Edit
-                </button>
+                {isOwnComment && (
+                  <button
+                    onClick={() => {
+                      setShowEditForm((value) => !value);
+                      setEditText(localComment.content);
+                      setActionNotice(null);
+                    }}
+                    className="text-xs text-slate-400 hover:text-blue-600"
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   onClick={deleteComment}
                   disabled={deleting}
@@ -549,6 +554,7 @@ export default function CommentCard({
           postId={postId}
           currentUserId={currentUserId}
           currentUserIsAdmin={currentUserIsAdmin}
+          currentUserCanModerateGroup={currentUserCanModerateGroup}
           commentInsightsEnabled={commentInsightsEnabled}
           depth={depth + 1}
         />

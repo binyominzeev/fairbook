@@ -1,6 +1,7 @@
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
+import { createGroupPostNotifications } from "@/lib/notifications";
 import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
@@ -28,6 +29,10 @@ export async function POST(
   const payload = await req.json().catch(() => ({}));
   const shareContent =
     typeof payload?.content === "string" ? payload.content.trim() : "";
+  const requestedCommunityId =
+    typeof payload?.communityId === "string" && payload.communityId.trim().length > 0
+      ? payload.communityId.trim()
+      : null;
 
   const { id } = await ctx.params;
   const sourcePost = await prisma.post.findUnique({
@@ -41,6 +46,16 @@ export async function POST(
       sharedSource: true,
       sharedUrl: true,
       moderationStatus: true,
+      community: {
+        select: {
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
       sharedPost: {
         select: {
           content: true,
@@ -63,6 +78,36 @@ export async function POST(
     sourcePost.authorId !== session.userId
   ) {
     return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (sourcePost.community?.isPrivate && sourcePost.community.members.length === 0) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  let targetCommunityId: string | null = null;
+  if (requestedCommunityId) {
+    const targetMembership = await prisma.communityMember.findUnique({
+      where: {
+        communityId_userId: {
+          communityId: requestedCommunityId,
+          userId: session.userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!targetMembership) {
+      return Response.json({ error: "Join the selected group before sharing there." }, { status: 403 });
+    }
+
+    targetCommunityId = requestedCommunityId;
+  }
+
+  if (sourcePost.community?.isPrivate && !targetCommunityId) {
+    return Response.json(
+      { error: "Private group posts cannot be shared to personal feed." },
+      { status: 403 }
+    );
   }
 
   const sharedContent = [
@@ -123,6 +168,7 @@ export async function POST(
   const sharedPost = await prisma.post.create({
     data: {
       authorId: session.userId,
+      communityId: targetCommunityId,
       permalinkSlug: initialPermalinkSlug,
       content: shareContent || null,
       sharedPostId: id,
@@ -141,6 +187,14 @@ export async function POST(
   });
 
   const shareCount = await prisma.post.count({ where: { sharedPostId: id } });
+
+  if (moderation.status === "visible" && targetCommunityId) {
+    void createGroupPostNotifications({
+      actorId: session.userId,
+      communityId: targetCommunityId,
+      postId: sharedPost.id,
+    });
+  }
 
   return Response.json(
     {

@@ -221,6 +221,19 @@ export async function GET(
       },
       _count: { select: { comments: true, likes: true, sharedBy: true } },
       reflections: { orderBy: { createdAt: "desc" }, take: 1 },
+      community: {
+        select: {
+          id: true,
+          name: true,
+          permalinkSlug: true,
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
     },
   });
 
@@ -229,6 +242,10 @@ export async function GET(
   }
 
   if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (post.community?.isPrivate && post.community.members.length === 0) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 
@@ -373,12 +390,25 @@ export async function DELETE(
       authorId: true,
       imageUrls: true,
       sharedImageUrl: true,
+      community: {
+        select: {
+          id: true,
+          members: {
+            where: { userId: session.userId },
+            select: { role: true },
+            take: 1,
+          },
+        },
+      },
     },
   });
   if (!post) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
-  if (post.authorId !== session.userId) {
+  const membershipRole = post.community?.members[0]?.role;
+  const canModerateCommunity = membershipRole === "admin" || membershipRole === "moderator";
+
+  if (post.authorId !== session.userId && !canModerateCommunity) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 

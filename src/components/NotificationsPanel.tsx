@@ -19,7 +19,12 @@ type NotificationItem = {
     permalinkPath: string;
     targetPath: string;
     previewText?: string | null;
-  };
+  } | null;
+  community: {
+    id: string;
+    name: string;
+    targetPath: string;
+  } | null;
   comment: {
     id: string;
     content: string;
@@ -53,12 +58,24 @@ function buildLabel(item: NotificationItem) {
     return `${item.actor.name} liked your comment`;
   }
 
+  if (item.type === "group_invited") {
+    return `${item.actor.name} invited you to a group`;
+  }
+
+  if (item.type === "group_new_post") {
+    return `${item.actor.name} posted in your group`;
+  }
+
+  if (item.type === "post_subscribed_commented") {
+    return `${item.actor.name} commented on a post you follow`;
+  }
+
   return `${item.actor.name} sent an update`;
 }
 
 function buildContext(item: NotificationItem) {
   if (item.type === "post_liked") {
-    return item.post.previewText?.trim() || "Your post was liked.";
+    return item.post?.previewText?.trim() || "Your post was liked.";
   }
 
   if (item.type === "comment_liked" || item.type === "comment_reply") {
@@ -66,10 +83,22 @@ function buildContext(item: NotificationItem) {
   }
 
   if (item.type === "followed_user_commented") {
-    return item.comment?.content?.trim() || item.post.previewText?.trim() || "Open post";
+    return item.comment?.content?.trim() || item.post?.previewText?.trim() || "Open post";
   }
 
-  return item.post.previewText?.trim() || item.comment?.content?.trim() || "Open";
+  if (item.type === "group_invited") {
+    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+  }
+
+  if (item.type === "group_new_post") {
+    return item.post?.previewText?.trim() || item.community?.name || "Open group post";
+  }
+
+  if (item.type === "post_subscribed_commented") {
+    return item.comment?.content?.trim() || item.post?.previewText?.trim() || "Open post";
+  }
+
+  return item.post?.previewText?.trim() || item.comment?.content?.trim() || "Open";
 }
 
 export default function NotificationsPanel({
@@ -193,7 +222,13 @@ export default function NotificationsPanel({
       }
     }
 
-    window.location.assign(item.post.targetPath || item.post.permalinkPath);
+    const targetPath = item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath;
+    if (!targetPath) {
+      setError("Failed to open notification.");
+      return;
+    }
+
+    window.location.assign(targetPath);
   };
 
   if (items.length === 0) {
@@ -221,7 +256,7 @@ export default function NotificationsPanel({
         {items.map((item) => (
           <Link
             key={item.id}
-            href={item.post.targetPath || item.post.permalinkPath}
+            href={item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath || "/notifications"}
             onClick={(event) => {
               void openNotification(event, item);
             }}

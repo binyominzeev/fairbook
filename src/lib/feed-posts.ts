@@ -145,6 +145,11 @@ export async function getFeedPage({
           },
           select: { followingId: true },
         });
+  const joinedCommunityMemberships = await prisma.communityMember.findMany({
+    where: { userId: viewerId },
+    select: { communityId: true },
+  });
+  const joinedCommunityIds = joinedCommunityMemberships.map((row) => row.communityId);
   const followingIds = following.map((connection) => connection.followingId);
   const authorIds = viewMode === "following" ? followingIds : [viewerId, ...followingIds];
 
@@ -176,6 +181,9 @@ export async function getFeedPage({
   const followingWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
+      joinedCommunityIds.length > 0
+        ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
+        : { communityId: null },
       {
         OR: [
           {
@@ -208,6 +216,9 @@ export async function getFeedPage({
   const groupedFeedWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
+      joinedCommunityIds.length > 0
+        ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
+        : { communityId: null },
       {
         feedSourceId: { in: groupFeedSourceIds },
         isFeedVisible: true,
@@ -240,6 +251,9 @@ export async function getFeedPage({
               AND: [
                 ...(queryWhere ? [queryWhere] : []),
                 { authorId: { in: authorIds } },
+                joinedCommunityIds.length > 0
+                  ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
+                  : { communityId: null },
                 {
                   OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],
                 },

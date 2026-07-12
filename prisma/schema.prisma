@@ -42,6 +42,8 @@ model User {
   steelmanTargets    SteelmanRequest[]   @relation("target")
   communityMemberships CommunityMember[]
   ownedCommunities   Community[]
+  communityInvitesSent CommunityInvite[] @relation("CommunityInviteSender")
+  communityInvitesReceived CommunityInvite[] @relation("CommunityInviteRecipient")
   hiddenPosts        HiddenPost[]
   bookmarkedPosts    BookmarkedPost[]
   feedGroups         FeedGroup[]
@@ -50,6 +52,8 @@ model User {
   commentAppealsReviewed  CommentAppeal[] @relation("CommentAppealReviewer")
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
+  communityNotificationPreferences CommunityNotificationPreference[]
+  postNotificationPreferences      PostNotificationPreference[]
 }
 
 model Post {
@@ -98,6 +102,7 @@ model Post {
   bookmarkedBy BookmarkedPost[]
   childSafetyReports ChildSafetyReport[]
   notifications Notification[]
+  notificationPreferences PostNotificationPreference[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -283,14 +288,16 @@ model Notification {
   actorId     String
   type        String
   targetKey   String
-  postId      String
+  postId      String?
+  communityId String?
   commentId   String?
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   recipient User    @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   actor     User    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
-  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  community Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
   comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@unique([type, recipientId, targetKey])
@@ -382,6 +389,7 @@ model SteelmanRequest {
 model Community {
   id          String   @id @default(cuid())
   name        String
+  permalinkSlug String? @unique
   description String?
   isPrivate   Boolean  @default(false)
   ownerId     String
@@ -389,20 +397,71 @@ model Community {
 
   owner   User              @relation(fields: [ownerId], references: [id])
   members CommunityMember[]
+  invites CommunityInvite[]
+  notifications Notification[]
+  notificationPreferences CommunityNotificationPreference[]
   posts   Post[]
+}
+
+model CommunityNotificationPreference {
+  id          String   @id @default(cuid())
+  communityId String
+  userId      String
+  isSubscribed Boolean @default(true)
+  updatedAt   DateTime @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([userId])
+  @@index([communityId, isSubscribed])
+}
+
+model PostNotificationPreference {
+  id           String   @id @default(cuid())
+  postId       String
+  userId       String
+  isSubscribed Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@index([postId, isSubscribed])
 }
 
 model CommunityMember {
   id          String   @id @default(cuid())
   communityId String
   userId      String
-  role        String   @default("member") // member | admin
+  role        String   @default("member") // member | moderator | admin
   joinedAt    DateTime @default(now())
 
   community Community @relation(fields: [communityId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
 
   @@unique([communityId, userId])
+  @@index([userId])
+}
+
+model CommunityInvite {
+  id          String   @id @default(cuid())
+  communityId String
+  inviterId   String
+  inviteeId   String
+  status      String   @default("pending") // pending | accepted | revoked
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("CommunityInviteSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee   User      @relation("CommunityInviteRecipient", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, inviteeId])
+  @@index([inviteeId, status])
 }
 
 model ThreadReflection {

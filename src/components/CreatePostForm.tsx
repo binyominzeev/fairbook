@@ -4,7 +4,13 @@ import { useState } from "react";
 import PostComposerDialog from "./PostComposerDialog";
 import { useRouter } from "next/navigation";
 
-export default function CreatePostForm() {
+export default function CreatePostForm({
+  communityId = null,
+  returnToPath = null,
+}: {
+  communityId?: string | null;
+  returnToPath?: string | null;
+} = {}) {
   const router = useRouter();
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [notice, setNotice] = useState<{
@@ -16,6 +22,12 @@ export default function CreatePostForm() {
     const params = new URLSearchParams();
     if (content.trim().length > 0) {
       params.set("text", content);
+    }
+    if (communityId) {
+      params.set("communityId", communityId);
+    }
+    if (returnToPath) {
+      params.set("returnTo", returnToPath);
     }
     setIsComposerOpen(false);
     router.push(params.toString() ? `/feed/text-cards?${params.toString()}` : "/feed/text-cards");
@@ -43,6 +55,7 @@ export default function CreatePostForm() {
         <PostComposerDialog
           onClose={() => setIsComposerOpen(false)}
           onOpenTextCardCreator={openTextCardCreator}
+          communityId={communityId}
           onSuccess={(result) => {
             setNotice({
               kind: result.moderation?.status === "author_only" ? "warning" : "success",

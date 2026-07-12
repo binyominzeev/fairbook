@@ -807,6 +807,8 @@ type TextCardCreatorProps = {
   initialText?: string;
   isAdmin?: boolean;
   initialHiddenFontIds?: string[];
+  communityId?: string | null;
+  returnToPath?: string | null;
 };
 
 const BACKGROUND_CATEGORY_LABELS: Record<BackgroundCategory, string> = {
@@ -1314,6 +1316,8 @@ export default function TextCardCreator({
   initialText,
   isAdmin = false,
   initialHiddenFontIds = [],
+  communityId = null,
+  returnToPath = null,
 }: TextCardCreatorProps) {
   const router = useRouter();
   const [text, setText] = useState(() => initialText?.trim() || DEFAULT_TEXT);
@@ -2270,13 +2274,15 @@ export default function TextCardCreator({
           initialContent={pendingComposerContent}
           initialImageUrls={pendingComposerImageUrl ? [pendingComposerImageUrl] : []}
           textCardImageUrl={pendingComposerImageUrl}
+          communityId={communityId}
           onSuccess={(result: PostComposerSuccessResult) => {
             const params = new URLSearchParams({
               notice: result.message ?? "Text card posted.",
               noticeKind: result.moderation?.status === "author_only" ? "warning" : "success",
             });
             setIsComposerOpen(false);
-            router.push(`/feed?${params.toString()}`);
+            const redirectBase = returnToPath && returnToPath.startsWith("/") ? returnToPath : "/feed";
+            router.push(`${redirectBase}?${params.toString()}`);
             router.refresh();
           }}
         />

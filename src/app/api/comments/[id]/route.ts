@@ -183,14 +183,34 @@ export async function DELETE(
   const { id } = await ctx.params;
   const comment = await prisma.comment.findUnique({
     where: { id },
-    select: { id: true, authorId: true, postId: true },
+    select: {
+      id: true,
+      authorId: true,
+      postId: true,
+      post: {
+        select: {
+          community: {
+            select: {
+              members: {
+                where: { userId: session.userId },
+                select: { role: true },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!comment) {
     return Response.json({ error: "Comment not found." }, { status: 404 });
   }
 
-  if (comment.authorId !== session.userId) {
+  const membershipRole = comment.post.community?.members[0]?.role;
+  const canModerateCommunity = membershipRole === "admin" || membershipRole === "moderator";
+
+  if (comment.authorId !== session.userId && !canModerateCommunity) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
