@@ -7,6 +7,7 @@ import {
   type SerializedPost,
   type SerializedProfileComment,
 } from "@/lib/post-presentation";
+import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import { prisma } from "@/lib/prisma";
 
 export type ProfileActivityTab = "posts" | "likes" | "bookmarks" | "comments" | "hidden";
@@ -33,6 +34,7 @@ type CommentRecord = Prisma.CommentGetPayload<{
         sharedTitle: true;
         sharedSource: true;
         author: { select: { id: true; slug: true; name: true; avatarUrl: true } };
+        community: { select: { id: true; permalinkSlug: true } };
       };
     };
   };
@@ -168,11 +170,14 @@ export async function getProfilePostsPage({
   query?: string;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const trimmedQuery = query?.trim() ?? "";
+  const communityVisibilityWhere = isOwnProfile ? {} : buildVisibleCommunityPostWhere(viewerId);
+
   const batch = await prisma.post.findMany({
     where: {
       ...(isOwnProfile
         ? { authorId: profileId }
         : { authorId: profileId, moderationStatus: "visible" }),
+      ...communityVisibilityWhere,
       ...(trimmedQuery ? buildPostSearchWhere(trimmedQuery) : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -222,6 +227,7 @@ export async function getProfileLikedPostsPage({
           userId: profileId,
           post: {
             AND: [
+              buildVisibleCommunityPostWhere(viewerId),
               {
                 OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
               },
@@ -279,7 +285,12 @@ export async function getProfileCommentsPage({
             authorId: profileId,
             moderationStatus: "visible",
             post: {
-              OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+              AND: [
+                buildVisibleCommunityPostWhere(viewerId),
+                {
+                  OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+                },
+              ],
             },
           }),
       ...(trimmedQuery ? buildProfileCommentSearchWhere(trimmedQuery) : {}),
@@ -297,6 +308,7 @@ export async function getProfileCommentsPage({
           sharedTitle: true,
           sharedSource: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+          community: { select: { id: true, permalinkSlug: true } },
         },
       },
     },

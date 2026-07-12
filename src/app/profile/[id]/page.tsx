@@ -8,6 +8,7 @@ import FollowButton from "@/components/FollowButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
 import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
 import ProfileActivityViewModeSelect from "@/components/ProfileActivityViewModeSelect";
+import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import {
   getProfileActivityAccess,
   getProfileCommentsPage,
@@ -89,6 +90,15 @@ export default async function ProfilePage(props: {
       profileId: profileUser.id,
       isPage: profileUser.isPage,
     });
+  const visiblePostCount = isOwnProfile
+    ? profileUser._count.posts
+    : await prisma.post.count({
+        where: {
+          authorId: profileUser.id,
+          moderationStatus: "visible",
+          ...buildVisibleCommunityPostWhere(session.userId),
+        },
+      });
   const canUseHiddenTab = isOwnProfile;
   const canUseBookmarksTab = isOwnProfile;
   const activeTab =
@@ -202,7 +212,7 @@ export default async function ProfilePage(props: {
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>
                     <strong className="text-slate-900">
-                      {profileUser._count.posts}
+                      {visiblePostCount}
                     </strong>{" "}
                     posts
                   </span>

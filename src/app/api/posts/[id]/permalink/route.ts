@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
-import { ensureUniquePostSlug, slugifyPostText } from "@/lib/post-permalink";
+import { buildPostPermalinkScopeWhere, slugifyPostText } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -18,9 +18,11 @@ export async function PATCH(
     select: {
       id: true,
       authorId: true,
+      communityId: true,
       permalinkSlug: true,
       createdAt: true,
       author: { select: { id: true, slug: true } },
+      community: { select: { id: true, permalinkSlug: true } },
     },
   });
 
@@ -43,26 +45,32 @@ export async function PATCH(
     );
   }
 
-  const uniqueSlug = await ensureUniquePostSlug(requestedSlug, async (candidate) => {
-    const existing = await prisma.post.findFirst({
-      where: {
-        authorId: session.userId,
-        permalinkSlug: candidate,
-        NOT: { id: post.id },
-      },
-      select: { id: true },
-    });
-    return Boolean(existing);
+  const existing = await prisma.post.findFirst({
+    where: buildPostPermalinkScopeWhere({
+      authorId: session.userId,
+      communityId: post.communityId,
+      slug: requestedSlug,
+      excludePostId: post.id,
+    }),
+    select: { id: true },
   });
+
+  if (existing) {
+    return Response.json(
+      { error: "This permalink is already taken in this location." },
+      { status: 409 }
+    );
+  }
 
   const updated = await prisma.post.update({
     where: { id: post.id },
-    data: { permalinkSlug: uniqueSlug },
+    data: { permalinkSlug: requestedSlug },
     select: {
       id: true,
       permalinkSlug: true,
       createdAt: true,
       author: { select: { id: true, slug: true } },
+      community: { select: { id: true, permalinkSlug: true } },
     },
   });
 
@@ -71,6 +79,7 @@ export async function PATCH(
     permalinkSlug: updated.permalinkSlug,
     permalinkPath: buildPostPermalinkPath({
       author: updated.author,
+      community: updated.community,
       createdAt: updated.createdAt,
       slug: updated.permalinkSlug,
       postId: updated.id,

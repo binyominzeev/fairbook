@@ -100,6 +100,7 @@ export const buildPostInclude = (viewerId: string) =>
         isTextCard: true,
         createdAt: true,
         author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+        community: { select: { id: true, permalinkSlug: true } },
       },
     },
     postTags: { include: { tag: true } },
@@ -170,6 +171,10 @@ type PostForPresentation = {
     isTextCard: boolean;
     createdAt: Date;
     author: SerializedAuthor;
+    community: {
+      id: string;
+      permalinkSlug: string | null;
+    } | null;
   } | null;
   _count: { comments: number; likes: number; sharedBy: number };
   postTags: { tag: { id: string; name: string; color: string } }[];
@@ -190,6 +195,10 @@ type CommentForPresentation = {
     sharedTitle: string | null;
     sharedSource: string | null;
     author: SerializedAuthor;
+      community: {
+        id: string;
+        permalinkSlug: string | null;
+      } | null;
   };
 };
 
@@ -209,6 +218,7 @@ export function serializePost(post: PostForPresentation): SerializedPost {
     ...post,
     permalinkPath: buildPostPermalinkPath({
       author: post.author,
+      community: post.community,
       createdAt: post.createdAt,
       slug: post.permalinkSlug,
       postId: post.id,
@@ -236,6 +246,7 @@ export function serializePost(post: PostForPresentation): SerializedPost {
           ...post.sharedPost,
           permalinkPath: buildPostPermalinkPath({
             author: post.sharedPost.author,
+            community: post.sharedPost.community,
             createdAt: post.sharedPost.createdAt,
             slug: post.sharedPost.permalinkSlug,
             postId: post.sharedPost.id,
@@ -258,6 +269,7 @@ export function serializeProfileComment(
       ...comment.post,
       permalinkPath: buildPostPermalinkPath({
         author: comment.post.author,
+        community: comment.post.community,
         createdAt: comment.post.createdAt,
         slug: comment.post.permalinkSlug,
         postId: comment.post.id,

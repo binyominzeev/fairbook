@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { canViewerAccessCommunity } from "@/lib/community-visibility";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_TAKE = 30;
@@ -31,6 +32,16 @@ export async function GET(
         select: {
           authorId: true,
           moderationStatus: true,
+          community: {
+            select: {
+              isPrivate: true,
+              members: {
+                where: { userId: session.userId },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
         },
       },
     },
@@ -46,6 +57,10 @@ export async function GET(
     comment.post.moderationStatus === "visible" || comment.post.authorId === session.userId;
 
   if (!canViewComment || !canViewPost) {
+    return Response.json({ error: "Comment not found." }, { status: 404 });
+  }
+
+  if (!canViewerAccessCommunity(comment.post.community)) {
     return Response.json({ error: "Comment not found." }, { status: 404 });
   }
 

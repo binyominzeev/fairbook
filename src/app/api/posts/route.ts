@@ -4,7 +4,12 @@ import { getSession } from "@/lib/auth";
 import { getFeedGroupSourceIdsForUser } from "@/lib/feed-groups";
 import { getFeedPage, normalizeFeedSortMode } from "@/lib/feed-posts";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
-import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
+import {
+  buildInitialPostSlug,
+  buildPostPermalinkScopeId,
+  buildPostPermalinkScopeWhere,
+  ensureUniquePostSlug,
+} from "@/lib/post-permalink";
 import { createGroupPostNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
@@ -133,20 +138,6 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const initialPermalinkSlug = await ensureUniquePostSlug(
-    buildInitialPostSlug(
-      typeof content === "string" ? content : null,
-      null
-    ),
-    async (candidate) => {
-      const existing = await prisma.post.findFirst({
-        where: { authorId: session.userId, permalinkSlug: candidate },
-        select: { id: true },
-      });
-      return Boolean(existing);
-    }
-  );
-
   let resolvedCommunityId: string | null = null;
   if (typeof communityId === "string" && communityId.trim()) {
     const membership = await prisma.communityMember.findUnique({
@@ -169,10 +160,29 @@ export async function POST(request: NextRequest) {
     resolvedCommunityId = communityId;
   }
 
+  const initialPermalinkSlug = await ensureUniquePostSlug(
+    buildInitialPostSlug(typeof content === "string" ? content : null, null),
+    async (candidate) => {
+      const existing = await prisma.post.findFirst({
+        where: buildPostPermalinkScopeWhere({
+          authorId: session.userId,
+          communityId: resolvedCommunityId,
+          slug: candidate,
+        }),
+        select: { id: true },
+      });
+      return Boolean(existing);
+    }
+  );
+
   const post = await prisma.post.create({
     data: {
       authorId: session.userId,
       communityId: resolvedCommunityId,
+      permalinkScopeId: buildPostPermalinkScopeId({
+        authorId: session.userId,
+        communityId: resolvedCommunityId,
+      }),
       permalinkSlug: initialPermalinkSlug,
       content,
       sharedUrl,

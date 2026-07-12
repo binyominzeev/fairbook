@@ -48,6 +48,7 @@ export default async function PostPage(props: {
           imageUrls: true,
           createdAt: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+          community: { select: { id: true, permalinkSlug: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
@@ -191,6 +192,7 @@ export default async function PostPage(props: {
     ...post,
     permalinkPath: buildPostPermalinkPath({
       author: post.author,
+      community: post.community,
       createdAt: post.createdAt,
       slug: post.permalinkSlug,
       postId: post.id,
@@ -208,6 +210,7 @@ export default async function PostPage(props: {
           ...post.sharedPost,
           permalinkPath: buildPostPermalinkPath({
             author: post.sharedPost.author,
+            community: post.sharedPost.community,
             createdAt: post.sharedPost.createdAt,
             slug: post.sharedPost.permalinkSlug,
             postId: post.sharedPost.id,

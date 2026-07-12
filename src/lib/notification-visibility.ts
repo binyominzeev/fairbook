@@ -1,3 +1,5 @@
+import { canViewerAccessCommunity } from "@/lib/community-visibility";
+
 type NotificationComment = {
   id: string;
   parentId: string | null;
@@ -5,15 +7,27 @@ type NotificationComment = {
   moderationStatus: string;
 } | null;
 
+type NotificationPost = {
+  community: {
+    isPrivate: boolean;
+    members: { id: string }[];
+  } | null;
+} | null;
+
 type NotificationWithCommentTarget = {
   commentId: string | null;
   comment: NotificationComment;
+  post: NotificationPost;
 };
 
 export function isNotificationTargetVisibleToRecipient(
   item: NotificationWithCommentTarget,
   recipientId: string
 ) {
+  if (item.post && !canViewerAccessCommunity(item.post.community)) {
+    return false;
+  }
+
   // Notifications without a comment target (e.g. post likes) are always openable.
   if (!item.commentId) return true;
 
@@ -32,6 +46,7 @@ type NotificationVisibilityBase = {
   recipientId: string;
   commentId: string | null;
   comment: NotificationComment;
+  post: NotificationPost;
 };
 
 type CommentVisibilityNode = {
@@ -100,6 +115,11 @@ export async function partitionNotificationsByVisibility<T extends NotificationV
   const staleNotificationIds: string[] = [];
 
   for (const item of items) {
+    if (item.post && !canViewerAccessCommunity(item.post.community)) {
+      staleNotificationIds.push(item.id);
+      continue;
+    }
+
     if (!item.commentId) {
       visibleItems.push(item);
       continue;

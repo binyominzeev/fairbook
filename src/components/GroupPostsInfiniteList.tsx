@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import PostCard from "@/components/PostCard";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import type { SerializedPost } from "@/lib/post-presentation";
+
+const NEW_VISIBLE_POST_EVENT = "fairbook:new-visible-post";
 
 export default function GroupPostsInfiniteList({
   currentUserId,
@@ -21,7 +24,7 @@ export default function GroupPostsInfiniteList({
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
 }) {
-  const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
+  const { items, prependItem, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
     loadPage: async (cursor) => {
@@ -49,6 +52,33 @@ export default function GroupPostsInfiniteList({
       };
     },
   });
+
+  useEffect(() => {
+    const handleNewPost = (event: Event) => {
+      const customEvent = event as CustomEvent<SerializedPost>;
+      const post = customEvent.detail;
+      if (!post?.id) {
+        return;
+      }
+
+      // Keep live prepend scoped to the current group view.
+      if (post.community?.id !== groupId) {
+        return;
+      }
+
+      // Query-filtered views are refreshed via server fetch to avoid false matches.
+      if (query.trim().length > 0) {
+        return;
+      }
+
+      prependItem(post, (candidate) => candidate.id === post.id);
+    };
+
+    window.addEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
+    return () => {
+      window.removeEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
+    };
+  }, [groupId, prependItem, query]);
 
   if (items.length === 0) {
     return (

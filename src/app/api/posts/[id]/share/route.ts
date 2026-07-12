@@ -2,7 +2,12 @@ import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { createGroupPostNotifications } from "@/lib/notifications";
-import { buildInitialPostSlug, ensureUniquePostSlug } from "@/lib/post-permalink";
+import {
+  buildInitialPostSlug,
+  buildPostPermalinkScopeId,
+  buildPostPermalinkScopeWhere,
+  ensureUniquePostSlug,
+} from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
 function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
@@ -153,7 +158,11 @@ export async function POST(
     buildInitialPostSlug(shareContent || sourcePost.sharedTitle || sourcePost.content || null, null),
     async (candidate) => {
       const existing = await prisma.post.findFirst({
-        where: { authorId: session.userId, permalinkSlug: candidate },
+        where: buildPostPermalinkScopeWhere({
+          authorId: session.userId,
+          communityId: targetCommunityId,
+          slug: candidate,
+        }),
         select: { id: true },
       });
       return Boolean(existing);
@@ -169,6 +178,10 @@ export async function POST(
     data: {
       authorId: session.userId,
       communityId: targetCommunityId,
+      permalinkScopeId: buildPostPermalinkScopeId({
+        authorId: session.userId,
+        communityId: targetCommunityId,
+      }),
       permalinkSlug: initialPermalinkSlug,
       content: shareContent || null,
       sharedPostId: id,

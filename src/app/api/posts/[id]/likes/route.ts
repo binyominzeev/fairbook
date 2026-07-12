@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { canViewerAccessCommunity } from "@/lib/community-visibility";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_TAKE = 30;
@@ -23,7 +24,21 @@ export async function GET(
 
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true, authorId: true, moderationStatus: true },
+    select: {
+      id: true,
+      authorId: true,
+      moderationStatus: true,
+      community: {
+        select: {
+          isPrivate: true,
+          members: {
+            where: { userId: session.userId },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
   });
 
   if (!post) {
@@ -31,6 +46,10 @@ export async function GET(
   }
 
   if (post.moderationStatus === "author_only" && post.authorId !== session.userId) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
+  }
+
+  if (!canViewerAccessCommunity(post.community)) {
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 

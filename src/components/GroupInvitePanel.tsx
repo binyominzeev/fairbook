@@ -14,9 +14,21 @@ type FollowedUser = {
 };
 
 type PendingInvite = {
+  id?: string;
+  createdAt?: string;
+  invitedByCurrentUser?: boolean;
   invitee?: {
     id?: string;
+    slug?: string | null;
+    name?: string;
+    avatarUrl?: string | null;
   };
+};
+
+type PendingInviteByMe = {
+  id: string;
+  createdAt: string;
+  invitee: FollowedUser;
 };
 
 export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: string }) {
@@ -27,6 +39,7 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [invitedIds, setInvitedIds] = useState<string[]>([]);
+  const [pendingInvitesByMe, setPendingInvitesByMe] = useState<PendingInviteByMe[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -53,12 +66,38 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
         }
 
         setFollowedUsers(Array.isArray(connectionsData.users) ? connectionsData.users : []);
-        const pendingInviteeIds = Array.isArray(invitesData.invites)
+        const parsedInvites = Array.isArray(invitesData.invites)
           ? (invitesData.invites as PendingInvite[])
-              .map((invite) => invite.invitee?.id)
-              .filter((id): id is string => typeof id === "string" && id.length > 0)
           : [];
+
+        const pendingInviteeIds = parsedInvites
+          .map((invite) => invite.invitee?.id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+        const pendingByMe = parsedInvites
+          .filter((invite) => invite.invitedByCurrentUser)
+          .map((invite) => {
+            const inviteeId = invite.invitee?.id;
+            const inviteeName = invite.invitee?.name;
+            if (!invite.id || !invite.createdAt || !inviteeId || !inviteeName) {
+              return null;
+            }
+
+            return {
+              id: invite.id,
+              createdAt: invite.createdAt,
+              invitee: {
+                id: inviteeId,
+                slug: invite.invitee?.slug ?? null,
+                name: inviteeName,
+                avatarUrl: invite.invitee?.avatarUrl ?? null,
+              },
+            } satisfies PendingInviteByMe;
+          })
+          .filter((invite): invite is PendingInviteByMe => Boolean(invite));
+
         setInvitedIds(pendingInviteeIds);
+        setPendingInvitesByMe(pendingByMe);
       } finally {
         setLoadingFollowedUsers(false);
       }
@@ -89,6 +128,25 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
       }
 
       setInvitedIds((previous) => (previous.includes(inviteeId) ? previous : [...previous, inviteeId]));
+      const invitedUser = followedUsers.find((user) => user.id === inviteeId);
+      if (invitedUser) {
+        setPendingInvitesByMe((previous) => {
+          if (previous.some((invite) => invite.invitee.id === inviteeId)) {
+            return previous;
+          }
+
+          const inviteId =
+            typeof data?.invite?.id === "string" && data.invite.id.length > 0
+              ? data.invite.id
+              : `local-${inviteeId}`;
+          const createdAt =
+            typeof data?.invite?.createdAt === "string" && data.invite.createdAt.length > 0
+              ? data.invite.createdAt
+              : new Date().toISOString();
+
+          return [{ id: inviteId, createdAt, invitee: invitedUser }, ...previous].slice(0, 6);
+        });
+      }
       setMessage("Invite sent.");
     } finally {
       setLoading(false);
@@ -115,6 +173,27 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       {message && <p className="mt-2 text-xs text-emerald-700">{message}</p>}
+
+      {pendingInvitesByMe.length > 0 && (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-medium text-slate-700">Your pending invites</p>
+          <div className="mt-2 space-y-2">
+            {pendingInvitesByMe.slice(0, 5).map((invite) => (
+              <div key={invite.id} className="flex items-center justify-between gap-2 text-xs text-slate-600">
+                <Link
+                  href={buildProfilePath(invite.invitee)}
+                  className="truncate font-medium text-slate-800 hover:underline"
+                >
+                  {invite.invitee.name}
+                </Link>
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                  Pending
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loadingFollowedUsers ? (
         <p className="mt-3 text-xs text-slate-500">Loading your followed people...</p>

@@ -3,6 +3,16 @@ import { getProfileIdentifier, type ProfileLinkable } from "@/lib/profile-path";
 
 const MAX_SLUG_LENGTH = 72;
 
+export interface PostPermalinkCommunityLinkable {
+  id: string;
+  permalinkSlug: string | null;
+}
+
+export interface PostPermalinkScope {
+  authorId: string;
+  communityId?: string | null;
+}
+
 function stripDiacritics(value: string) {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -56,21 +66,52 @@ export function ensureUniquePostSlug(baseSlug: string, isTaken: (slug: string) =
   })();
 }
 
+export function buildPostPermalinkScopeId({
+  authorId,
+  communityId,
+}: PostPermalinkScope) {
+  return communityId ? `community:${communityId}` : `user:${authorId}`;
+}
+
+export function buildPostPermalinkScopeWhere({
+  authorId,
+  communityId,
+  slug,
+  excludePostId,
+}: PostPermalinkScope & {
+  slug: string;
+  excludePostId?: string;
+}) {
+  return {
+    ...(communityId ? { communityId } : { authorId, communityId: null }),
+    permalinkSlug: slug,
+    ...(excludePostId ? { NOT: { id: excludePostId } } : {}),
+  };
+}
+
 export function buildPostPermalinkPath({
   author,
+  community,
   createdAt,
   slug,
   postId,
 }: {
   author: ProfileLinkable;
+  community?: PostPermalinkCommunityLinkable | null;
   createdAt: Date;
   slug: string | null | undefined;
   postId: string;
 }) {
   const year = String(createdAt.getUTCFullYear());
   const month = String(createdAt.getUTCMonth() + 1).padStart(2, "0");
-  const identifier = getProfileIdentifier(author);
   const tail = slug?.trim() || postId;
+
+  if (community) {
+    const groupIdentifier = community.permalinkSlug ?? community.id;
+    return `/groups/${groupIdentifier}/${year}/${month}/${tail}`;
+  }
+
+  const identifier = getProfileIdentifier(author);
 
   return `/profile/${identifier}/${year}/${month}/${tail}`;
 }

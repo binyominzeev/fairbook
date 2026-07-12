@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -11,11 +12,17 @@ export async function GET(
   }
 
   const { id } = await ctx.params;
+  const communityVisibilityWhere =
+    id === session.userId ? {} : buildVisibleCommunityPostWhere(session.userId);
   const posts = await prisma.post.findMany({
     where:
       id === session.userId
         ? { authorId: id }
-        : { authorId: id, moderationStatus: "visible" },
+        : {
+            authorId: id,
+            moderationStatus: "visible",
+            ...communityVisibilityWhere,
+          },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: {

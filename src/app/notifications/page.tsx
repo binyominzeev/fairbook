@@ -30,6 +30,18 @@ export default async function NotificationsPage() {
           content: true,
           sharedTitle: true,
           author: { select: { id: true, slug: true } },
+          community: {
+            select: {
+              id: true,
+              permalinkSlug: true,
+              isPrivate: true,
+              members: {
+                where: { userId: session.userId },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
         },
       },
       community: {
@@ -90,6 +102,7 @@ export default async function NotificationsPage() {
           ...item.post,
           permalinkPath: buildPostPermalinkPath({
             author: item.post.author,
+            community: item.post.community,
             createdAt: item.post.createdAt,
             slug: item.post.permalinkSlug,
             postId: item.post.id,
@@ -97,6 +110,7 @@ export default async function NotificationsPage() {
           previewText: item.post.sharedTitle ?? item.post.content,
           targetPath: `${buildPostPermalinkPath({
             author: item.post.author,
+            community: item.post.community,
             createdAt: item.post.createdAt,
             slug: item.post.permalinkSlug,
             postId: item.post.id,

@@ -447,6 +447,7 @@ export async function importFeedPosts(
     await prisma.post.create({
       data: {
         ...post.data,
+        permalinkScopeId: `user:${post.data.authorId}`,
         mayContainViolence: violentIds.has(post.batchId),
       },
     });

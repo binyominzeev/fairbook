@@ -13,13 +13,12 @@ import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
 import { canViewerAccessCommunity } from "@/lib/community-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
-import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
 
-export default async function PostPermalinkPage(props: {
-  params: Promise<{ id: string; year: string; month: string; postSlug: string }>;
+export default async function GroupPostPermalinkPage(props: {
+  params: Promise<{ idOrSlug: string; year: string; month: string; postSlug: string }>;
 }) {
-  const { id, year, month, postSlug } = await props.params;
+  const { idOrSlug, year, month, postSlug } = await props.params;
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -31,13 +30,23 @@ export default async function PostPermalinkPage(props: {
   const isAdmin = isAdminEmail(user.email);
   const commentInsightsEnabled = await getCommentInsightsEnabled();
 
-  const profileUser = await resolveUserByProfileIdentifier(id, {
-    id: true,
-    slug: true,
-    name: true,
-    avatarUrl: true,
+  const community = await prisma.community.findFirst({
+    where: {
+      OR: [{ id: idOrSlug }, { permalinkSlug: idOrSlug }],
+    },
+    select: {
+      id: true,
+      permalinkSlug: true,
+      isPrivate: true,
+      members: {
+        where: { userId: session.userId },
+        select: { role: true, userId: true },
+        take: 1,
+      },
+    },
   });
-  if (!profileUser) notFound();
+  if (!community) notFound();
+  if (!canViewerAccessCommunity(community)) notFound();
 
   const parsedYear = Number(year);
   const parsedMonth = Number(month);
@@ -57,13 +66,12 @@ export default async function PostPermalinkPage(props: {
 
   const post = await prisma.post.findFirst({
     where: {
-      authorId: profileUser.id,
+      communityId: community.id,
       createdAt: {
         gte: monthStart,
         lt: nextMonthStart,
       },
       OR: [{ permalinkSlug: postSlug }, { id: postSlug }],
-      communityId: null,
     },
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
@@ -118,48 +126,14 @@ export default async function PostPermalinkPage(props: {
       reflections: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
-  if (!post) {
-    const matchingGroupPosts = await prisma.post.findMany({
-      where: {
-        authorId: profileUser.id,
-        createdAt: {
-          gte: monthStart,
-          lt: nextMonthStart,
-        },
-        communityId: { not: null },
-        OR: [{ permalinkSlug: postSlug }, { id: postSlug }],
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 2,
-      select: {
-        id: true,
-        permalinkSlug: true,
-        createdAt: true,
-        author: { select: { id: true, slug: true } },
-        community: { select: { id: true, permalinkSlug: true } },
-      },
-    });
-
-    if (matchingGroupPosts.length === 1 && matchingGroupPosts[0].community) {
-      redirect(
-        buildPostPermalinkPath({
-          author: matchingGroupPosts[0].author,
-          community: matchingGroupPosts[0].community,
-          createdAt: matchingGroupPosts[0].createdAt,
-          slug: matchingGroupPosts[0].permalinkSlug,
-          postId: matchingGroupPosts[0].id,
-        })
-      );
-    }
-
-    notFound();
-  }
+  if (!post) notFound();
   if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
     notFound();
   }
   if (!canViewerAccessCommunity(post.community)) {
     notFound();
   }
+
   const canonicalPath = buildPostPermalinkPath({
     author: post.author,
     community: post.community,
@@ -167,7 +141,7 @@ export default async function PostPermalinkPage(props: {
     slug: post.permalinkSlug,
     postId: post.id,
   });
-  const requestedPath = `/profile/${id}/${year}/${month}/${postSlug}`;
+  const requestedPath = `/groups/${idOrSlug}/${year}/${month}/${postSlug}`;
   if (requestedPath !== canonicalPath) {
     redirect(canonicalPath);
   }
@@ -304,6 +278,12 @@ export default async function PostPermalinkPage(props: {
           currentUserId={user.id}
           showDelete
           showPermalinkEditor
+          defaultShareCommunityId={post.community?.members.length ? post.community.id : null}
+          shareRedirectPath={
+            post.community?.members.length
+              ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
+              : null
+          }
         />
 
         {commentInsightsEnabled &&
@@ -327,22 +307,27 @@ export default async function PostPermalinkPage(props: {
                 No comments yet. Start the discussion.
               </p>
             )}
-            {(comments as Parameters<typeof CommentCard>[0]["comment"][]).map(
-              (comment) => (
-                <CommentCard
-                  key={(comment as { id: string }).id}
-                  comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
-                  postId={post.id}
-                  currentUserId={user.id}
-                  currentUserIsAdmin={isAdmin}
-                  commentInsightsEnabled={commentInsightsEnabled}
-                />
-              )
-            )}
+            {(comments as Parameters<typeof CommentCard>[0]["comment"][]).map((comment) => (
+              <CommentCard
+                key={(comment as { id: string }).id}
+                comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
+                postId={post.id}
+                currentUserId={user.id}
+                currentUserIsAdmin={isAdmin}
+                currentUserCanModerateGroup={
+                  isAdmin ||
+                  post.community?.members.some(
+                    (member) => member.role === "admin" || member.role === "moderator"
+                  ) === true
+                }
+                commentInsightsEnabled={commentInsightsEnabled}
+              />
+            ))}
           </div>
         </div>
+
+        {isAdmin && <AdminDevSidebar postId={post.id} />}
       </div>
-      {isAdmin && <AdminDevSidebar />}
     </>
   );
 }

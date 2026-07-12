@@ -204,6 +204,57 @@ function renderTextWithLinks(text: string, className: string, query?: string) {
   );
 }
 
+function SinglePostImage({
+  src,
+  alt,
+  isTextCard,
+  canOpenLightbox,
+  onOpen,
+}: {
+  src: string;
+  alt: string;
+  isTextCard: boolean;
+  canOpenLightbox: boolean;
+  onOpen: () => void;
+}) {
+  const [isNearSquare, setIsNearSquare] = useState(false);
+  const imageClass =
+    isTextCard || isNearSquare
+      ? "w-full h-auto object-contain"
+      : "h-80 w-full object-cover";
+
+  const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    if (!image.naturalWidth || !image.naturalHeight) {
+      setIsNearSquare(false);
+      return;
+    }
+
+    const ratio = image.naturalWidth / image.naturalHeight;
+    setIsNearSquare(ratio >= 0.9 && ratio <= 1.1);
+  };
+
+  if (!canOpenLightbox) {
+    return (
+      <div className="block h-full w-full">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} className={imageClass} onLoad={handleLoad} />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="block h-full w-full"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} className={imageClass} onLoad={handleLoad} />
+    </button>
+  );
+}
+
 export default function PostCard({
   post,
   currentUserId,
@@ -903,7 +954,6 @@ export default function PostCard({
     if (imageUrls.length === 0) return null;
 
     const isTextCard = options?.isTextCard === true;
-    const singleImageClass = isTextCard ? "w-full h-auto" : "h-80 w-full object-cover";
     const canOpenLightbox = !isTextCard;
 
     const renderImage = (url: string, index: number, className: string) => {
@@ -931,7 +981,13 @@ export default function PostCard({
     if (imageUrls.length === 1) {
       return (
         <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-          {renderImage(imageUrls[0], 0, singleImageClass)}
+          <SinglePostImage
+            src={imageUrls[0]}
+            alt="Post image 1"
+            isTextCard={isTextCard}
+            canOpenLightbox={canOpenLightbox}
+            onOpen={() => openLightbox(imageUrls, 0)}
+          />
         </div>
       );
     }
@@ -1716,17 +1772,25 @@ export default function PostCard({
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
         <Link
           href={post.permalinkPath}
-          className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
+          aria-label="Open comments"
         >
-          💬 {post._count.comments} comment{post._count.comments !== 1 ? "s" : ""}
+          <span className="text-sm leading-none" aria-hidden="true">💬</span>
+          <span>{post._count.comments}</span>
         </Link>
         <button
           type="button"
           onClick={handleLike}
           disabled={pendingAction !== null}
-          className={`text-xs transition-colors ${liked ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
+          className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ${liked ? "text-blue-600 hover:bg-blue-50" : "text-slate-500 hover:bg-slate-100 hover:text-blue-600"} disabled:text-slate-300`}
+          aria-label={liked ? "Unlike" : "Like"}
         >
-          {liked ? "♥ Liked" : "♡ Like"}
+          <span className="text-base leading-none" aria-hidden="true">
+            {liked ? "♥" : "♡"}
+          </span>
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+            {liked ? "Unlike" : "Like"}
+          </span>
         </button>
         <LikersListTrigger kind="post" targetId={post.id} likeCount={likeCount} />
         <button
@@ -1744,16 +1808,16 @@ export default function PostCard({
           type="button"
           onClick={handleBookmark}
           disabled={pendingAction !== null}
-          className={`text-xs transition-colors ${bookmarked ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
+          className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ${bookmarked ? "text-blue-600 hover:bg-blue-50" : "text-slate-500 hover:bg-slate-100 hover:text-blue-600"} disabled:text-slate-300`}
+          aria-label={bookmarked ? "Remove bookmark" : "Bookmark"}
         >
-          {bookmarked ? "★" : "☆"} {bookmarked ? "Bookmarked" : "Bookmark"}
+          <span className="text-base leading-none" aria-hidden="true">
+            {bookmarked ? "★" : "☆"}
+          </span>
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+            {bookmarked ? "Remove bookmark" : "Bookmark"}
+          </span>
         </button>
-        <Link
-          href={post.permalinkPath}
-          className="text-xs text-slate-500 hover:text-blue-600 transition-colors"
-        >
-          Discuss →
-        </Link>
       </div>
       {actionError && (
         <p className="mt-2 text-xs text-red-600">{actionError}</p>

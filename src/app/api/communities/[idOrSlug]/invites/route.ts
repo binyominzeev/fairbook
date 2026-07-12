@@ -59,6 +59,7 @@ export async function GET(
       createdAt: invite.createdAt.toISOString(),
       invitee: invite.invitee,
       inviter: invite.inviter,
+      invitedByCurrentUser: invite.inviter.id === session.userId,
     })),
   });
 }
