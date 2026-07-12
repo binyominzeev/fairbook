@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken, sessionCookieOptions } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/auth-email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +15,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = normalizeEmail(email);
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       return Response.json(
         { error: "Invalid email or password." },
@@ -27,6 +29,16 @@ export async function POST(request: NextRequest) {
       return Response.json(
         { error: "Invalid email or password." },
         { status: 401 }
+      );
+    }
+
+    if (!user.emailVerifiedAt) {
+      return Response.json(
+        {
+          error: "Please verify your email address before signing in.",
+          code: "EMAIL_NOT_VERIFIED",
+        },
+        { status: 403 }
       );
     }
 

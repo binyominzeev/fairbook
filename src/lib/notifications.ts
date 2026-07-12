@@ -7,6 +7,9 @@ export const NOTIFICATION_TYPE_POST_LIKE = "post_liked";
 export const NOTIFICATION_TYPE_COMMENT_LIKE = "comment_liked";
 export const NOTIFICATION_TYPE_GROUP_INVITE = "group_invited";
 export const NOTIFICATION_TYPE_GROUP_NEW_POST = "group_new_post";
+export const NOTIFICATION_TYPE_GROUP_JOIN_REQUEST = "group_join_requested";
+export const NOTIFICATION_TYPE_GROUP_JOIN_APPROVED = "group_join_approved";
+export const NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED = "group_invite_accepted";
 
 export async function createCommentNotifications(input: {
   actorId: string;
@@ -305,6 +308,132 @@ export async function createGroupInviteNotification(input: {
       actorId,
       type: NOTIFICATION_TYPE_GROUP_INVITE,
       targetKey: communityId,
+      communityId,
+      postId: null,
+      commentId: null,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      communityId,
+      postId: null,
+      commentId: null,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
+}
+
+export async function createGroupJoinRequestNotifications(input: {
+  actorId: string;
+  communityId: string;
+}) {
+  const { actorId, communityId } = input;
+
+  const adminRows = await prisma.communityMember.findMany({
+    where: {
+      communityId,
+      role: "admin",
+      userId: { not: actorId },
+    },
+    select: { userId: true },
+  });
+
+  if (adminRows.length === 0) {
+    return;
+  }
+
+  const writes = adminRows.map((admin) =>
+    prisma.notification.upsert({
+      where: {
+        type_recipientId_targetKey: {
+          type: NOTIFICATION_TYPE_GROUP_JOIN_REQUEST,
+          recipientId: admin.userId,
+          targetKey: `${communityId}:${actorId}`,
+        },
+      },
+      create: {
+        recipientId: admin.userId,
+        actorId,
+        type: NOTIFICATION_TYPE_GROUP_JOIN_REQUEST,
+        targetKey: `${communityId}:${actorId}`,
+        communityId,
+        postId: null,
+        commentId: null,
+        isRead: false,
+      },
+      update: {
+        actorId,
+        communityId,
+        postId: null,
+        commentId: null,
+        isRead: false,
+        createdAt: new Date(),
+      },
+    })
+  );
+
+  await prisma.$transaction(writes);
+}
+
+export async function createGroupJoinApprovedNotification(input: {
+  actorId: string;
+  recipientId: string;
+  communityId: string;
+}) {
+  const { actorId, recipientId, communityId } = input;
+  if (actorId === recipientId) return;
+
+  await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type: NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
+        recipientId,
+        targetKey: communityId,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type: NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
+      targetKey: communityId,
+      communityId,
+      postId: null,
+      commentId: null,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      communityId,
+      postId: null,
+      commentId: null,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
+}
+
+export async function createGroupInviteAcceptedNotification(input: {
+  actorId: string;
+  recipientId: string;
+  communityId: string;
+}) {
+  const { actorId, recipientId, communityId } = input;
+  if (actorId === recipientId) return;
+
+  await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type: NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
+        recipientId,
+        targetKey: `${communityId}:${actorId}`,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type: NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
+      targetKey: `${communityId}:${actorId}`,
       communityId,
       postId: null,
       commentId: null,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,11 +11,45 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+
+  async function handleResendVerification() {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+
+    setError("");
+    setInfo("");
+    setResendingVerification(true);
+
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+      } else {
+        setInfo(data.message ?? "Verification email sent.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setResendingVerification(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setInfo("");
+    setNeedsVerification(false);
     setLoading(true);
 
     const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
@@ -29,7 +64,14 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.code === "EMAIL_NOT_VERIFIED") {
+          setNeedsVerification(true);
+        }
         setError(data.error ?? "Something went wrong.");
+      } else if (mode === "register") {
+        setInfo(data.message ?? "Please verify your email before signing in.");
+        setMode("login");
+        setNeedsVerification(true);
       } else {
         router.push("/feed");
         router.refresh();
@@ -110,10 +152,35 @@ export default function LoginPage() {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+            {mode === "login" && (
+              <div className="-mt-1 text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
             {error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
                 {error}
               </p>
+            )}
+            {info && (
+              <p className="text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+                {info}
+              </p>
+            )}
+            {needsVerification && mode === "login" && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendingVerification}
+                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                {resendingVerification ? "Sending..." : "Resend verification email"}
+              </button>
             )}
             <button
               type="submit"

@@ -52,6 +52,22 @@ export default async function GroupsPage(props: {
         select: { role: true },
         take: 1,
       },
+      invites: {
+        where: {
+          inviteeId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
+      joinRequests: {
+        where: {
+          requesterId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
       _count: { select: { members: true, posts: true } },
     },
     take: 100,
@@ -120,6 +136,8 @@ export default async function GroupsPage(props: {
               {communities.map((community) => {
                 const slug = community.permalinkSlug ?? community.id;
                 const isMember = community.members.length > 0;
+                const hasPendingInvite = community.invites.length > 0;
+                const hasPendingRequest = community.joinRequests.length > 0;
 
                 return (
                   <li key={community.id} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -138,7 +156,13 @@ export default async function GroupsPage(props: {
                           <p className="mt-2 line-clamp-3 text-sm text-slate-700">{community.description}</p>
                         )}
                       </div>
-                      <GroupJoinButton groupIdOrSlug={slug} initiallyMember={isMember} />
+                      <GroupJoinButton
+                        groupIdOrSlug={slug}
+                        initiallyMember={isMember}
+                        isPrivate={community.isPrivate}
+                        initiallyInvited={hasPendingInvite}
+                        initiallyRequested={hasPendingRequest}
+                      />
                     </div>
                   </li>
                 );

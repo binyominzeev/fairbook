@@ -13,6 +13,12 @@ type FollowedUser = {
   avatarUrl?: string | null;
 };
 
+type PendingInvite = {
+  invitee?: {
+    id?: string;
+  };
+};
+
 export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: string }) {
   const [query, setQuery] = useState("");
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
@@ -23,27 +29,43 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
   const [invitedIds, setInvitedIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const loadFollowedUsers = async () => {
+    const loadData = async () => {
       setLoadingFollowedUsers(true);
       setError(null);
 
       try {
-        const response = await fetch("/api/connections?type=following");
-        const data = await response.json();
+        const [connectionsResponse, invitesResponse] = await Promise.all([
+          fetch("/api/connections?type=following"),
+          fetch(`/api/communities/${encodeURIComponent(groupIdOrSlug)}/invites`),
+        ]);
 
-        if (!response.ok) {
-          setError(data.error ?? "Could not load followed users.");
+        const connectionsData = await connectionsResponse.json();
+        const invitesData = await invitesResponse.json();
+
+        if (!connectionsResponse.ok) {
+          setError(connectionsData.error ?? "Could not load followed users.");
           return;
         }
 
-        setFollowedUsers(Array.isArray(data.users) ? data.users : []);
+        if (!invitesResponse.ok) {
+          setError(invitesData.error ?? "Could not load pending invites.");
+          return;
+        }
+
+        setFollowedUsers(Array.isArray(connectionsData.users) ? connectionsData.users : []);
+        const pendingInviteeIds = Array.isArray(invitesData.invites)
+          ? (invitesData.invites as PendingInvite[])
+              .map((invite) => invite.invitee?.id)
+              .filter((id): id is string => typeof id === "string" && id.length > 0)
+          : [];
+        setInvitedIds(pendingInviteeIds);
       } finally {
         setLoadingFollowedUsers(false);
       }
     };
 
-    void loadFollowedUsers();
-  }, []);
+    void loadData();
+  }, [groupIdOrSlug]);
 
   const sendInvite = async (inviteeId: string) => {
     setLoading(true);

@@ -46,6 +46,22 @@ export async function GET(request: Request) {
         select: { id: true, role: true },
         take: 1,
       },
+      invites: {
+        where: {
+          inviteeId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
+      joinRequests: {
+        where: {
+          requesterId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
       _count: {
         select: { members: true, posts: true },
       },
@@ -64,6 +80,8 @@ export async function GET(request: Request) {
       owner: community.owner,
       membershipRole: community.members[0]?.role ?? null,
       isMember: community.members.length > 0,
+      hasPendingInvite: community.invites.length > 0,
+      hasPendingRequest: community.joinRequests.length > 0,
       memberCount: community._count.members,
       postCount: community._count.posts,
     })),

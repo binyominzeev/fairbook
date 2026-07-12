@@ -20,6 +20,22 @@ async function findCommunity(idOrSlug: string, viewerId: string) {
         select: { id: true, role: true },
         take: 1,
       },
+      invites: {
+        where: {
+          inviteeId: viewerId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
+      joinRequests: {
+        where: {
+          requesterId: viewerId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
       _count: {
         select: { members: true, posts: true },
       },
@@ -55,6 +71,8 @@ export async function GET(
       membershipRole: community.members[0]?.role ?? null,
       isMember: community.members.length > 0,
       isModerator: isCommunityModeratorRole(community.members[0]?.role),
+      hasPendingInvite: community.invites.length > 0,
+      hasPendingRequest: community.joinRequests.length > 0,
       memberCount: community._count.members,
       postCount: community._count.posts,
     },
@@ -170,6 +188,7 @@ export async function DELETE(
   }
 
   await prisma.$transaction(async (tx) => {
+    await tx.communityJoinRequest.deleteMany({ where: { communityId: community.id } });
     await tx.communityInvite.deleteMany({ where: { communityId: community.id } });
     await tx.communityNotificationPreference.deleteMany({ where: { communityId: community.id } });
     await tx.communityMember.deleteMany({ where: { communityId: community.id } });

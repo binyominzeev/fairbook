@@ -13,6 +13,7 @@ model User {
   slug         String?  @unique
   email        String   @unique
   passwordHash String
+  emailVerifiedAt DateTime?
   bio          String?
   avatarUrl    String?
   hideViolentFeed Boolean @default(false)
@@ -41,6 +42,8 @@ model User {
   steelmanRequests   SteelmanRequest[]   @relation("requester")
   steelmanTargets    SteelmanRequest[]   @relation("target")
   communityMemberships CommunityMember[]
+  communityJoinRequests CommunityJoinRequest[] @relation("CommunityJoinRequestRequester")
+  communityJoinRequestsHandled CommunityJoinRequest[] @relation("CommunityJoinRequestHandler")
   ownedCommunities   Community[]
   communityInvitesSent CommunityInvite[] @relation("CommunityInviteSender")
   communityInvitesReceived CommunityInvite[] @relation("CommunityInviteRecipient")
@@ -54,6 +57,22 @@ model User {
   notificationsSent     Notification[] @relation("NotificationActor")
   communityNotificationPreferences CommunityNotificationPreference[]
   postNotificationPreferences      PostNotificationPreference[]
+  authEmailTokens               AuthEmailToken[]
+}
+
+model AuthEmailToken {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([type, expiresAt])
 }
 
 model Post {
@@ -397,10 +416,30 @@ model Community {
 
   owner   User              @relation(fields: [ownerId], references: [id])
   members CommunityMember[]
+  joinRequests CommunityJoinRequest[]
   invites CommunityInvite[]
   notifications Notification[]
   notificationPreferences CommunityNotificationPreference[]
   posts   Post[]
+}
+
+model CommunityJoinRequest {
+  id          String   @id @default(cuid())
+  communityId String
+  requesterId String
+  status      String   @default("pending") // pending | approved | rejected
+  handledById String?
+  handledAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  requester User @relation("CommunityJoinRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  handledBy User? @relation("CommunityJoinRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@unique([communityId, requesterId])
+  @@index([communityId, status, createdAt])
+  @@index([requesterId, status])
 }
 
 model CommunityNotificationPreference {

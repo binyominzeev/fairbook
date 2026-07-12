@@ -7,8 +7,14 @@ const PUBLIC_PATHS = [
   "/profile/remove",
   "/login",
   "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/resend-verification",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
 ];
 
 export async function proxy(request: NextRequest) {

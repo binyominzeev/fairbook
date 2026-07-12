@@ -66,6 +66,18 @@ function buildLabel(item: NotificationItem) {
     return `${item.actor.name} posted in your group`;
   }
 
+  if (item.type === "group_join_requested") {
+    return `${item.actor.name} requested to join your group`;
+  }
+
+  if (item.type === "group_join_approved") {
+    return `${item.actor.name} approved your join request`;
+  }
+
+  if (item.type === "group_invite_accepted") {
+    return `${item.actor.name} accepted your group invite`;
+  }
+
   if (item.type === "post_subscribed_commented") {
     return `${item.actor.name} commented on a post you follow`;
   }
@@ -92,6 +104,18 @@ function buildContext(item: NotificationItem) {
 
   if (item.type === "group_new_post") {
     return item.post?.previewText?.trim() || item.community?.name || "Open group post";
+  }
+
+  if (item.type === "group_join_requested") {
+    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+  }
+
+  if (item.type === "group_join_approved") {
+    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+  }
+
+  if (item.type === "group_invite_accepted") {
+    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
   }
 
   if (item.type === "post_subscribed_commented") {

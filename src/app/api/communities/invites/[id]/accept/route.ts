@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import { createGroupInviteAcceptedNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -17,6 +18,7 @@ export async function POST(
     select: {
       id: true,
       communityId: true,
+      inviterId: true,
       inviteeId: true,
       status: true,
     },
@@ -50,6 +52,12 @@ export async function POST(
       data: { status: "accepted" },
     }),
   ]);
+
+  await createGroupInviteAcceptedNotification({
+    actorId: session.userId,
+    recipientId: invite.inviterId,
+    communityId: invite.communityId,
+  });
 
   return Response.json({ success: true });
 }

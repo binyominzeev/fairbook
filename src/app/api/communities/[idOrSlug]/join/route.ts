@@ -1,4 +1,8 @@
 import { getSession } from "@/lib/auth";
+import {
+  createGroupInviteAcceptedNotification,
+  createGroupJoinRequestNotifications,
+} from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -16,27 +20,104 @@ export async function POST(
     where: {
       OR: [{ id: idOrSlug }, { permalinkSlug: idOrSlug }],
     },
-    select: { id: true },
+    include: {
+      members: {
+        where: { userId: session.userId },
+        select: { id: true },
+        take: 1,
+      },
+      invites: {
+        where: {
+          inviteeId: session.userId,
+          status: "pending",
+        },
+        select: { id: true, inviterId: true },
+        take: 1,
+      },
+    },
   });
 
   if (!community) {
     return Response.json({ error: "Group not found." }, { status: 404 });
   }
 
-  await prisma.communityMember.upsert({
-    where: {
-      communityId_userId: {
+  if (community.members.length > 0) {
+    return Response.json({ success: true, membership: "joined" });
+  }
+
+  const pendingInviteId = community.invites[0]?.id ?? null;
+  const pendingInviteInviterId = community.invites[0]?.inviterId ?? null;
+
+  if (community.isPrivate && !pendingInviteId) {
+    await prisma.communityJoinRequest.upsert({
+      where: {
+        communityId_requesterId: {
+          communityId: community.id,
+          requesterId: session.userId,
+        },
+      },
+      create: {
+        communityId: community.id,
+        requesterId: session.userId,
+        status: "pending",
+      },
+      update: {
+        status: "pending",
+        handledById: null,
+        handledAt: null,
+      },
+    });
+
+    await createGroupJoinRequestNotifications({
+      actorId: session.userId,
+      communityId: community.id,
+    });
+
+    return Response.json({ success: true, state: "requested" }, { status: 202 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.communityMember.upsert({
+      where: {
+        communityId_userId: {
+          communityId: community.id,
+          userId: session.userId,
+        },
+      },
+      create: {
         communityId: community.id,
         userId: session.userId,
+        role: "member",
       },
-    },
-    create: {
-      communityId: community.id,
-      userId: session.userId,
-      role: "member",
-    },
-    update: {},
+      update: {},
+    });
+
+    if (pendingInviteId) {
+      await tx.communityInvite.update({
+        where: { id: pendingInviteId },
+        data: { status: "accepted" },
+      });
+    }
+
+    await tx.communityJoinRequest.deleteMany({
+      where: {
+        communityId: community.id,
+        requesterId: session.userId,
+      },
+    });
   });
 
-  return Response.json({ success: true });
+  if (pendingInviteInviterId) {
+    await createGroupInviteAcceptedNotification({
+      actorId: session.userId,
+      recipientId: pendingInviteInviterId,
+      communityId: community.id,
+    });
+  }
+
+  return Response.json({
+    success: true,
+    membership: "joined",
+    via: pendingInviteId ? "invite" : "public",
+  });
 }

@@ -12,7 +12,7 @@ import { getSession } from "@/lib/auth";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 const PAGE_SIZE = 20;
 
@@ -50,16 +50,35 @@ export default async function GroupDetailPage(props: {
         select: { role: true },
         take: 1,
       },
+      invites: {
+        where: {
+          inviteeId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
+      joinRequests: {
+        where: {
+          requesterId: session.userId,
+          status: "pending",
+        },
+        select: { id: true },
+        take: 1,
+      },
       _count: { select: { members: true, posts: true } },
     },
   });
 
   if (!community) {
-    notFound();
+    redirect("/groups");
   }
 
   const membershipRole = community.members[0]?.role ?? null;
   const isMember = Boolean(membershipRole);
+  const hasPendingInvite = community.invites.length > 0;
+  const hasPendingRequest = community.joinRequests.length > 0;
+  const canViewPosts = !community.isPrivate || isMember;
   const isModerator = membershipRole === "admin" || membershipRole === "moderator";
   const isOwner = community.owner.id === session.userId;
 
@@ -76,39 +95,41 @@ export default async function GroupDetailPage(props: {
     : null;
   const notificationsSubscribed = notificationPreference?.isSubscribed !== false;
 
-  if (community.isPrivate && !isMember) {
-    notFound();
-  }
-
   if (query && !isMember) {
     redirect(`/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}`);
   }
 
-  const initialPostRows = await prisma.post.findMany({
-    where: {
-      communityId: community.id,
-      ...(query
-        ? {
-            OR: [
-              { content: { contains: query } },
-              { sharedTitle: { contains: query } },
-              { sharedDescription: { contains: query } },
-              { sharedSource: { contains: query } },
-              { author: { name: { contains: query } } },
-            ],
-          }
-        : {}),
-      OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-      hiddenBy: { none: { userId: session.userId } },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    include: buildPostInclude(session.userId),
-    take: PAGE_SIZE + 1,
-  });
+  let initialItems: ReturnType<typeof serializePost>[] = [];
+  let initialNextCursor: string | null = null;
 
-  const hasMore = initialPostRows.length > PAGE_SIZE;
-  const initialItems = hasMore ? initialPostRows.slice(0, PAGE_SIZE) : initialPostRows;
-  const initialNextCursor = hasMore ? initialItems[initialItems.length - 1]?.id ?? null : null;
+  if (canViewPosts) {
+    const initialPostRows = await prisma.post.findMany({
+      where: {
+        communityId: community.id,
+        ...(query
+          ? {
+              OR: [
+                { content: { contains: query } },
+                { sharedTitle: { contains: query } },
+                { sharedDescription: { contains: query } },
+                { sharedSource: { contains: query } },
+                { author: { name: { contains: query } } },
+              ],
+            }
+          : {}),
+        OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+        hiddenBy: { none: { userId: session.userId } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: buildPostInclude(session.userId),
+      take: PAGE_SIZE + 1,
+    });
+
+    const hasMore = initialPostRows.length > PAGE_SIZE;
+    const pageRows = hasMore ? initialPostRows.slice(0, PAGE_SIZE) : initialPostRows;
+    initialItems = pageRows.map((row) => serializePost(row));
+    initialNextCursor = hasMore ? pageRows[pageRows.length - 1]?.id ?? null : null;
+  }
 
   const canonicalSlug = community.permalinkSlug ?? community.id;
 
@@ -126,7 +147,13 @@ export default async function GroupDetailPage(props: {
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <GroupJoinButton groupIdOrSlug={canonicalSlug} initiallyMember={isMember} />
+                <GroupJoinButton
+                  groupIdOrSlug={canonicalSlug}
+                  initiallyMember={isMember}
+                  isPrivate={community.isPrivate}
+                  initiallyInvited={hasPendingInvite}
+                  initiallyRequested={hasPendingRequest}
+                />
                 {isMember && (
                   <GroupNotificationToggle
                     groupIdOrSlug={canonicalSlug}
@@ -152,6 +179,10 @@ export default async function GroupDetailPage(props: {
                   Search
                 </button>
               </form>
+            ) : community.isPrivate ? (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                This group is closed. Accept an invite or send a request to join.
+              </p>
             ) : (
               <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 Join to search inside this group.
@@ -166,15 +197,21 @@ export default async function GroupDetailPage(props: {
             />
           )}
 
-          <GroupPostsInfiniteList
-            currentUserId={user.id}
-            groupIdOrSlug={canonicalSlug}
-            groupId={community.id}
-            groupPath={`/groups/${encodeURIComponent(canonicalSlug)}`}
-            query={query}
-            initialPosts={initialItems.map((row) => serializePost(row))}
-            initialNextCursor={initialNextCursor}
-          />
+          {canViewPosts ? (
+            <GroupPostsInfiniteList
+              currentUserId={user.id}
+              groupIdOrSlug={canonicalSlug}
+              groupId={community.id}
+              groupPath={`/groups/${encodeURIComponent(canonicalSlug)}`}
+              query={query}
+              initialPosts={initialItems}
+              initialNextCursor={initialNextCursor}
+            />
+          ) : (
+            <section className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+              Posts are visible after your membership is approved.
+            </section>
+          )}
         </div>
 
         <aside className="mt-4 min-w-0 space-y-3 md:mt-0">
