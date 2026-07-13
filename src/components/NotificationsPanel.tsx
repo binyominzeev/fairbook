@@ -5,6 +5,19 @@ import { useCallback, useEffect, useState } from "react";
 
 const MENU_ROOT_ATTR = "data-notification-menu-root";
 
+function base64UrlToUint8Array(base64String: string) {
+  const normalized = base64String.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    array[i] = binary.charCodeAt(i);
+  }
+
+  return array;
+}
+
 type NotificationItem = {
   id: string;
   type: string;
@@ -138,10 +151,15 @@ export default function NotificationsPanel({
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">(
+    "unsupported"
+  );
   const [activeMenuItemId, setActiveMenuItemId] = useState<string | null>(null);
   const [updatingType, setUpdatingType] = useState<string | null>(null);
   const [unsubscribedTypes, setUnsubscribedTypes] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const applyUnreadCount = useCallback((unreadCount: number) => {
     window.dispatchEvent(
@@ -168,6 +186,15 @@ export default function NotificationsPanel({
     },
     [applyUnreadCount]
   );
+
+  useEffect(() => {
+    if (!("Notification" in window)) {
+      setPushPermission("unsupported");
+      return;
+    }
+
+    setPushPermission(Notification.permission);
+  }, []);
 
   useEffect(() => {
     const unreadIds = initialNotifications
@@ -265,6 +292,64 @@ export default function NotificationsPanel({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [activeMenuItemId]);
+
+  const enablePhonePush = async () => {
+    if (
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !("Notification" in window)
+    ) {
+      setError("This device does not support web push notifications.");
+      return;
+    }
+
+    const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
+    if (!publicKey) {
+      setError("Push notifications are not configured yet.");
+      return;
+    }
+
+    setEnablingPush(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+
+      if (permission !== "granted") {
+        setError("Notification permission was not granted.");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const existingSubscription = await registration.pushManager.getSubscription();
+      const subscription =
+        existingSubscription ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: base64UrlToUint8Array(publicKey),
+        }));
+
+      const response = await fetch("/api/push/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(data.error ?? "Could not register this device for push notifications.");
+        return;
+      }
+
+      setInfo("Phone notifications enabled for this device.");
+    } catch {
+      setError("Could not enable phone notifications.");
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
@@ -372,6 +457,18 @@ export default function NotificationsPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
+        {pushPermission !== "granted" && (
+          <button
+            type="button"
+            onClick={() => {
+              void enablePhonePush();
+            }}
+            disabled={enablingPush}
+            className="mr-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 transition-colors hover:bg-blue-100 disabled:text-blue-300"
+          >
+            {enablingPush ? "Enabling phone notifications..." : "Enable phone notifications"}
+          </button>
+        )}
         <button
           type="button"
           onClick={markAllRead}
@@ -465,6 +562,7 @@ export default function NotificationsPanel({
       )}
 
       {error && <p className="text-center text-xs text-red-600">{error}</p>}
+      {info && <p className="text-center text-xs text-emerald-600">{info}</p>}
     </div>
   );
 }

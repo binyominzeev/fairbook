@@ -2,8 +2,6 @@
 
 import { useEffect } from "react";
 
-const PUSH_PERMISSION_PROMPTED_KEY = "fairbook:push-permission-prompted";
-
 function base64UrlToUint8Array(base64String: string) {
   const normalized = base64String.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
@@ -76,9 +74,7 @@ export default function ServiceWorkerRegistration() {
         return;
       }
 
-      const promptedAlready = localStorage.getItem(PUSH_PERMISSION_PROMPTED_KEY) === "1";
-      if (Notification.permission === "default" && !promptedAlready) {
-        localStorage.setItem(PUSH_PERMISSION_PROMPTED_KEY, "1");
+      if (Notification.permission === "default") {
         await Notification.requestPermission();
       }
 
