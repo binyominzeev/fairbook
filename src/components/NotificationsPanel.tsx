@@ -153,7 +153,13 @@ export default function NotificationsPanel({
   const [markingRead, setMarkingRead] = useState(false);
   const [enablingPush, setEnablingPush] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">(
-    "unsupported"
+    () => {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        return "unsupported";
+      }
+
+      return Notification.permission;
+    }
   );
   const [activeMenuItemId, setActiveMenuItemId] = useState<string | null>(null);
   const [updatingType, setUpdatingType] = useState<string | null>(null);
@@ -186,15 +192,6 @@ export default function NotificationsPanel({
     },
     [applyUnreadCount]
   );
-
-  useEffect(() => {
-    if (!("Notification" in window)) {
-      setPushPermission("unsupported");
-      return;
-    }
-
-    setPushPermission(Notification.permission);
-  }, []);
 
   useEffect(() => {
     const unreadIds = initialNotifications

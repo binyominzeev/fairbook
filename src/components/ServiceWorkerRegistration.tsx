@@ -74,10 +74,6 @@ export default function ServiceWorkerRegistration() {
         return;
       }
 
-      if (Notification.permission === "default") {
-        await Notification.requestPermission();
-      }
-
       if (Notification.permission !== "granted") {
         return;
       }
