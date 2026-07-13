@@ -152,6 +152,19 @@ export default function NotificationsPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
   const [enablingPush, setEnablingPush] = useState(false);
+  const [isStandaloneApp] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    const standaloneByMedia =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(display-mode: standalone)").matches;
+    const standaloneByNavigator =
+      "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+
+    return standaloneByMedia || standaloneByNavigator;
+  });
   const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">(
     () => {
       if (typeof window === "undefined" || !("Notification" in window)) {
@@ -454,7 +467,7 @@ export default function NotificationsPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
-        {pushPermission !== "granted" && (
+        {isStandaloneApp && pushPermission !== "granted" && (
           <button
             type="button"
             onClick={() => {
@@ -465,6 +478,11 @@ export default function NotificationsPanel({
           >
             {enablingPush ? "Enabling phone notifications..." : "Enable phone notifications"}
           </button>
+        )}
+        {isStandaloneApp && pushPermission === "granted" && (
+          <span className="mr-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+            Phone notifications enabled
+          </span>
         )}
         <button
           type="button"
