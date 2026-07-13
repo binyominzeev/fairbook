@@ -22,7 +22,6 @@ export default function IconNavLink({
     <Link
       href={href}
       aria-label={label}
-      title={label}
       className={`group relative inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400/40 ${
         active
           ? "border-slate-300 bg-slate-100 text-slate-900"
