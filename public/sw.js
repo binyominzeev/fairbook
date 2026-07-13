@@ -166,3 +166,58 @@ async function staleWhileRevalidate(request, cacheName) {
   const networkResponse = await networkPromise;
   return networkResponse || Response.error();
 }
+
+self.addEventListener("push", (event) => {
+  event.waitUntil(
+    (async () => {
+      let payload = null;
+      try {
+        payload = event.data?.json?.() ?? null;
+      } catch {
+        payload = null;
+      }
+
+      const title = typeof payload?.title === "string" ? payload.title : "fairbook";
+      const body = typeof payload?.body === "string" ? payload.body : "New notification";
+      const url = typeof payload?.url === "string" ? payload.url : "/notifications";
+
+      await self.registration.showNotification(title, {
+        body,
+        tag: typeof payload?.notificationId === "string" ? payload.notificationId : undefined,
+        data: { url },
+        icon: "/android-chrome-192x192.png",
+        badge: "/android-chrome-192x192.png",
+      });
+    })()
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  event.waitUntil(
+    (async () => {
+      const targetUrl = new URL(
+        typeof event.notification.data?.url === "string" ? event.notification.data.url : "/notifications",
+        self.location.origin
+      ).toString();
+
+      const clientsList = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of clientsList) {
+        if ("focus" in client) {
+          await client.focus();
+        }
+        if ("navigate" in client) {
+          await client.navigate(targetUrl);
+          return;
+        }
+      }
+
+      await self.clients.openWindow(targetUrl);
+    })()
+  );
+});

@@ -2,9 +2,24 @@
 
 import { useEffect } from "react";
 
+const PUSH_PERMISSION_PROMPTED_KEY = "fairbook:push-permission-prompted";
+
+function base64UrlToUint8Array(base64String: string) {
+  const normalized = base64String.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    array[i] = binary.charCodeAt(i);
+  }
+
+  return array;
+}
+
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       return;
     }
 
@@ -42,12 +57,48 @@ export default function ServiceWorkerRegistration() {
 
         if (!cancelled) {
           await registration.update();
+          await ensurePushSubscription(registration);
         }
       } catch (error) {
         if (process.env.NODE_ENV !== "production") {
           console.warn("Service worker registration failed", error);
         }
       }
+    };
+
+    const ensurePushSubscription = async (registration: ServiceWorkerRegistration) => {
+      if (!("Notification" in window)) {
+        return;
+      }
+
+      const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
+      if (!publicKey) {
+        return;
+      }
+
+      const promptedAlready = localStorage.getItem(PUSH_PERMISSION_PROMPTED_KEY) === "1";
+      if (Notification.permission === "default" && !promptedAlready) {
+        localStorage.setItem(PUSH_PERMISSION_PROMPTED_KEY, "1");
+        await Notification.requestPermission();
+      }
+
+      if (Notification.permission !== "granted") {
+        return;
+      }
+
+      const existingSubscription = await registration.pushManager.getSubscription();
+      const subscription =
+        existingSubscription ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: base64UrlToUint8Array(publicKey),
+        }));
+
+      await fetch("/api/push/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
     };
 
     void registerServiceWorker();

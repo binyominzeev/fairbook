@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+const MENU_ROOT_ATTR = "data-notification-menu-root";
+
 type NotificationItem = {
   id: string;
   type: string;
@@ -136,6 +138,9 @@ export default function NotificationsPanel({
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [activeMenuItemId, setActiveMenuItemId] = useState<string | null>(null);
+  const [updatingType, setUpdatingType] = useState<string | null>(null);
+  const [unsubscribedTypes, setUnsubscribedTypes] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
 
   const applyUnreadCount = useCallback((unreadCount: number) => {
@@ -188,6 +193,79 @@ export default function NotificationsPanel({
     };
   }, [initialNotifications, markNotificationsRead]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/notifications/push-preferences");
+        const data = await response.json();
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const nextState: Record<string, boolean> = {};
+        const preferences = Array.isArray(data.preferences) ? data.preferences : [];
+        for (const preference of preferences) {
+          if (
+            preference &&
+            typeof preference.type === "string" &&
+            preference.enabled === false
+          ) {
+            nextState[preference.type] = true;
+          }
+        }
+
+        if (!cancelled) {
+          setUnsubscribedTypes((current) => ({
+            ...nextState,
+            ...current,
+          }));
+        }
+      } catch {
+        // Non-blocking: menu actions still work without initial preference fetch.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeMenuItemId) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        setActiveMenuItemId(null);
+        return;
+      }
+
+      if (target.closest(`[${MENU_ROOT_ATTR}="true"]`)) {
+        return;
+      }
+
+      setActiveMenuItemId(null);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveMenuItemId(null);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [activeMenuItemId]);
+
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
 
@@ -222,6 +300,34 @@ export default function NotificationsPanel({
       setError(err instanceof Error ? err.message : "Failed to mark notifications as read.");
     } finally {
       setMarkingRead(false);
+    }
+  };
+
+  const updateTypePreference = async (type: string, enabled: boolean) => {
+    setUpdatingType(type);
+    setError("");
+    try {
+      const response = await fetch("/api/notifications/push-preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, enabled }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "Could not update push preferences.");
+        return;
+      }
+
+      setUnsubscribedTypes((current) => ({
+        ...current,
+        [type]: !Boolean(data.enabled),
+      }));
+      setActiveMenuItemId(null);
+    } catch {
+      setError("Could not update push preferences.");
+    } finally {
+      setUpdatingType(null);
     }
   };
 
@@ -277,22 +383,72 @@ export default function NotificationsPanel({
       </div>
 
       <div className="space-y-2">
-        {items.map((item) => (
+        {items.map((item) => {
+          const pushMutedForType = unsubscribedTypes[item.type] === true;
+
+          return (
           <Link
             key={item.id}
             href={item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath || "/notifications"}
             onClick={(event) => {
               void openNotification(event, item);
             }}
-            className={`block rounded-xl border p-4 transition-colors ${item.isRead ? "border-slate-200 bg-white" : "border-blue-200 bg-blue-50"}`}
+            className={`relative block rounded-xl border p-4 pr-14 transition-colors ${item.isRead ? "border-slate-200 bg-white" : "border-blue-200 bg-blue-50"}`}
           >
+            <div className="absolute right-2 top-2" data-notification-menu-root="true">
+              <button
+                type="button"
+                aria-label="Notification options"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setActiveMenuItemId((current) => (current === item.id ? null : item.id));
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700"
+              >
+                <span aria-hidden="true">•••</span>
+              </button>
+
+              {activeMenuItemId === item.id && (
+                <div
+                  data-notification-menu-root="true"
+                  className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={updatingType === item.type}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void updateTypePreference(item.type, pushMutedForType);
+                    }}
+                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {updatingType === item.type
+                      ? "Working..."
+                      : pushMutedForType
+                        ? "Subscribe this type on phone"
+                        : "Unsubscribe this type on phone"}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-slate-900">{buildLabel(item)}</p>
               <span className="text-xs text-slate-400">{timeAgo(item.createdAt)}</span>
             </div>
             <p className="mt-1 line-clamp-2 text-xs text-slate-600">{buildContext(item)}</p>
+            {pushMutedForType && (
+              <p className="mt-2 text-[11px] font-medium text-amber-700">Phone push muted for this type</p>
+            )}
           </Link>
-        ))}
+          );
+        })}
       </div>
 
       {nextCursor && (

@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/prisma";
-
-export const NOTIFICATION_TYPE_REPLY = "comment_reply";
-export const NOTIFICATION_TYPE_FOLLOWED_COMMENT = "followed_user_commented";
-export const NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT = "post_subscribed_commented";
-export const NOTIFICATION_TYPE_POST_LIKE = "post_liked";
-export const NOTIFICATION_TYPE_COMMENT_LIKE = "comment_liked";
-export const NOTIFICATION_TYPE_GROUP_INVITE = "group_invited";
-export const NOTIFICATION_TYPE_GROUP_NEW_POST = "group_new_post";
-export const NOTIFICATION_TYPE_GROUP_JOIN_REQUEST = "group_join_requested";
-export const NOTIFICATION_TYPE_GROUP_JOIN_APPROVED = "group_join_approved";
-export const NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED = "group_invite_accepted";
+import {
+  NOTIFICATION_TYPE_COMMENT_LIKE,
+  NOTIFICATION_TYPE_FOLLOWED_COMMENT,
+  NOTIFICATION_TYPE_GROUP_INVITE,
+  NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
+  NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
+  NOTIFICATION_TYPE_GROUP_JOIN_REQUEST,
+  NOTIFICATION_TYPE_GROUP_NEW_POST,
+  NOTIFICATION_TYPE_POST_LIKE,
+  NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT,
+  NOTIFICATION_TYPE_REPLY,
+} from "@/lib/notification-types";
+import { dispatchPushForNotificationIds } from "@/lib/push";
 
 export async function createCommentNotifications(input: {
   actorId: string;
@@ -144,7 +146,8 @@ export async function createCommentNotifications(input: {
   });
 
   if (writes.length > 0) {
-    await prisma.$transaction(writes);
+    const records = await prisma.$transaction(writes);
+    await dispatchPushForNotificationIds(records.map((record) => record.id));
   }
 }
 
@@ -213,7 +216,8 @@ export async function createGroupPostNotifications(input: {
     })
   );
 
-  await prisma.$transaction(writes);
+  const records = await prisma.$transaction(writes);
+  await dispatchPushForNotificationIds(records.map((record) => record.id));
 }
 
 export async function createPostLikeNotification(input: {
@@ -224,7 +228,7 @@ export async function createPostLikeNotification(input: {
   const { actorId, recipientId, postId } = input;
   if (actorId === recipientId) return;
 
-  await prisma.notification.upsert({
+  const record = await prisma.notification.upsert({
     where: {
       type_recipientId_targetKey: {
         type: NOTIFICATION_TYPE_POST_LIKE,
@@ -249,6 +253,8 @@ export async function createPostLikeNotification(input: {
       createdAt: new Date(),
     },
   });
+
+  await dispatchPushForNotificationIds([record.id]);
 }
 
 export async function createCommentLikeNotification(input: {
@@ -260,7 +266,7 @@ export async function createCommentLikeNotification(input: {
   const { actorId, recipientId, postId, commentId } = input;
   if (actorId === recipientId) return;
 
-  await prisma.notification.upsert({
+  const record = await prisma.notification.upsert({
     where: {
       type_recipientId_targetKey: {
         type: NOTIFICATION_TYPE_COMMENT_LIKE,
@@ -285,6 +291,8 @@ export async function createCommentLikeNotification(input: {
       createdAt: new Date(),
     },
   });
+
+  await dispatchPushForNotificationIds([record.id]);
 }
 
 export async function createGroupInviteNotification(input: {
@@ -295,7 +303,7 @@ export async function createGroupInviteNotification(input: {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
 
-  await prisma.notification.upsert({
+  const record = await prisma.notification.upsert({
     where: {
       type_recipientId_targetKey: {
         type: NOTIFICATION_TYPE_GROUP_INVITE,
@@ -322,6 +330,8 @@ export async function createGroupInviteNotification(input: {
       createdAt: new Date(),
     },
   });
+
+  await dispatchPushForNotificationIds([record.id]);
 }
 
 export async function createGroupJoinRequestNotifications(input: {
@@ -373,7 +383,8 @@ export async function createGroupJoinRequestNotifications(input: {
     })
   );
 
-  await prisma.$transaction(writes);
+  const records = await prisma.$transaction(writes);
+  await dispatchPushForNotificationIds(records.map((record) => record.id));
 }
 
 export async function createGroupJoinApprovedNotification(input: {
@@ -384,7 +395,7 @@ export async function createGroupJoinApprovedNotification(input: {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
 
-  await prisma.notification.upsert({
+  const record = await prisma.notification.upsert({
     where: {
       type_recipientId_targetKey: {
         type: NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
@@ -411,6 +422,8 @@ export async function createGroupJoinApprovedNotification(input: {
       createdAt: new Date(),
     },
   });
+
+  await dispatchPushForNotificationIds([record.id]);
 }
 
 export async function createGroupInviteAcceptedNotification(input: {
@@ -421,7 +434,7 @@ export async function createGroupInviteAcceptedNotification(input: {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
 
-  await prisma.notification.upsert({
+  const record = await prisma.notification.upsert({
     where: {
       type_recipientId_targetKey: {
         type: NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
@@ -448,4 +461,6 @@ export async function createGroupInviteAcceptedNotification(input: {
       createdAt: new Date(),
     },
   });
+
+  await dispatchPushForNotificationIds([record.id]);
 }
