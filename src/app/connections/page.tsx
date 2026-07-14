@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import HighlightedText from "@/components/HighlightedText";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
+import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
@@ -36,6 +37,8 @@ export default async function ConnectionsPage(props: {
     },
   });
   if (!user) redirect("/login");
+
+  const isAdminUser = isAdminEmail(user.email);
 
   const [followingCount, followersCount] = await Promise.all([
     prisma.connection.count({
@@ -69,6 +72,22 @@ export default async function ConnectionsPage(props: {
     : [];
 
   const suggestedPeople = await getSuggestedPeople(session.userId);
+
+  const unverifiedUsers = isAdminUser
+    ? await prisma.user.findMany({
+        where: {
+          isPage: false,
+          emailVerifiedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   const connections =
     activeTab === "followers"
@@ -114,6 +133,40 @@ export default async function ConnectionsPage(props: {
                 Regisztrált felhasználók, akiket még nem követsz.
               </p>
             </div>
+
+            {isAdminUser && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-semibold text-amber-900">
+                    Megerősítésre váró regisztrációk
+                  </h3>
+                  <p className="text-xs text-amber-800">
+                    {unverifiedUsers.length} felhasználó még nem erősítette meg az email címét.
+                  </p>
+                </div>
+
+                {unverifiedUsers.length === 0 ? (
+                  <p className="mt-2 text-xs text-amber-800/90">
+                    Jelenleg nincs megerősítésre váró felhasználó.
+                  </p>
+                ) : (
+                  <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {unverifiedUsers.map((pendingUser) => (
+                      <li
+                        key={pendingUser.id}
+                        className="rounded-md border border-amber-200 bg-white/90 px-3 py-2"
+                      >
+                        <p className="truncate text-sm font-medium text-slate-900">{pendingUser.name}</p>
+                        <p className="truncate text-xs text-slate-600">{pendingUser.email}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          Regisztráció ideje: {pendingUser.createdAt.toLocaleString("hu-HU")}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {suggestedPeople.length === 0 ? (
               <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">

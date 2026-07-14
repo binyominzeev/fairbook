@@ -23,15 +23,28 @@ type PendingInvite = {
     name?: string;
     avatarUrl?: string | null;
   };
+  inviter?: {
+    id?: string;
+    slug?: string | null;
+    name?: string;
+    avatarUrl?: string | null;
+  };
 };
 
-type PendingInviteByMe = {
+type PendingInviteEntry = {
   id: string;
   createdAt: string;
+  invitedByCurrentUser: boolean;
   invitee: {
     id: string;
     slug: string | null;
     name: string;
+    avatarUrl: string | null;
+  };
+  inviter: {
+    id: string | null;
+    slug: string | null;
+    name: string | null;
     avatarUrl: string | null;
   };
 };
@@ -44,7 +57,7 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [invitedIds, setInvitedIds] = useState<string[]>([]);
-  const [pendingInvitesByMe, setPendingInvitesByMe] = useState<PendingInviteByMe[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInviteEntry[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -79,8 +92,7 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
           .map((invite) => invite.invitee?.id)
           .filter((id): id is string => typeof id === "string" && id.length > 0);
 
-        const pendingByMe = parsedInvites
-          .filter((invite) => invite.invitedByCurrentUser)
+        const pendingEntries = parsedInvites
           .map((invite) => {
             const inviteeId = invite.invitee?.id;
             const inviteeName = invite.invitee?.name;
@@ -97,12 +109,19 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
                 name: inviteeName,
                 avatarUrl: invite.invitee?.avatarUrl ?? null,
               },
-            } satisfies PendingInviteByMe;
+              inviter: {
+                id: invite.inviter?.id ?? null,
+                slug: invite.inviter?.slug ?? null,
+                name: invite.inviter?.name ?? null,
+                avatarUrl: invite.inviter?.avatarUrl ?? null,
+              },
+              invitedByCurrentUser: Boolean(invite.invitedByCurrentUser),
+            } satisfies PendingInviteEntry;
           })
-          .filter((invite): invite is PendingInviteByMe => Boolean(invite));
+          .filter((invite): invite is PendingInviteEntry => Boolean(invite));
 
         setInvitedIds(pendingInviteeIds);
-        setPendingInvitesByMe(pendingByMe);
+        setPendingInvites(pendingEntries);
       } finally {
         setLoadingFollowedUsers(false);
       }
@@ -135,7 +154,7 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
       setInvitedIds((previous) => (previous.includes(inviteeId) ? previous : [...previous, inviteeId]));
       const invitedUser = followedUsers.find((user) => user.id === inviteeId);
       if (invitedUser) {
-        setPendingInvitesByMe((previous) => {
+        setPendingInvites((previous) => {
           if (previous.some((invite) => invite.invitee.id === inviteeId)) {
             return previous;
           }
@@ -156,7 +175,21 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
             avatarUrl: invitedUser.avatarUrl ?? null,
           };
 
-          return [{ id: inviteId, createdAt, invitee: normalizedInvitee }, ...previous].slice(0, 6);
+          return [
+            {
+              id: inviteId,
+              createdAt,
+              invitee: normalizedInvitee,
+              inviter: {
+                id: null,
+                slug: null,
+                name: "You",
+                avatarUrl: null,
+              },
+              invitedByCurrentUser: true,
+            },
+            ...previous,
+          ].slice(0, 6);
         });
       }
       setMessage("Invite sent.");
@@ -186,20 +219,33 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       {message && <p className="mt-2 text-xs text-emerald-700">{message}</p>}
 
-      {pendingInvitesByMe.length > 0 && (
+      {pendingInvites.length > 0 && (
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-medium text-slate-700">Your pending invites</p>
+          <p className="text-xs font-medium text-slate-700">Pending invites</p>
           <div className="mt-2 space-y-2">
-            {pendingInvitesByMe.slice(0, 5).map((invite) => (
+            {pendingInvites.slice(0, 5).map((invite) => (
               <div key={invite.id} className="flex items-center justify-between gap-2 text-xs text-slate-600">
-                <Link
-                  href={buildProfilePath(invite.invitee)}
-                  className="truncate font-medium text-slate-800 hover:underline"
+                <div className="min-w-0">
+                  <Link
+                    href={buildProfilePath(invite.invitee)}
+                    className="truncate font-medium text-slate-800 hover:underline"
+                  >
+                    {invite.invitee.name}
+                  </Link>
+                  <p className="truncate text-[11px] text-slate-500">
+                    {invite.invitedByCurrentUser
+                      ? "Invited by you"
+                      : `Invited by ${invite.inviter.name ?? "another moderator"}`}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    invite.invitedByCurrentUser
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
                 >
-                  {invite.invitee.name}
-                </Link>
-                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                  Pending
+                  {invite.invitedByCurrentUser ? "You" : "Pending"}
                 </span>
               </div>
             ))}
