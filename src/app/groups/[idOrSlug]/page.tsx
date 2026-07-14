@@ -1,5 +1,6 @@
 import CreatePostForm from "@/components/CreatePostForm";
 import GroupDeleteButton from "@/components/GroupDeleteButton";
+import GroupAvatarEditor from "@/components/GroupAvatarEditor";
 import GroupInvitePanel from "@/components/GroupInvitePanel";
 import GroupJoinRequestsPanel from "@/components/GroupJoinRequestsPanel";
 import GroupJoinButton from "@/components/GroupJoinButton";
@@ -9,6 +10,7 @@ import GroupPermalinkEditor from "@/components/GroupPermalinkEditor";
 import GroupPostsInfiniteList from "@/components/GroupPostsInfiniteList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
+import Avatar from "@/components/Avatar";
 import { getSession } from "@/lib/auth";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
@@ -160,11 +162,19 @@ export default async function GroupDetailPage(props: {
         <div className="space-y-4">
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h1 className="text-lg font-semibold text-slate-900">{community.name}</h1>
-                <p className="mt-1 text-xs text-slate-500">
-                  {community.isPrivate ? "Closed" : "Public"} · {community._count.members} members · {community._count.posts} posts
-                </p>
+              <div className="flex items-start gap-3">
+                <Avatar
+                  name={community.name}
+                  avatarUrl={community.avatarUrl}
+                  sizeClassName="h-12 w-12"
+                  textClassName="text-base font-semibold"
+                />
+                <div>
+                  <h1 className="text-lg font-semibold text-slate-900">{community.name}</h1>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {community.isPrivate ? "Closed" : "Public"} · {community._count.members} members · {community._count.posts} posts
+                  </p>
+                </div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <GroupJoinButton
@@ -254,6 +264,13 @@ export default async function GroupDetailPage(props: {
             />
           )}
           {isModerator && <GroupJoinRequestsPanel groupIdOrSlug={canonicalSlug} />}
+          {isModerator && (
+            <GroupAvatarEditor
+              groupIdOrSlug={canonicalSlug}
+              groupName={community.name}
+              avatarUrl={community.avatarUrl}
+            />
+          )}
           {isModerator && <GroupPermalinkEditor groupIdOrSlug={canonicalSlug} initialSlug={community.permalinkSlug} />}
           {isModerator && <GroupInvitePanel groupIdOrSlug={canonicalSlug} />}
           {isOwner && <GroupDeleteButton groupIdOrSlug={canonicalSlug} groupName={community.name} />}

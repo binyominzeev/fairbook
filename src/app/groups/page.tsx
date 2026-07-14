@@ -2,6 +2,7 @@ import GroupCreateForm from "@/components/GroupCreateForm";
 import GroupJoinButton from "@/components/GroupJoinButton";
 import Navbar from "@/components/Navbar";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
+import Avatar from "@/components/Avatar";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -143,15 +144,25 @@ export default async function GroupsPage(props: {
                   <li key={community.id} className="rounded-xl border border-slate-200 bg-white p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <Link
-                          href={`/groups/${encodeURIComponent(slug)}`}
-                          className="text-sm font-semibold text-slate-900 hover:underline"
-                        >
-                          {community.name}
-                        </Link>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {community.isPrivate ? "Closed" : "Public"} · {community._count.members} members · {community._count.posts} posts
-                        </p>
+                        <div className="flex items-start gap-3">
+                          <Avatar
+                            name={community.name}
+                            avatarUrl={community.avatarUrl}
+                            sizeClassName="h-11 w-11"
+                            textClassName="text-sm font-semibold"
+                          />
+                          <div className="min-w-0">
+                            <Link
+                              href={`/groups/${encodeURIComponent(slug)}`}
+                              className="text-sm font-semibold text-slate-900 hover:underline"
+                            >
+                              {community.name}
+                            </Link>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {community.isPrivate ? "Closed" : "Public"} · {community._count.members} members · {community._count.posts} posts
+                            </p>
+                          </div>
+                        </div>
                         {community.description && (
                           <p className="mt-2 line-clamp-3 text-sm text-slate-700">{community.description}</p>
                         )}

@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import {
   ensureUniqueCommunitySlug,
+  normalizeCommunityAvatarUrl,
   normalizeCommunityDescription,
   normalizeCommunityName,
 } from "@/lib/communities";
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
       name: community.name,
       permalinkSlug: community.permalinkSlug,
       description: community.description,
+      avatarUrl: community.avatarUrl,
       isPrivate: community.isPrivate,
       createdAt: community.createdAt.toISOString(),
       owner: community.owner,
@@ -113,6 +115,10 @@ export async function POST(request: Request) {
     typeof body === "object" && body !== null && "visibility" in body
       ? (body as { visibility?: unknown }).visibility
       : "public";
+  const avatarInput =
+    typeof body === "object" && body !== null && "avatarUrl" in body
+      ? (body as { avatarUrl?: unknown }).avatarUrl
+      : undefined;
 
   if (!name) {
     return Response.json({ error: "Group name is required." }, { status: 400 });
@@ -124,11 +130,23 @@ export async function POST(request: Request) {
 
   const isPrivate = visibility === "closed";
   const permalinkSlug = await ensureUniqueCommunitySlug(name);
+  let avatarUrl: string | null | undefined;
+  if (avatarInput !== undefined) {
+    try {
+      avatarUrl = normalizeCommunityAvatarUrl(avatarInput);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Invalid avatar." },
+        { status: 400 }
+      );
+    }
+  }
 
   const community = await prisma.community.create({
     data: {
       name,
       description,
+      ...(avatarInput !== undefined ? { avatarUrl } : {}),
       isPrivate,
       permalinkSlug,
       ownerId: session.userId,
@@ -158,6 +176,7 @@ export async function POST(request: Request) {
         name: community.name,
         permalinkSlug: community.permalinkSlug,
         description: community.description,
+        avatarUrl: community.avatarUrl,
         isPrivate: community.isPrivate,
         createdAt: community.createdAt.toISOString(),
         membershipRole: community.members[0]?.role ?? null,

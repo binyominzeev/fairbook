@@ -25,6 +25,37 @@ export function normalizeCommunityDescription(value: unknown) {
   return value.trim().slice(0, MAX_DESCRIPTION_LENGTH);
 }
 
+export function normalizeCommunityAvatarUrl(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) {
+    if (trimmed.length > 1_500_000) {
+      throw new Error("Avatar image is too large.");
+    }
+    return trimmed;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(trimmed);
+  } catch {
+    throw new Error("Avatar must be a valid image URL.");
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error("Avatar must use http or https.");
+  }
+
+  return parsedUrl.toString();
+}
+
 export function slugifyCommunityPermalink(value: string) {
   return stripDiacritics(value)
     .toLowerCase()

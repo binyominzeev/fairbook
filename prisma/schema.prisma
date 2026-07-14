@@ -413,6 +413,7 @@ model Community {
   name        String
   permalinkSlug String? @unique
   description String?
+  avatarUrl   String?
   isPrivate   Boolean  @default(false)
   ownerId     String
   createdAt   DateTime @default(now())

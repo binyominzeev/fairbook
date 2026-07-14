@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import {
   isCommunityModeratorRole,
+  normalizeCommunityAvatarUrl,
   normalizeCommunityDescription,
   normalizeCommunityName,
 } from "@/lib/communities";
@@ -65,6 +66,7 @@ export async function GET(
       name: community.name,
       permalinkSlug: community.permalinkSlug,
       description: community.description,
+      avatarUrl: community.avatarUrl,
       isPrivate: community.isPrivate,
       createdAt: community.createdAt.toISOString(),
       owner: community.owner,
@@ -134,6 +136,20 @@ export async function PATCH(
       : community.isPrivate
         ? "closed"
         : "public";
+  const shouldUpdateAvatar =
+    typeof body === "object" && body !== null && "avatarUrl" in body;
+
+  let avatarUrl: string | null | undefined;
+  if (shouldUpdateAvatar) {
+    try {
+      avatarUrl = normalizeCommunityAvatarUrl((body as { avatarUrl?: unknown }).avatarUrl);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Invalid avatar." },
+        { status: 400 }
+      );
+    }
+  }
 
   if (!nextName) {
     return Response.json({ error: "Group name is required." }, { status: 400 });
@@ -148,12 +164,14 @@ export async function PATCH(
     data: {
       name: nextName,
       description: nextDescription,
+      ...(shouldUpdateAvatar ? { avatarUrl } : {}),
       isPrivate: visibility === "closed",
     },
     select: {
       id: true,
       name: true,
       description: true,
+      avatarUrl: true,
       isPrivate: true,
       permalinkSlug: true,
     },
