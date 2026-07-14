@@ -159,7 +159,6 @@ export default function NotificationsPanel({
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
-  const [enablingPush, setEnablingPush] = useState(false);
   const [isStandaloneApp] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -182,11 +181,34 @@ export default function NotificationsPanel({
       return Notification.permission;
     }
   );
+  const [phonePushEnabled, setPhonePushEnabled] = useState(false);
+  const [togglingPhonePush, setTogglingPhonePush] = useState(false);
   const [activeMenuItemId, setActiveMenuItemId] = useState<string | null>(null);
   const [updatingType, setUpdatingType] = useState<string | null>(null);
   const [unsubscribedTypes, setUnsubscribedTypes] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  const readPhonePushState = useCallback(async () => {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !("Notification" in window)
+    ) {
+      return { permission: "unsupported" as const, enabled: false };
+    }
+
+    const permission = Notification.permission;
+
+    if (permission !== "granted") {
+      return { permission, enabled: false };
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return { permission, enabled: Boolean(subscription) };
+  }, []);
 
   const applyUnreadCount = useCallback((unreadCount: number) => {
     window.dispatchEvent(
@@ -242,6 +264,15 @@ export default function NotificationsPanel({
     let cancelled = false;
 
     void (async () => {
+      const state = await readPhonePushState();
+
+      if (!cancelled) {
+        setPushPermission(state.permission);
+        setPhonePushEnabled(state.enabled);
+      }
+    })();
+
+    void (async () => {
       try {
         const response = await fetch("/api/notifications/push-preferences");
         const data = await response.json();
@@ -275,7 +306,35 @@ export default function NotificationsPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [readPhonePushState]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void (async () => {
+          const state = await readPhonePushState();
+          setPushPermission(state.permission);
+          setPhonePushEnabled(state.enabled);
+        })();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void (async () => {
+        const state = await readPhonePushState();
+        setPushPermission(state.permission);
+        setPhonePushEnabled(state.enabled);
+      })();
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [readPhonePushState]);
 
   useEffect(() => {
     if (!activeMenuItemId) {
@@ -311,7 +370,7 @@ export default function NotificationsPanel({
     };
   }, [activeMenuItemId]);
 
-  const enablePhonePush = async () => {
+  const togglePhonePush = async () => {
     if (
       !("serviceWorker" in navigator) ||
       !("PushManager" in window) ||
@@ -327,21 +386,45 @@ export default function NotificationsPanel({
       return;
     }
 
-    setEnablingPush(true);
+    setTogglingPhonePush(true);
     setError("");
     setInfo("");
 
     try {
+      const registration = await navigator.serviceWorker.ready;
+      const existingSubscription = await registration.pushManager.getSubscription();
+
+      if (phonePushEnabled) {
+        if (existingSubscription) {
+          await existingSubscription.unsubscribe();
+
+          const response = await fetch("/api/push/subscriptions", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: existingSubscription.endpoint }),
+          });
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            setError(data.error ?? "Could not disable phone notifications.");
+            return;
+          }
+        }
+
+        setPhonePushEnabled(false);
+        setInfo("Disabled phone notifications.");
+        return;
+      }
+
       const permission = await Notification.requestPermission();
       setPushPermission(permission);
 
       if (permission !== "granted") {
+        setPhonePushEnabled(false);
         setError("Notification permission was not granted.");
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      const existingSubscription = await registration.pushManager.getSubscription();
       const subscription =
         existingSubscription ??
         (await registration.pushManager.subscribe({
@@ -361,11 +444,12 @@ export default function NotificationsPanel({
         return;
       }
 
-      setInfo("Phone notifications enabled for this device.");
+      setPhonePushEnabled(true);
+      setInfo("Enabled phone notifications.");
     } catch {
-      setError("Could not enable phone notifications.");
+      setError("Could not update phone notifications.");
     } finally {
-      setEnablingPush(false);
+      setTogglingPhonePush(false);
     }
   };
 
@@ -475,22 +559,27 @@ export default function NotificationsPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
-        {isStandaloneApp && pushPermission !== "granted" && (
+        {isStandaloneApp && pushPermission !== "unsupported" && (
           <button
             type="button"
             onClick={() => {
-              void enablePhonePush();
+              void togglePhonePush();
             }}
-            disabled={enablingPush}
-            className="mr-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 transition-colors hover:bg-blue-100 disabled:text-blue-300"
+            disabled={togglingPhonePush}
+            className={`mr-2 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:text-slate-300 ${
+              phonePushEnabled
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+            }`}
           >
-            {enablingPush ? "Enabling phone notifications..." : "Enable phone notifications"}
+            {togglingPhonePush
+              ? phonePushEnabled
+                ? "Disabling phone notifications..."
+                : "Enabling phone notifications..."
+              : phonePushEnabled
+                ? "Enabled phone notifications"
+                : "Enable phone notifications"}
           </button>
-        )}
-        {isStandaloneApp && pushPermission === "granted" && (
-          <span className="mr-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
-            Phone notifications enabled
-          </span>
         )}
         <button
           type="button"
