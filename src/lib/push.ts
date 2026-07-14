@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   NOTIFICATION_TYPE_COMMENT_LIKE,
   NOTIFICATION_TYPE_FOLLOWED_COMMENT,
+  NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST,
   NOTIFICATION_TYPE_GROUP_INVITE,
   NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
   NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
@@ -118,6 +119,10 @@ function toNotificationBody(item: NotificationRow): string {
     return `${actor} accepted your group invite`;
   }
 
+  if (item.type === NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST) {
+    return `${actor} posted something new`;
+  }
+
   return `${actor} sent an update`;
 }
 
@@ -147,6 +152,10 @@ function toNotificationContext(item: NotificationRow): string {
     item.type === NOTIFICATION_TYPE_GROUP_NEW_POST
   ) {
     return item.post?.sharedTitle?.trim() || item.post?.content?.trim() || item.community?.name || "Open notification";
+  }
+
+  if (item.type === NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST) {
+    return item.post?.sharedTitle?.trim() || item.post?.content?.trim() || "Open post";
   }
 
   return "Open notification";

@@ -65,6 +65,10 @@ function buildLabel(item: NotificationItem) {
     return `${item.actor.name} commented on a post`;
   }
 
+  if (item.type === "followed_user_new_post") {
+    return `${item.actor.name} posted something new`;
+  }
+
   if (item.type === "post_liked") {
     return `${item.actor.name} liked your post`;
   }
@@ -111,6 +115,10 @@ function buildContext(item: NotificationItem) {
 
   if (item.type === "followed_user_commented") {
     return item.comment?.content?.trim() || item.post?.previewText?.trim() || "Open post";
+  }
+
+  if (item.type === "followed_user_new_post") {
+    return item.post?.previewText?.trim() || "Open post";
   }
 
   if (item.type === "group_invited") {

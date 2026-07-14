@@ -10,7 +10,7 @@ import {
   buildPostPermalinkScopeWhere,
   ensureUniquePostSlug,
 } from "@/lib/post-permalink";
-import { createGroupPostNotifications } from "@/lib/notifications";
+import { createFollowedUserPostNotifications, createGroupPostNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
 
@@ -210,6 +210,13 @@ export async function POST(request: NextRequest) {
     void createGroupPostNotifications({
       actorId: session.userId,
       communityId: resolvedCommunityId,
+      postId: post.id,
+    });
+  }
+
+  if (moderation.status === "visible" && !resolvedCommunityId) {
+    void createFollowedUserPostNotifications({
+      actorId: session.userId,
       postId: post.id,
     });
   }

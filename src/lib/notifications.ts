@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   NOTIFICATION_TYPE_COMMENT_LIKE,
   NOTIFICATION_TYPE_FOLLOWED_COMMENT,
+  NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST,
   NOTIFICATION_TYPE_GROUP_INVITE,
   NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
   NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
@@ -463,4 +464,53 @@ export async function createGroupInviteAcceptedNotification(input: {
   });
 
   await dispatchPushForNotificationIds([record.id]);
+}
+
+export async function createFollowedUserPostNotifications(input: {
+  actorId: string;
+  postId: string;
+}) {
+  const { actorId, postId } = input;
+
+  const followerRows = await prisma.connection.findMany({
+    where: { followingId: actorId },
+    select: { followerId: true },
+  });
+
+  if (followerRows.length === 0) {
+    return;
+  }
+
+  const followerIds = followerRows.map((row) => row.followerId);
+
+  const writes = followerIds.map((recipientId) =>
+    prisma.notification.upsert({
+      where: {
+        type_recipientId_targetKey: {
+          type: NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST,
+          recipientId,
+          targetKey: postId,
+        },
+      },
+      create: {
+        recipientId,
+        actorId,
+        type: NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST,
+        targetKey: postId,
+        postId,
+        commentId: null,
+        isRead: false,
+      },
+      update: {
+        actorId,
+        postId,
+        commentId: null,
+        isRead: false,
+        createdAt: new Date(),
+      },
+    })
+  );
+
+  const records = await prisma.$transaction(writes);
+  await dispatchPushForNotificationIds(records.map((record) => record.id));
 }
