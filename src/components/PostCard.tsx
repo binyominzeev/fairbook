@@ -298,6 +298,7 @@ export default function PostCard({
   const [permalinkSaving, setPermalinkSaving] = useState(false);
   const [permalinkMessage, setPermalinkMessage] = useState<string | null>(null);
   const [editComposerOpen, setEditComposerOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [editContent, setEditContent] = useState(post.content ?? "");
   const [editSharedUrl, setEditSharedUrl] = useState(post.sharedUrl ?? "");
   const [editSharedTitle, setEditSharedTitle] = useState(post.sharedTitle ?? "");
@@ -372,6 +373,35 @@ export default function PostCard({
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [lightbox]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const menu = menuRef.current;
+      if (!menu) return;
+
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (menu.contains(target)) return;
+
+      menu.removeAttribute("open");
+      setIsMenuOpen(false);
+    };
+
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      menuRef.current?.removeAttribute("open");
+      setIsMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeydown);
+    };
+  }, [isMenuOpen]);
 
   const timeAgo = (date: string) => {
     const diff = now - new Date(date).getTime();
@@ -679,6 +709,7 @@ export default function PostCard({
     setActionNotice(null);
     setEditComposerOpen(true);
     menuRef.current?.removeAttribute("open");
+    setIsMenuOpen(false);
   };
 
   const closeEditComposer = () => {
@@ -1494,7 +1525,7 @@ export default function PostCard({
         </div>
       )}
 
-      <article className="bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-hidden">
+      <article className="relative bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-visible">
         {/* Author row */}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -1544,11 +1575,17 @@ export default function PostCard({
               )}
             </div>
           </div>
-          <details ref={menuRef} className="relative">
+          <details
+            ref={menuRef}
+            className="relative z-10 open:z-50"
+            onToggle={(event) => {
+              setIsMenuOpen(event.currentTarget.open);
+            }}
+          >
             <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
               More ▾
             </summary>
-            <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+            <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
               {canEditPost && (
                 <button
                   type="button"
