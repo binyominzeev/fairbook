@@ -985,7 +985,7 @@ export default function PostCard({
     if (imageUrls.length === 0) return null;
 
     const isTextCard = options?.isTextCard === true;
-    const canOpenLightbox = !isTextCard;
+    const canOpenLightbox = !isTextCard || imageUrls.length > 1;
 
     const renderImage = (url: string, index: number, className: string) => {
       if (!canOpenLightbox) {
