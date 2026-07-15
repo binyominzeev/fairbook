@@ -11,6 +11,7 @@ jobs:
 
     steps:
       - name: Deploy over SSH
+        if: "!contains(github.event.head_commit.message, '[skip deploy]')"
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.HOST }}
@@ -26,19 +27,18 @@ jobs:
             npx prisma migrate deploy
             npm run build
             pm2 restart fairbook
-      - name: Telegram success notification
-        if: success()
+      - name: Telegram notification
+        if: always()
         run: |
-          MESSAGE="✅ Fairbook deploy sikeres%0A%0A🌿 Branch: ${{ github.ref_name }}%0A👤 User: ${{ github.actor }}%0A📝 Commit: ${{ github.event.head_commit.message }}%0A🔗 SHA: ${{ github.sha }}"
+          if [[ "${{ github.event.head_commit.message }}" == *"[skip deploy]"* ]]; then
+            MESSAGE="⏭️ Fairbook deploy kihagyva%0A%0A📝 Commit: ${{ github.event.head_commit.message }}%0A🌿 Branch: ${{ github.ref_name }}"
+          elif [[ "${{ job.status }}" == "success" ]]; then
+            MESSAGE="✅ Fairbook deploy sikeres%0A%0A🌿 Branch: ${{ github.ref_name }}%0A👤 User: ${{ github.actor }}%0A📝 Commit: ${{ github.event.head_commit.message }}"
+          else
+            MESSAGE="❌ Fairbook deploy sikertelen%0A%0A🌿 Branch: ${{ github.ref_name }}%0A📝 Commit: ${{ github.event.head_commit.message }}"
+          fi
 
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
           -d text="$MESSAGE"
-      - name: Telegram failure notification
-        if: failure()
-        run: |
-          MESSAGE="❌ Fairbook deploy sikertelen%0A%0A🌿 Branch: ${{ github.ref_name }}%0A👤 User: ${{ github.actor }}%0A📝 Commit: ${{ github.event.head_commit.message }}%0A🔗 SHA: ${{ github.sha }}%0A%0A🔍 Nézd meg a GitHub Actions logot."
 
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
-          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="$MESSAGE"
