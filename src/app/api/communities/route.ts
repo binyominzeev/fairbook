@@ -19,23 +19,42 @@ export async function GET(request: Request) {
 
   const communities = await prisma.community.findMany({
     where: {
-      ...(scope === "joined"
-        ? {
-            members: {
-              some: {
-                userId: session.userId,
+      AND: [
+        ...(scope === "joined"
+          ? [
+              {
+                members: {
+                  some: {
+                    userId: session.userId,
+                  },
+                },
               },
-            },
-          }
-        : {}),
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query } },
-              { description: { contains: query } },
-            ],
-          }
-        : {}),
+            ]
+          : [
+              {
+                OR: [
+                  { isPrivate: false },
+                  {
+                    members: {
+                      some: {
+                        userId: session.userId,
+                      },
+                    },
+                  },
+                ],
+              },
+            ]),
+        ...(query
+          ? [
+              {
+                OR: [
+                  { name: { contains: query } },
+                  { description: { contains: query } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }],
     include: {

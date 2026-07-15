@@ -30,21 +30,38 @@ export default async function GroupsPage(props: {
 
   const communities = await prisma.community.findMany({
     where: {
-      ...(mode === "joined"
-        ? {
-            members: {
-              some: { userId: session.userId },
-            },
-          }
-        : {}),
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query } },
-              { description: { contains: query } },
-            ],
-          }
-        : {}),
+      AND: [
+        ...(mode === "joined"
+          ? [
+              {
+                members: {
+                  some: { userId: session.userId },
+                },
+              },
+            ]
+          : [
+              {
+                OR: [
+                  { isPrivate: false },
+                  {
+                    members: {
+                      some: { userId: session.userId },
+                    },
+                  },
+                ],
+              },
+            ]),
+        ...(query
+          ? [
+              {
+                OR: [
+                  { name: { contains: query } },
+                  { description: { contains: query } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }],
     include: {
@@ -56,14 +73,6 @@ export default async function GroupsPage(props: {
       invites: {
         where: {
           inviteeId: session.userId,
-          status: "pending",
-        },
-        select: { id: true },
-        take: 1,
-      },
-      joinRequests: {
-        where: {
-          requesterId: session.userId,
           status: "pending",
         },
         select: { id: true },
@@ -138,7 +147,6 @@ export default async function GroupsPage(props: {
                 const slug = community.permalinkSlug ?? community.id;
                 const isMember = community.members.length > 0;
                 const hasPendingInvite = community.invites.length > 0;
-                const hasPendingRequest = community.joinRequests.length > 0;
 
                 return (
                   <li key={community.id} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -172,7 +180,6 @@ export default async function GroupsPage(props: {
                         initiallyMember={isMember}
                         isPrivate={community.isPrivate}
                         initiallyInvited={hasPendingInvite}
-                        initiallyRequested={hasPendingRequest}
                       />
                     </div>
                   </li>

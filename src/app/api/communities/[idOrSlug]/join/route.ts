@@ -1,7 +1,6 @@
 import { getSession } from "@/lib/auth";
 import {
   createGroupInviteAcceptedNotification,
-  createGroupJoinRequestNotifications,
 } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
@@ -49,31 +48,10 @@ export async function POST(
   const pendingInviteInviterId = community.invites[0]?.inviterId ?? null;
 
   if (community.isPrivate && !pendingInviteId) {
-    await prisma.communityJoinRequest.upsert({
-      where: {
-        communityId_requesterId: {
-          communityId: community.id,
-          requesterId: session.userId,
-        },
-      },
-      create: {
-        communityId: community.id,
-        requesterId: session.userId,
-        status: "pending",
-      },
-      update: {
-        status: "pending",
-        handledById: null,
-        handledAt: null,
-      },
-    });
-
-    await createGroupJoinRequestNotifications({
-      actorId: session.userId,
-      communityId: community.id,
-    });
-
-    return Response.json({ success: true, state: "requested" }, { status: 202 });
+    return Response.json(
+      { error: "This group is invite-only." },
+      { status: 403 }
+    );
   }
 
   await prisma.$transaction(async (tx) => {

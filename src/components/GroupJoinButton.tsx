@@ -8,31 +8,22 @@ export default function GroupJoinButton({
   initiallyMember,
   isPrivate,
   initiallyInvited,
-  initiallyRequested,
 }: {
   groupIdOrSlug: string;
   initiallyMember: boolean;
   isPrivate?: boolean;
   initiallyInvited?: boolean;
-  initiallyRequested?: boolean;
 }) {
   const router = useRouter();
-  const [membershipState, setMembershipState] = useState<
-    "member" | "invited" | "requested" | "none"
-  >(
-    initiallyMember
-      ? "member"
-      : initiallyInvited
-        ? "invited"
-        : initiallyRequested
-          ? "requested"
-          : "none"
+  const [membershipState, setMembershipState] = useState<"member" | "invited" | "none">(
+    initiallyMember ? "member" : initiallyInvited ? "invited" : "none"
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isInviteOnlyLocked = Boolean(isPrivate) && membershipState === "none";
 
   const handleJoin = async () => {
-    if (membershipState === "requested") {
+    if (isInviteOnlyLocked) {
       return;
     }
 
@@ -52,13 +43,7 @@ export default function GroupJoinButton({
         return;
       }
 
-      if (membershipState === "member") {
-        setMembershipState("none");
-      } else if (data?.state === "requested") {
-        setMembershipState("requested");
-      } else {
-        setMembershipState("member");
-      }
+      setMembershipState(membershipState === "member" ? "none" : "member");
 
       router.refresh();
     } finally {
@@ -72,20 +57,18 @@ export default function GroupJoinButton({
       ? "Leave"
       : membershipState === "invited"
         ? "Accept invite"
-        : membershipState === "requested"
-          ? "Requested"
-          : isPrivate
-            ? "Request"
-            : "Join";
+        : isPrivate
+          ? "Invite only"
+          : "Join";
 
   const buttonClassName =
     membershipState === "member"
       ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-      : membershipState === "requested"
+      : isInviteOnlyLocked
         ? "border border-slate-200 bg-slate-100 text-slate-500"
         : "bg-blue-600 text-white hover:bg-blue-700";
 
-  const disabled = loading || membershipState === "requested";
+  const disabled = loading || isInviteOnlyLocked;
 
   return (
     <div className="flex flex-col items-end gap-1">

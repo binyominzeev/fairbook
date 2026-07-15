@@ -61,14 +61,6 @@ export default async function GroupDetailPage(props: {
         select: { id: true },
         take: 1,
       },
-      joinRequests: {
-        where: {
-          requesterId: session.userId,
-          status: "pending",
-        },
-        select: { id: true },
-        take: 1,
-      },
       _count: { select: { members: true, posts: true } },
     },
   });
@@ -80,7 +72,6 @@ export default async function GroupDetailPage(props: {
   const membershipRole = community.members[0]?.role ?? null;
   const isMember = Boolean(membershipRole);
   const hasPendingInvite = community.invites.length > 0;
-  const hasPendingRequest = community.joinRequests.length > 0;
   const canViewPosts = !community.isPrivate || isMember;
   const isModerator = membershipRole === "admin" || membershipRole === "moderator";
   const isOwner = community.owner.id === session.userId;
@@ -182,7 +173,6 @@ export default async function GroupDetailPage(props: {
                   initiallyMember={isMember}
                   isPrivate={community.isPrivate}
                   initiallyInvited={hasPendingInvite}
-                  initiallyRequested={hasPendingRequest}
                 />
                 {isMember && (
                   <GroupNotificationToggle
@@ -211,7 +201,7 @@ export default async function GroupDetailPage(props: {
               </form>
             ) : community.isPrivate ? (
               <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                This group is closed. Accept an invite or send a request to join.
+                This group is closed. You can join only with an invite.
               </p>
             ) : (
               <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
