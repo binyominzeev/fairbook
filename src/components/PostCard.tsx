@@ -37,6 +37,7 @@ interface SharedPostData {
   isTextCard: boolean;
   createdAt: string;
   author: Author;
+  community?: Community | null;
 }
 
 type ShareTestResult = {
@@ -175,6 +176,10 @@ function buildRemoteEditImages(imageUrls: string[]) {
   }));
 }
 
+function getSharedOriginLabel(sharedPost: SharedPostData) {
+  return sharedPost.community?.name ?? sharedPost.author.name;
+}
+
 function renderTextWithLinks(text: string, className: string, query?: string) {
   return (
     <p className={className}>
@@ -219,7 +224,9 @@ function SinglePostImage({
 }) {
   const [isNearSquare, setIsNearSquare] = useState(false);
   const imageClass =
-    isTextCard || isNearSquare
+    isTextCard
+      ? "h-full w-full object-contain"
+      : isNearSquare
       ? "w-full h-auto object-contain"
       : "h-80 w-full object-cover";
 
@@ -1010,8 +1017,12 @@ export default function PostCard({
     };
 
     if (imageUrls.length === 1) {
+      const containerClass = isTextCard
+        ? "mb-3 aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+        : "mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100";
+
       return (
-        <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+        <div className={containerClass}>
           <SinglePostImage
             src={imageUrls[0]}
             alt="Post image 1"
@@ -1121,9 +1132,9 @@ export default function PostCard({
       )}
 
       {shareComposerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
-          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/40 px-4 py-4 sm:items-center sm:py-6">
+          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:max-h-[calc(100dvh-3rem)]">
+            <div className="shrink-0 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Share to your feed</h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -1143,7 +1154,7 @@ export default function PostCard({
               </button>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 min-h-0 space-y-3 overflow-y-auto pr-1">
               <textarea
                 value={shareContent}
                 onChange={(e) => setShareContent(e.target.value)}
@@ -1241,7 +1252,7 @@ export default function PostCard({
                     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                       <span>Includes a shared post from</span>
                       <span className="font-medium text-slate-600">
-                        <HighlightedText text={post.sharedPost.author.name} query={highlightQuery} />
+                        <HighlightedText text={getSharedOriginLabel(post.sharedPost)} query={highlightQuery} />
                       </span>
                     </div>
 
@@ -1288,7 +1299,7 @@ export default function PostCard({
 
             {actionError && <p className="mt-3 text-xs text-red-600">{actionError}</p>}
 
-            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <div className="mt-4 shrink-0 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShareComposerOpen(false)}
@@ -1716,7 +1727,7 @@ export default function PostCard({
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
             <span>Shared from</span>
             <span className="font-medium text-slate-600">
-              <HighlightedText text={post.sharedPost.author.name} query={highlightQuery} />
+              <HighlightedText text={getSharedOriginLabel(post.sharedPost)} query={highlightQuery} />
             </span>
             <span>·</span>
             <span>{timeAgo(post.sharedPost.createdAt)}</span>

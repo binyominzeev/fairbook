@@ -27,6 +27,7 @@ export interface SerializedSharedPost {
   isTextCard: boolean;
   createdAt: string;
   author: SerializedAuthor;
+  community: SerializedCommunity | null;
 }
 
 export interface SerializedCommentPreview {
@@ -100,7 +101,7 @@ export const buildPostInclude = (viewerId: string) =>
         isTextCard: true,
         createdAt: true,
         author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-        community: { select: { id: true, permalinkSlug: true } },
+        community: { select: { id: true, permalinkSlug: true, name: true } },
       },
     },
     postTags: { include: { tag: true } },
@@ -174,6 +175,7 @@ type PostForPresentation = {
     community: {
       id: string;
       permalinkSlug: string | null;
+      name: string;
     } | null;
   } | null;
   _count: { comments: number; likes: number; sharedBy: number };
@@ -253,6 +255,13 @@ export function serializePost(post: PostForPresentation): SerializedPost {
           }),
           imageUrls: parseImageUrls(post.sharedPost.imageUrls),
           createdAt: post.sharedPost.createdAt.toISOString(),
+          community: post.sharedPost.community
+            ? {
+                id: post.sharedPost.community.id,
+                permalinkSlug: post.sharedPost.community.permalinkSlug,
+                name: post.sharedPost.community.name,
+              }
+            : null,
         }
       : null,
     tags: post.postTags?.map((pt) => ({ id: pt.tag.id, name: pt.tag.name, color: pt.tag.color })) ?? [],
