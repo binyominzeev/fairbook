@@ -180,6 +180,14 @@ function getSharedOriginLabel(sharedPost: SharedPostData) {
   return sharedPost.community?.name ?? sharedPost.author.name;
 }
 
+function getSharedOriginHref(sharedPost: SharedPostData) {
+  if (sharedPost.community) {
+    return `/groups/${encodeURIComponent(sharedPost.community.permalinkSlug ?? sharedPost.community.id)}`;
+  }
+
+  return buildProfilePath(sharedPost.author);
+}
+
 function renderTextWithLinks(text: string, className: string, query?: string) {
   return (
     <p className={className}>
@@ -1251,9 +1259,12 @@ export default function PostCard({
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                       <span>Includes a shared post from</span>
-                      <span className="font-medium text-slate-600">
+                      <Link
+                        href={getSharedOriginHref(post.sharedPost)}
+                        className="font-medium text-slate-600 hover:underline"
+                      >
                         <HighlightedText text={getSharedOriginLabel(post.sharedPost)} query={highlightQuery} />
-                      </span>
+                      </Link>
                     </div>
 
                     {post.sharedPost.content && (
@@ -1726,9 +1737,12 @@ export default function PostCard({
         <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300">
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
             <span>Shared from</span>
-            <span className="font-medium text-slate-600">
+            <Link
+              href={getSharedOriginHref(post.sharedPost)}
+              className="font-medium text-slate-600 hover:underline"
+            >
               <HighlightedText text={getSharedOriginLabel(post.sharedPost)} query={highlightQuery} />
-            </span>
+            </Link>
             <span>·</span>
             <span>{timeAgo(post.sharedPost.createdAt)}</span>
           </div>
