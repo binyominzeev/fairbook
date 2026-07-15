@@ -17,22 +17,24 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "HOME=$HOME"
-            which node || true
-            node -v || true
-            which npm || true
-            npm -v || true
-            which pm2 || true
-
             export NVM_DIR="$HOME/.nvm"
             source "$NVM_DIR/nvm.sh"
 
-            echo "--- AFTER NVM ---"
-            which node
-            node -v
-            which npm
-            npm -v
-            which pm2
-
             cd ${{ secrets.PROJECT_PATH }}
+
             git pull
+            npx prisma migrate deploy
+            npm run build
+            pm2 restart fairbook
+      - name: Telegram success notification
+        if: success()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="✅ Fairbook deploy sikeres!"
+      - name: Telegram failure notification
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -d text="❌ Fairbook deploy sikertelen! Nézd meg a GitHub Actions logot."
