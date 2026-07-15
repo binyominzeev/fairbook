@@ -29,12 +29,16 @@ jobs:
       - name: Telegram success notification
         if: success()
         run: |
+          MESSAGE="✅ Fairbook deploy sikeres%0A%0A🌿 Branch: ${{ github.ref_name }}%0A👤 User: ${{ github.actor }}%0A📝 Commit: ${{ github.event.head_commit.message }}%0A🔗 SHA: ${{ github.sha }}"
+
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="✅ Fairbook deploy sikeres!"
+          -d text="$MESSAGE"
       - name: Telegram failure notification
         if: failure()
         run: |
+          MESSAGE="❌ Fairbook deploy sikertelen%0A%0A🌿 Branch: ${{ github.ref_name }}%0A👤 User: ${{ github.actor }}%0A📝 Commit: ${{ github.event.head_commit.message }}%0A🔗 SHA: ${{ github.sha }}%0A%0A🔍 Nézd meg a GitHub Actions logot."
+
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -d text="❌ Fairbook deploy sikertelen! Nézd meg a GitHub Actions logot."
+          -d text="$MESSAGE"
