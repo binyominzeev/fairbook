@@ -82,7 +82,7 @@ export default async function PostPermalinkPage(props: {
           imageUrls: true,
           createdAt: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, permalinkSlug: true } },
+          community: { select: { id: true, permalinkSlug: true, name: true } },
         },
       },
       likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
