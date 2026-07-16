@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/auth";
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
@@ -14,7 +15,146 @@ import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
 import { canViewerAccessCommunity } from "@/lib/community-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
+import { buildPostPermalinkMetadata } from "@/lib/post-metadata";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
+
+async function resolveMetadataPost(params: {
+  idOrSlug: string;
+  year: string;
+  month: string;
+  postSlug: string;
+  viewerId: string;
+}) {
+  const community = await prisma.community.findFirst({
+    where: {
+      OR: [{ id: params.idOrSlug }, { permalinkSlug: params.idOrSlug }],
+    },
+    select: {
+      id: true,
+      permalinkSlug: true,
+      isPrivate: true,
+      members: {
+        where: { userId: params.viewerId },
+        select: { role: true, userId: true },
+        take: 1,
+      },
+    },
+  });
+  if (!community || !canViewerAccessCommunity(community)) {
+    return null;
+  }
+
+  const parsedYear = Number(params.year);
+  const parsedMonth = Number(params.month);
+  if (
+    !Number.isInteger(parsedYear) ||
+    !Number.isInteger(parsedMonth) ||
+    parsedYear < 1970 ||
+    parsedYear > 3000 ||
+    parsedMonth < 1 ||
+    parsedMonth > 12
+  ) {
+    return null;
+  }
+
+  const monthStart = new Date(Date.UTC(parsedYear, parsedMonth - 1, 1));
+  const nextMonthStart = new Date(Date.UTC(parsedYear, parsedMonth, 1));
+
+  const post = await prisma.post.findFirst({
+    where: {
+      communityId: community.id,
+      createdAt: {
+        gte: monthStart,
+        lt: nextMonthStart,
+      },
+      OR: [{ permalinkSlug: params.postSlug }, { id: params.postSlug }],
+    },
+    select: {
+      id: true,
+      permalinkSlug: true,
+      createdAt: true,
+      feedSourceId: true,
+      moderationStatus: true,
+      content: true,
+      sharedTitle: true,
+      sharedDescription: true,
+      sharedImageUrl: true,
+      imageUrls: true,
+      isTextCard: true,
+      author: { select: { id: true, slug: true, name: true } },
+      community: {
+        select: {
+          id: true,
+          permalinkSlug: true,
+          isPrivate: true,
+          members: {
+            where: { userId: params.viewerId },
+            select: { role: true, userId: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+  if (!post) {
+    return null;
+  }
+
+  const isVisible =
+    (post.moderationStatus !== "author_only" || post.author.id === params.viewerId) &&
+    canViewerAccessCommunity(post.community);
+
+  const canonicalPath = buildPostPermalinkPath({
+    author: post.author,
+    community: post.community,
+    createdAt: post.createdAt,
+    slug: post.permalinkSlug,
+    postId: post.id,
+  });
+
+  return { post, isVisible, canonicalPath };
+}
+
+export async function generateMetadata(props: {
+  params: Promise<{ idOrSlug: string; year: string; month: string; postSlug: string }>;
+}): Promise<Metadata> {
+  const { idOrSlug, year, month, postSlug } = await props.params;
+  const session = await getSession();
+  const viewerId = session?.userId ?? "__guest__";
+
+  const resolved = await resolveMetadataPost({
+    idOrSlug,
+    year,
+    month,
+    postSlug,
+    viewerId,
+  });
+
+  if (!resolved) {
+    return {
+      title: "fairbook",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  return buildPostPermalinkMetadata({
+    canonicalPath: resolved.canonicalPath,
+    isVisible: resolved.isVisible,
+    isUserGenerated: resolved.post.feedSourceId === null,
+    post: {
+      sharedTitle: resolved.post.sharedTitle,
+      sharedDescription: resolved.post.sharedDescription,
+      content: resolved.post.content,
+      imageUrls: resolved.post.imageUrls,
+      sharedImageUrl: resolved.post.sharedImageUrl,
+      isTextCard: resolved.post.isTextCard,
+      createdAt: resolved.post.createdAt,
+      author: {
+        name: resolved.post.author.name,
+      },
+    },
+  });
+}
 
 export default async function GroupPostPermalinkPage(props: {
   params: Promise<{ idOrSlug: string; year: string; month: string; postSlug: string }>;
