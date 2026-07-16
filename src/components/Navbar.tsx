@@ -2,8 +2,9 @@
 
 import BrandLink from "@/components/BrandLink";
 import IconNavLink from "@/components/IconNavLink";
+import { isAdminEmail } from "@/lib/admin";
 import { buildProfilePath } from "@/lib/profile-path";
-import { Bell, FileText, Home, LayoutGrid, LogOut, UserRound, UserSearch } from "lucide-react";
+import { BarChart3, Bell, FileText, Home, LayoutGrid, LogOut, UserRound, UserSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,6 +24,7 @@ export default function Navbar({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [canViewStats, setCanViewStats] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +43,17 @@ export default function Navbar({ user }: Props) {
       }
     };
 
+    const loadAuthUser = async () => {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (!response.ok) return;
+        const data = await response.json();
+        setCanViewStats(isAdminEmail(data?.user?.email));
+      } catch {
+        // Ignore transient fetch errors in navbar.
+      }
+    };
+
     const handleUnreadCountChanged = (event: Event) => {
       const customEvent = event as CustomEvent<{ unreadCount?: number }>;
       if (typeof customEvent.detail?.unreadCount === "number") {
@@ -49,6 +62,7 @@ export default function Navbar({ user }: Props) {
     };
 
     void loadUnreadCount();
+    void loadAuthUser();
     window.addEventListener(
       "fairbook:notifications-unread-changed",
       handleUnreadCountChanged
@@ -76,6 +90,7 @@ export default function Navbar({ user }: Props) {
     { href: "/connections", label: "People", icon: UserSearch },
     { href: "/pages", label: "Pages", icon: FileText },
     { href: "/notifications", label: "Notifications", icon: Bell },
+    ...(canViewStats ? [{ href: "/stats", label: "Stats", icon: BarChart3 }] : []),
   ];
   const profileHref = buildProfilePath(user);
 

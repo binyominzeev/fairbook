@@ -60,6 +60,8 @@ model User {
   pushSubscriptions               PushSubscription[]
   pushNotificationPreferences     PushNotificationPreference[]
   authEmailTokens               AuthEmailToken[]
+  trafficSessions             TrafficSession[]
+  trafficEvents               TrafficEvent[]
 }
 
 model AuthEmailToken {
@@ -125,6 +127,7 @@ model Post {
   childSafetyReports ChildSafetyReport[]
   notifications Notification[]
   notificationPreferences PostNotificationPreference[]
+  trafficEvents TrafficEvent[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -588,4 +591,49 @@ model ChildSafetyReport {
   post     Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+}
+
+model TrafficSession {
+  id            String   @id
+  visitorKeyHash String
+  userId        String?
+  startedAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  endedAt       DateTime?
+  entryPath     String
+  referrer      String?
+  pageViewCount Int      @default(0)
+  activeMsTotal Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user   User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events TrafficEvent[]
+
+  @@index([visitorKeyHash, startedAt])
+  @@index([userId, startedAt])
+  @@index([startedAt])
+}
+
+model TrafficEvent {
+  id             String   @id @default(cuid())
+  sessionId      String
+  userId         String?
+  eventType      String
+  path           String
+  routeType      String
+  contentType    String?
+  postId         String?
+  activeMs       Int?
+  referrer       String?
+  createdAt      DateTime @default(now())
+
+  session TrafficSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  post    Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([eventType, createdAt])
+  @@index([routeType, createdAt])
+  @@index([sessionId, createdAt])
 }

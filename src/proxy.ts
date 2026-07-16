@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/api/auth/resend-verification",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
+  "/api/traffic/collect",
 ];
 
 export async function proxy(request: NextRequest) {
