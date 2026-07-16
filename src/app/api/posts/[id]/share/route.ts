@@ -10,7 +10,14 @@ import {
 } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
 
-function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
+function buildModerationMessage(
+  moderation: Awaited<ReturnType<typeof moderatePost>>,
+  options?: { forcedPrivate?: boolean }
+) {
+  if (options?.forcedPrivate) {
+    return "Share created as private. Only you can see it.";
+  }
+
   if (moderation.source === "fallback") {
     return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Post is visible only to you until this is fixed.`;
   }
@@ -38,6 +45,7 @@ export async function POST(
     typeof payload?.communityId === "string" && payload.communityId.trim().length > 0
       ? payload.communityId.trim()
       : null;
+  const forcedPrivate = payload?.visibility === "private";
 
   const { id } = await ctx.params;
   const sourcePost = await prisma.post.findUnique({
@@ -134,6 +142,17 @@ export async function POST(
     postContent: shareContent || undefined,
     sharedContent: sharedContent || undefined,
   });
+  const finalModerationStatus = forcedPrivate ? "author_only" : moderation.status;
+  const finalModerationReason = forcedPrivate
+    ? "Private visibility selected"
+    : finalModerationStatus === "author_only"
+      ? moderation.reasonShort
+      : null;
+  const finalModerationExplanation = forcedPrivate
+    ? "This share is visible only to you because you selected private visibility."
+    : finalModerationStatus === "author_only"
+      ? moderation.explanation
+      : null;
 
   const existingShare = await prisma.post.findFirst({
     where: {
@@ -185,11 +204,9 @@ export async function POST(
       permalinkSlug: initialPermalinkSlug,
       content: shareContent || null,
       sharedPostId: id,
-      moderationStatus: moderation.status,
-      moderationReason:
-        moderation.status === "author_only" ? moderation.reasonShort : null,
-      moderationExplanation:
-        moderation.status === "author_only" ? moderation.explanation : null,
+      moderationStatus: finalModerationStatus,
+      moderationReason: finalModerationReason,
+      moderationExplanation: finalModerationExplanation,
       moderatedAt: new Date(),
       createdAt,
       fetchedAt: createdAt,
@@ -201,7 +218,7 @@ export async function POST(
 
   const shareCount = await prisma.post.count({ where: { sharedPostId: id } });
 
-  if (moderation.status === "visible" && targetCommunityId) {
+  if (finalModerationStatus === "visible" && targetCommunityId) {
     void createGroupPostNotifications({
       actorId: session.userId,
       communityId: targetCommunityId,
@@ -214,8 +231,13 @@ export async function POST(
       shared: true,
       postId: sharedPost.id,
       shareCount,
-      moderation,
-      message: buildModerationMessage(moderation),
+      moderation: {
+        ...moderation,
+        status: finalModerationStatus,
+        reasonShort: finalModerationReason,
+        explanation: finalModerationExplanation,
+      },
+      message: buildModerationMessage(moderation, { forcedPrivate }),
     },
     { status: 201 }
   );

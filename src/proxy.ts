@@ -20,8 +20,25 @@ const PUBLIC_PATHS = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  const segments = pathname.split("/").filter(Boolean);
+  const isPublicProfileRoute =
+    segments[0] === "profile" &&
+    segments[1] !== "remove" &&
+    (segments.length === 2 ||
+      (segments.length === 5 && /^\d{4}$/.test(segments[2]) && /^\d{2}$/.test(segments[3])));
+  const isPublicGroupPermalinkRoute =
+    segments[0] === "groups" &&
+    segments.length === 5 &&
+    /^\d{4}$/.test(segments[2]) &&
+    /^\d{2}$/.test(segments[3]);
+
   // Allow public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/api/cron/")) {
+  if (
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/api/cron/") ||
+    isPublicProfileRoute ||
+    isPublicGroupPermalinkRoute
+  ) {
     return NextResponse.next();
   }
 

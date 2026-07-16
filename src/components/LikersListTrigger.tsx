@@ -38,10 +38,12 @@ export default function LikersListTrigger({
   kind,
   targetId,
   likeCount,
+  onRequireAuth,
 }: {
   kind: "post" | "comment";
   targetId: string;
   likeCount: number;
+  onRequireAuth?: () => void;
 }) {
   const [hoverOpen, setHoverOpen] = useState(false);
   const [hoverLoading, setHoverLoading] = useState(false);
@@ -118,11 +120,16 @@ export default function LikersListTrigger({
       <button
         type="button"
         onMouseEnter={() => {
+          if (onRequireAuth) return;
           setHoverOpen(true);
           void loadHover();
         }}
         onMouseLeave={() => setHoverOpen(false)}
         onClick={() => {
+          if (onRequireAuth) {
+            onRequireAuth();
+            return;
+          }
           void openDialog();
         }}
         className="text-xs text-slate-500 transition-colors hover:text-blue-600"

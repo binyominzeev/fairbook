@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
+import PublicNavbar from "@/components/PublicNavbar";
 import PostCard from "@/components/PostCard";
 import CommentCard from "@/components/CommentCard";
 import CommentHashScroller from "@/components/CommentHashScroller";
@@ -20,14 +21,16 @@ export default async function GroupPostPermalinkPage(props: {
 }) {
   const { idOrSlug, year, month, postSlug } = await props.params;
   const session = await getSession();
-  if (!session) redirect("/login");
+  const viewerId = session?.userId ?? "__guest__";
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
-  });
-  if (!user) redirect("/login");
-  const isAdmin = isAdminEmail(user.email);
+  const user = session
+    ? await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
+      })
+    : null;
+  const isLoggedIn = Boolean(user);
+  const isAdmin = user ? isAdminEmail(user.email) : false;
   const commentInsightsEnabled = await getCommentInsightsEnabled();
 
   const community = await prisma.community.findFirst({
@@ -39,7 +42,7 @@ export default async function GroupPostPermalinkPage(props: {
       permalinkSlug: true,
       isPrivate: true,
       members: {
-        where: { userId: session.userId },
+        where: { userId: viewerId },
         select: { role: true, userId: true },
         take: 1,
       },
@@ -93,19 +96,19 @@ export default async function GroupPostPermalinkPage(props: {
           community: { select: { id: true, permalinkSlug: true, name: true } },
         },
       },
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+      likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
       bookmarkedBy: {
-        where: { userId: session.userId },
+        where: { userId: viewerId },
         select: { id: true },
         take: 1,
       },
       sharedBy: {
-        where: { authorId: session.userId },
+        where: { authorId: viewerId },
         select: { id: true },
         take: 1,
       },
       notificationPreferences: {
-        where: { userId: session.userId },
+        where: { userId: viewerId },
         select: { isSubscribed: true },
         take: 1,
       },
@@ -116,7 +119,7 @@ export default async function GroupPostPermalinkPage(props: {
           permalinkSlug: true,
           isPrivate: true,
           members: {
-            where: { userId: session.userId },
+            where: { userId: viewerId },
             select: { role: true, userId: true },
             take: 1,
           },
@@ -127,7 +130,7 @@ export default async function GroupPostPermalinkPage(props: {
     },
   });
   if (!post) notFound();
-  if (post.moderationStatus === "author_only" && post.author.id !== session.userId) {
+  if (post.moderationStatus === "author_only" && post.author.id !== viewerId) {
     notFound();
   }
   if (!canViewerAccessCommunity(post.community)) {
@@ -146,19 +149,21 @@ export default async function GroupPostPermalinkPage(props: {
     redirect(canonicalPath);
   }
 
-  const rawComments = await prisma.comment.findMany({
-    where: {
-      postId: post.id,
-      OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-    },
-    orderBy: { createdAt: "asc" },
-    include: {
-      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-      analysis: true,
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-      _count: { select: { likes: true } },
-    },
-  });
+  const rawComments = isLoggedIn
+    ? await prisma.comment.findMany({
+        where: {
+          postId: post.id,
+          OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
+        },
+        orderBy: { createdAt: "asc" },
+        include: {
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+          analysis: true,
+          likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
+          _count: { select: { likes: true } },
+        },
+      })
+    : [];
 
   const parseAnalysis = (a: {
     positiveSignals: string;
@@ -267,64 +272,69 @@ export default async function GroupPostPermalinkPage(props: {
       : null,
   };
 
-  const commentCount = rawComments.length;
+  const commentCount = isLoggedIn ? rawComments.length : post._count.comments;
 
   return (
     <>
-      <Navbar user={user} />
+      {user ? <Navbar user={user} /> : <PublicNavbar />}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <PostCard
           post={postForCard}
-          currentUserId={user.id}
+          currentUserId={user?.id ?? ""}
           showDelete
-          showPermalinkEditor
+          showPermalinkEditor={isLoggedIn}
           defaultShareCommunityId={post.community?.members.length ? post.community.id : null}
           shareRedirectPath={
             post.community?.members.length
               ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
               : null
           }
+          requireAuthForInteractions={!isLoggedIn}
         />
 
-        {commentInsightsEnabled &&
-          (latestReflection ? (
-            <ThreadReflection reflection={latestReflection} />
-          ) : (
-            commentCount >= 5 && <GenerateReflectionButton postId={post.id} />
-          ))}
+        {isLoggedIn ? (
+          <>
+            {commentInsightsEnabled &&
+              (latestReflection ? (
+                <ThreadReflection reflection={latestReflection} />
+              ) : (
+                commentCount >= 5 && <GenerateReflectionButton postId={post.id} />
+              ))}
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <CommentHashScroller />
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">
-            Discussion ({commentCount})
-          </h2>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <CommentHashScroller />
+              <h2 className="text-sm font-semibold text-slate-700 mb-4">
+                Discussion ({commentCount})
+              </h2>
 
-          <CommentForm postId={post.id} />
+              <CommentForm postId={post.id} />
 
-          <div className="mt-4 divide-y divide-slate-50">
-            {comments.length === 0 && (
-              <p className="text-sm text-slate-400 py-4 text-center">
-                No comments yet. Start the discussion.
-              </p>
-            )}
-            {(comments as Parameters<typeof CommentCard>[0]["comment"][]).map((comment) => (
-              <CommentCard
-                key={(comment as { id: string }).id}
-                comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
-                postId={post.id}
-                currentUserId={user.id}
-                currentUserIsAdmin={isAdmin}
-                currentUserCanModerateGroup={
-                  isAdmin ||
-                  post.community?.members.some(
-                    (member) => member.role === "admin" || member.role === "moderator"
-                  ) === true
-                }
-                commentInsightsEnabled={commentInsightsEnabled}
-              />
-            ))}
-          </div>
-        </div>
+              <div className="mt-4 divide-y divide-slate-50">
+                {comments.length === 0 && (
+                  <p className="text-sm text-slate-400 py-4 text-center">
+                    No comments yet. Start the discussion.
+                  </p>
+                )}
+                {(comments as Parameters<typeof CommentCard>[0]["comment"][]).map((comment) => (
+                  <CommentCard
+                    key={(comment as { id: string }).id}
+                    comment={comment as Parameters<typeof CommentCard>[0]["comment"]}
+                    postId={post.id}
+                    currentUserId={user?.id ?? ""}
+                    currentUserIsAdmin={isAdmin}
+                    currentUserCanModerateGroup={
+                      isAdmin ||
+                      post.community?.members.some(
+                        (member) => member.role === "admin" || member.role === "moderator"
+                      ) === true
+                    }
+                    commentInsightsEnabled={commentInsightsEnabled}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {isAdmin && <AdminDevSidebar />}
       </div>

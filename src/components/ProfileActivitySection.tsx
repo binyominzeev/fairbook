@@ -48,6 +48,7 @@ function InfinitePostActivityList({
   emptyMessage,
   emptySearchMessage,
   initiallyHidden,
+  requireAuthForInteractions,
   query,
 }: {
   resetKey: string;
@@ -60,6 +61,7 @@ function InfinitePostActivityList({
   emptyMessage: string;
   emptySearchMessage: string;
   initiallyHidden: boolean;
+  requireAuthForInteractions: boolean;
   query: string;
 }) {
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
@@ -101,6 +103,7 @@ function InfinitePostActivityList({
           currentUserId={currentUserId}
           showDelete={showDelete(post)}
           initiallyHidden={initiallyHidden}
+          requireAuthForInteractions={requireAuthForInteractions}
           highlightQuery={query}
         />
       ))}
@@ -240,6 +243,7 @@ function InfiniteReelsPostActivityList({
   emptyMessage,
   emptySearchMessage,
   initiallyHidden,
+  requireAuthForInteractions,
   query,
 }: {
   resetKey: string;
@@ -252,6 +256,7 @@ function InfiniteReelsPostActivityList({
   emptyMessage: string;
   emptySearchMessage: string;
   initiallyHidden: boolean;
+  requireAuthForInteractions: boolean;
   query: string;
 }) {
   const [selectedPost, setSelectedPost] = useState<SerializedPost | null>(null);
@@ -368,6 +373,7 @@ function InfiniteReelsPostActivityList({
               currentUserId={currentUserId}
               showDelete={showDelete(selectedPost)}
               initiallyHidden={initiallyHidden}
+              requireAuthForInteractions={requireAuthForInteractions}
               highlightQuery={query}
             />
           </div>
@@ -386,6 +392,7 @@ export default function ProfileActivitySection({
   initialNextCursor,
   currentUserId,
   isOwnProfile,
+  requireAuthForInteractions = false,
   query,
 }: {
   profileId: string;
@@ -396,6 +403,7 @@ export default function ProfileActivitySection({
   initialNextCursor: string | null;
   currentUserId: string;
   isOwnProfile: boolean;
+  requireAuthForInteractions?: boolean;
   query: string;
 }) {
   const resetKey = `${activeTab}:${query}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
@@ -475,6 +483,7 @@ export default function ProfileActivitySection({
           emptyMessage={emptyMessage}
           emptySearchMessage={`No results found for "${query}".`}
           initiallyHidden={postTab === "hidden"}
+          requireAuthForInteractions={requireAuthForInteractions}
           query={query}
         />
       ) : (
@@ -490,6 +499,7 @@ export default function ProfileActivitySection({
           emptyMessage={emptyMessage}
           emptySearchMessage={`No results found for "${query}".`}
           initiallyHidden={postTab === "hidden"}
+          requireAuthForInteractions={requireAuthForInteractions}
           query={query}
         />
       )}

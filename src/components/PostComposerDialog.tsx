@@ -32,6 +32,7 @@ type CreatePostPayload = {
   sharedTitle: string | null;
   sharedDescription: string | null;
   sharedSource: string | null;
+  visibility?: "public" | "private";
   communityId?: string | null;
   imageUrls: string[];
   isTextCard?: boolean;
@@ -150,6 +151,7 @@ export default function PostComposerDialog({
   const [sharedDescription, setSharedDescription] = useState(initialSharedDescription);
   const [showLinkFields, setShowLinkFields] = useState(initialShowLinkFields);
   const [submitting, setSubmitting] = useState(false);
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState<{
     kind: "success" | "warning";
@@ -270,6 +272,7 @@ export default function PostComposerDialog({
         sharedTitle: sharedTitle.trim() || null,
         sharedDescription: sharedDescription.trim() || null,
         sharedSource: sharedSource.trim() || null,
+        visibility,
         communityId,
         imageUrls: finalImageUrls,
         isTextCard: Boolean(textCardImageUrl && finalImageUrls.includes(textCardImageUrl)),
@@ -521,6 +524,20 @@ export default function PostComposerDialog({
           >
             {showLinkFields ? "Hide link fields" : "Add a link"}
           </button>
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            Visibility
+            <select
+              value={visibility}
+              onChange={(event) => {
+                const value = event.target.value;
+                setVisibility(value === "private" ? "private" : "public");
+              }}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="public">Public</option>
+              <option value="private">Only me</option>
+            </select>
+          </label>
           <div className={`grid w-full grid-cols-1 gap-2 sm:w-auto ${onOpenTextCardCreator ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {onOpenTextCardCreator && (
               <button

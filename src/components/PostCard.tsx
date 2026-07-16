@@ -112,6 +112,7 @@ interface Props {
   defaultShareCommunityId?: string | null;
   shareRedirectPath?: string | null;
   showCommunityHeader?: boolean;
+  requireAuthForInteractions?: boolean;
 }
 
 const MAX_EDIT_IMAGES = 4;
@@ -280,6 +281,7 @@ export default function PostCard({
   defaultShareCommunityId = null,
   shareRedirectPath = null,
   showCommunityHeader = true,
+  requireAuthForInteractions = false,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
@@ -299,6 +301,7 @@ export default function PostCard({
   const [shareDestinations, setShareDestinations] = useState<ShareDestination[]>([]);
   const [loadingShareDestinations, setLoadingShareDestinations] = useState(false);
   const [shareCommunityId, setShareCommunityId] = useState<string>(defaultShareCommunityId ?? "");
+  const [shareVisibility, setShareVisibility] = useState<"public" | "private">("public");
   const [pendingAction, setPendingAction] = useState<"like" | "bookmark" | "share" | null>(null);
   const [shareTesting, setShareTesting] = useState(false);
   const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
@@ -332,13 +335,21 @@ export default function PostCard({
   const menuRef = useRef<HTMLDetailsElement | null>(null);
   const editImageInputRef = useRef<HTMLInputElement | null>(null);
   const editImagesRef = useRef<EditComposerImage[]>(editImages);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authDialogActionLabel, setAuthDialogActionLabel] = useState("interact");
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
   const canEditPost = post.author.id === currentUserId;
+  const needsAuthForInteractions = requireAuthForInteractions || !currentUserId;
   const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
   const communityHref = post.community
     ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
     : null;
+
+  const openAuthDialog = (actionLabel: string) => {
+    setAuthDialogActionLabel(actionLabel);
+    setAuthDialogOpen(true);
+  };
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -438,6 +449,11 @@ export default function PostCard({
   };
 
   const handleLike = async () => {
+    if (needsAuthForInteractions) {
+      openAuthDialog("like posts");
+      return;
+    }
+
     setPendingAction("like");
     setActionError("");
     setActionNotice(null);
@@ -479,6 +495,11 @@ export default function PostCard({
   };
 
   const handleBookmark = async () => {
+    if (needsAuthForInteractions) {
+      openAuthDialog("bookmark posts");
+      return;
+    }
+
     setPendingAction("bookmark");
     setActionError("");
     setActionNotice(null);
@@ -543,6 +564,7 @@ export default function PostCard({
 
     try {
       const body: Record<string, unknown> = { content: shareContent };
+      body.visibility = shareVisibility;
       if (shareCommunityId) {
         body.communityId = shareCommunityId;
       }
@@ -586,8 +608,14 @@ export default function PostCard({
   };
 
   const openShareComposer = async () => {
+    if (needsAuthForInteractions) {
+      openAuthDialog("share posts");
+      return;
+    }
+
     setActionError("");
     setShareComposerOpen(true);
+    setShareVisibility("public");
     setLoadingShareDestinations(true);
 
     try {
@@ -1192,6 +1220,23 @@ export default function PostCard({
                 )}
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Visibility
+                </p>
+                <select
+                  value={shareVisibility}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setShareVisibility(value === "private" ? "private" : "public");
+                  }}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Only me</option>
+                </select>
+              </div>
+
               {post.feedSourceId && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <p>
@@ -1547,6 +1592,38 @@ export default function PostCard({
         </div>
       )}
 
+      {authDialogOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 px-3"
+          onClick={() => setAuthDialogOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-slate-900">Registration required</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              To {authDialogActionLabel}, please create an account or sign in.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAuthDialogOpen(false)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <Link
+                href="/login?mode=register"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Open registration
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       <article className="relative bg-white rounded-xl border border-slate-200 p-4 w-full min-w-0 overflow-visible">
         {/* Author row */}
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -1597,13 +1674,14 @@ export default function PostCard({
               )}
             </div>
           </div>
-          <details
-            ref={menuRef}
-            className="relative z-10 open:z-50"
-            onToggle={(event) => {
-              setIsMenuOpen(event.currentTarget.open);
-            }}
-          >
+          {!needsAuthForInteractions && (
+            <details
+              ref={menuRef}
+              className="relative z-10 open:z-50"
+              onToggle={(event) => {
+                setIsMenuOpen(event.currentTarget.open);
+              }}
+            >
             <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
               More ▾
             </summary>
@@ -1654,7 +1732,8 @@ export default function PostCard({
                 </button>
               )}
             </div>
-          </details>
+            </details>
+          )}
         </div>
 
         {/* Post body */}
@@ -1832,14 +1911,26 @@ export default function PostCard({
 
       {/* Actions */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
-        <Link
-          href={post.permalinkPath}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
-          aria-label="Open comments"
-        >
-          <span className="text-sm leading-none" aria-hidden="true">💬</span>
-          <span>{post._count.comments}</span>
-        </Link>
+        {needsAuthForInteractions ? (
+          <button
+            type="button"
+            onClick={() => openAuthDialog("open comments")}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
+            aria-label="Open comments"
+          >
+            <span className="text-sm leading-none" aria-hidden="true">💬</span>
+            <span>{post._count.comments}</span>
+          </button>
+        ) : (
+          <Link
+            href={post.permalinkPath}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
+            aria-label="Open comments"
+          >
+            <span className="text-sm leading-none" aria-hidden="true">💬</span>
+            <span>{post._count.comments}</span>
+          </Link>
+        )}
         <button
           type="button"
           onClick={handleLike}
@@ -1854,7 +1945,14 @@ export default function PostCard({
             {liked ? "Unlike" : "Like"}
           </span>
         </button>
-        <LikersListTrigger kind="post" targetId={post.id} likeCount={likeCount} />
+        <LikersListTrigger
+          kind="post"
+          targetId={post.id}
+          likeCount={likeCount}
+          onRequireAuth={
+            needsAuthForInteractions ? () => openAuthDialog("view likes") : undefined
+          }
+        />
         <button
           type="button"
           onClick={() => {
@@ -1888,10 +1986,17 @@ export default function PostCard({
       {post.commentPreviews && post.commentPreviews.length > 0 && (
         <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
           {post.commentPreviews.map((preview) => (
-            <Link
+            <button
               key={preview.id}
-              href={post.permalinkPath}
-              className="block rounded-lg bg-slate-50 px-3 py-2 transition-colors hover:bg-slate-100"
+              type="button"
+              onClick={() => {
+                if (needsAuthForInteractions) {
+                  openAuthDialog("open comments");
+                  return;
+                }
+                router.push(post.permalinkPath);
+              }}
+              className="block w-full rounded-lg bg-slate-50 px-3 py-2 text-left transition-colors hover:bg-slate-100"
             >
               <p className="text-[11px] text-slate-500">
                 <span className="font-medium text-slate-700">{preview.author.name}</span> · {timeAgo(preview.createdAt)}
@@ -1899,14 +2004,24 @@ export default function PostCard({
               <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-xs text-slate-700">
                 {preview.content}
               </p>
-            </Link>
+            </button>
           ))}
-          <Link
-            href={post.permalinkPath}
-            className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
-          >
-            Open discussion →
-          </Link>
+          {needsAuthForInteractions ? (
+            <button
+              type="button"
+              onClick={() => openAuthDialog("open discussion")}
+              className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+            >
+              Open discussion →
+            </button>
+          ) : (
+            <Link
+              href={post.permalinkPath}
+              className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+            >
+              Open discussion →
+            </Link>
+          )}
         </div>
       )}
       </article>

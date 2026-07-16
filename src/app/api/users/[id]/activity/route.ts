@@ -15,9 +15,7 @@ export async function GET(
   ctx: RouteContext<"/api/users/[id]/activity">
 ) {
   const session = await getSession();
-  if (!session) {
-    return Response.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const viewerId = session?.userId ?? "__guest__";
 
   const { id } = await ctx.params;
   const { searchParams } = new URL(request.url);
@@ -30,6 +28,10 @@ export async function GET(
       ? tab
       : "posts";
 
+  if (!session && activeTab !== "posts") {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
   const profileUser = await prisma.user.findUnique({
     where: { id },
     select: { id: true, isPage: true },
@@ -40,14 +42,14 @@ export async function GET(
   }
 
   const access = await getProfileActivityAccess({
-    viewerId: session.userId,
+    viewerId,
     profileId: id,
     isPage: profileUser.isPage,
   });
 
   if (activeTab === "comments") {
     const page = await getProfileCommentsPage({
-      viewerId: session.userId,
+      viewerId,
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       canViewActivity: access.canViewActivity,
@@ -60,7 +62,7 @@ export async function GET(
 
   if (activeTab === "likes") {
     const page = await getProfileLikedPostsPage({
-      viewerId: session.userId,
+      viewerId,
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       canViewActivity: access.canViewActivity,
@@ -73,7 +75,7 @@ export async function GET(
 
   if (activeTab === "hidden") {
     const page = await getProfileHiddenPostsPage({
-      viewerId: session.userId,
+      viewerId,
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       cursor,
@@ -85,7 +87,7 @@ export async function GET(
 
   if (activeTab === "bookmarks") {
     const page = await getProfileBookmarkedPostsPage({
-      viewerId: session.userId,
+      viewerId,
       profileId: id,
       isOwnProfile: access.isOwnProfile,
       cursor,
@@ -96,7 +98,7 @@ export async function GET(
   }
 
   const page = await getProfilePostsPage({
-    viewerId: session.userId,
+    viewerId,
     profileId: id,
     isOwnProfile: access.isOwnProfile,
     cursor,

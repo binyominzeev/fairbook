@@ -1,9 +1,10 @@
 import { getSession } from "@/lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Avatar from "@/components/Avatar";
 import IconNavLink from "@/components/IconNavLink";
 import Navbar from "@/components/Navbar";
+import PublicNavbar from "@/components/PublicNavbar";
 import FollowButton from "@/components/FollowButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
 import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
@@ -33,7 +34,7 @@ export default async function ProfilePage(props: {
   const { tab, settings, q } = await props.searchParams;
   const query = q?.trim() ?? "";
   const session = await getSession();
-  if (!session) redirect("/login");
+  const viewerId = session?.userId ?? "__guest__";
 
   const requestedTab =
     tab === "likes" || tab === "bookmarks" || tab === "comments" || tab === "hidden"
@@ -41,24 +42,26 @@ export default async function ProfilePage(props: {
       : "posts";
   const showSettings = settings === "1";
 
-  const currentUser = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      email: true,
-      avatarUrl: true,
-      hideViolentFeed: true,
-      profileActivityViewMode: true,
-    },
-  });
-  if (!currentUser) redirect("/login");
-  const isAdmin = isAdminEmail(currentUser.email);
+  const currentUser = session
+    ? await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          hideViolentFeed: true,
+          profileActivityViewMode: true,
+        },
+      })
+    : null;
+  const isLoggedIn = Boolean(currentUser);
+  const isAdmin = currentUser ? isAdminEmail(currentUser.email) : false;
   const commentInsightsEnabled = isAdmin ? await getCommentInsightsEnabled() : true;
 
   const profileActivityViewMode: ProfileActivityViewMode =
-    currentUser.profileActivityViewMode === "reels" ? "reels" : "normal";
+    currentUser?.profileActivityViewMode === "reels" ? "reels" : "normal";
 
   const profileUser = await resolveUserByProfileIdentifier(id, {
     id: true,
@@ -86,7 +89,7 @@ export default async function ProfilePage(props: {
 
   const { isOwnProfile, isFollowing, canViewActivity } =
     await getProfileActivityAccess({
-      viewerId: session.userId,
+      viewerId,
       profileId: profileUser.id,
       isPage: profileUser.isPage,
     });
@@ -96,7 +99,7 @@ export default async function ProfilePage(props: {
         where: {
           authorId: profileUser.id,
           moderationStatus: "visible",
-          ...buildVisibleCommunityPostWhere(session.userId),
+          ...buildVisibleCommunityPostWhere(viewerId),
         },
       });
   const canUseHiddenTab = isOwnProfile;
@@ -142,7 +145,7 @@ export default async function ProfilePage(props: {
   const initialPostsPage =
     activeTab === "likes"
       ? await getProfileLikedPostsPage({
-          viewerId: session.userId,
+          viewerId,
           profileId: profileUser.id,
           isOwnProfile,
           canViewActivity,
@@ -150,20 +153,20 @@ export default async function ProfilePage(props: {
         })
       : activeTab === "bookmarks"
         ? await getProfileBookmarkedPostsPage({
-            viewerId: session.userId,
+          viewerId,
             profileId: profileUser.id,
             isOwnProfile,
             query,
           })
       : activeTab === "hidden"
         ? await getProfileHiddenPostsPage({
-            viewerId: session.userId,
+          viewerId,
             profileId: profileUser.id,
             isOwnProfile,
             query,
           })
       : await getProfilePostsPage({
-          viewerId: session.userId,
+          viewerId,
           profileId: profileUser.id,
           isOwnProfile,
           query,
@@ -171,7 +174,7 @@ export default async function ProfilePage(props: {
   const initialCommentsPage =
     activeTab === "comments"
       ? await getProfileCommentsPage({
-          viewerId: session.userId,
+          viewerId,
           profileId: profileUser.id,
           isOwnProfile,
           canViewActivity,
@@ -183,7 +186,7 @@ export default async function ProfilePage(props: {
 
   return (
     <>
-      <Navbar user={currentUser} />
+      {currentUser ? <Navbar user={currentUser} /> : <PublicNavbar />}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {/* Profile header */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -249,7 +252,7 @@ export default async function ProfilePage(props: {
                 </div>
               </div>
             </div>
-            {isOwnProfile ? (
+            {isOwnProfile && currentUser ? (
               <Link
                 href={buildProfileHref(activeTab, !showSettings)}
                 aria-label={showSettings ? "Beállítások bezárása" : "Beállítások megnyitása"}
@@ -277,17 +280,28 @@ export default async function ProfilePage(props: {
                 </svg>
               </Link>
             ) : (
-              <FollowButton
-                targetUserId={profileUser.id}
-                initialIsFollowing={isFollowing}
-              />
+              <>
+                {currentUser ? (
+                  <FollowButton
+                    targetUserId={profileUser.id}
+                    initialIsFollowing={isFollowing}
+                  />
+                ) : (
+                  <Link
+                    href="/login?mode=register"
+                    className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  >
+                    Register to follow
+                  </Link>
+                )}
+              </>
             )}
           </div>
         </div>
 
         {canViewActivity ? (
           <>
-            {isOwnProfile && showSettings && (
+            {isOwnProfile && showSettings && currentUser && (
               <ProfileAvatarEditor
                 userId={profileUser.id}
                 slug={profileUser.slug}
@@ -337,7 +351,9 @@ export default async function ProfilePage(props: {
                   />
                 )}
               </div>
-              <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
+              {isOwnProfile && currentUser ? (
+                <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
+              ) : null}
             </div>
 
             {activeTab === "posts" && (
@@ -350,8 +366,9 @@ export default async function ProfilePage(props: {
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentUser?.id ?? ""}
                   isOwnProfile={isOwnProfile}
+                  requireAuthForInteractions={!isLoggedIn}
                   query={query}
                 />
               </>
@@ -367,8 +384,9 @@ export default async function ProfilePage(props: {
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentUser?.id ?? ""}
                   isOwnProfile={isOwnProfile}
+                  requireAuthForInteractions={!isLoggedIn}
                   query={query}
                 />
               </>
@@ -384,8 +402,9 @@ export default async function ProfilePage(props: {
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentUser?.id ?? ""}
                   isOwnProfile={isOwnProfile}
+                  requireAuthForInteractions={!isLoggedIn}
                   query={query}
                 />
               </>
@@ -401,8 +420,9 @@ export default async function ProfilePage(props: {
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentUser?.id ?? ""}
                   isOwnProfile={isOwnProfile}
+                  requireAuthForInteractions={!isLoggedIn}
                   query={query}
                 />
               </>
@@ -418,8 +438,9 @@ export default async function ProfilePage(props: {
                   initialPosts={initialPostsPage.posts}
                   initialComments={initialCommentsPage.comments}
                   initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser.id}
+                  currentUserId={currentUser?.id ?? ""}
                   isOwnProfile={isOwnProfile}
+                  requireAuthForInteractions={!isLoggedIn}
                   query={query}
                 />
               </>
@@ -427,9 +448,8 @@ export default async function ProfilePage(props: {
           </>
         ) : (
           <>
-            <div className="flex items-start justify-between gap-3 px-1">
+            <div className="px-1">
               <h2 className="text-sm font-semibold text-slate-700">Posts</h2>
-              <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
             </div>
             <ProfileActivitySection
               profileId={profileUser.id}
@@ -438,8 +458,9 @@ export default async function ProfilePage(props: {
               initialPosts={initialPostsPage.posts}
               initialComments={initialCommentsPage.comments}
               initialNextCursor={initialNextCursor}
-              currentUserId={currentUser.id}
+              currentUserId={currentUser?.id ?? ""}
               isOwnProfile={isOwnProfile}
+              requireAuthForInteractions={!isLoggedIn}
               query={query}
             />
           </>

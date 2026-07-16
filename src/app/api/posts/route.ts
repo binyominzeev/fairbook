@@ -28,7 +28,14 @@ function normalizeImageUrls(value: unknown) {
   return normalized.slice(0, MAX_IMAGE_COUNT);
 }
 
-function buildModerationMessage(moderation: Awaited<ReturnType<typeof moderatePost>>) {
+function buildModerationMessage(
+  moderation: Awaited<ReturnType<typeof moderatePost>>,
+  options?: { forcedPrivate?: boolean }
+) {
+  if (options?.forcedPrivate) {
+    return "Post created as private. Only you can see it.";
+  }
+
   if (moderation.source === "fallback") {
     return `Moderation issue: ${moderation.diagnostic ?? moderation.reasonShort}. Post is visible only to you until this is fixed.`;
   }
@@ -104,9 +111,11 @@ export async function POST(request: NextRequest) {
     imageUrls,
     isTextCard,
     communityId,
+    visibility,
     preModeration,
   } =
     await request.json();
+  const forcedPrivate = visibility === "private";
   const normalizedImageUrls = normalizeImageUrls(imageUrls);
 
   if (!content && !sharedUrl && normalizedImageUrls.length === 0) {
@@ -123,20 +132,33 @@ export async function POST(request: NextRequest) {
     .join("\n");
 
   const key = `${(content ?? "").trim()}||${(sharedUrl ?? "").trim()}`;
-  let moderation = null;
+  let moderation: Awaited<ReturnType<typeof moderatePost>> = await moderatePost({
+    postContent: content ?? undefined,
+    sharedContent: sharedContent || undefined,
+  });
   if (
     preModeration &&
     typeof preModeration === "object" &&
     preModeration.moderation &&
     preModeration.content === key
   ) {
-    moderation = preModeration.moderation;
-  } else {
-    moderation = await moderatePost({
-      postContent: content ?? undefined,
-      sharedContent: sharedContent || undefined,
-    });
+    moderation = {
+      ...moderation,
+      ...(preModeration.moderation as Partial<Awaited<ReturnType<typeof moderatePost>>>),
+    };
   }
+
+  const finalModerationStatus = forcedPrivate ? "author_only" : moderation.status;
+  const finalModerationReason = forcedPrivate
+    ? "Private visibility selected"
+    : finalModerationStatus === "author_only"
+      ? moderation.reasonShort
+      : null;
+  const finalModerationExplanation = forcedPrivate
+    ? "This post is visible only to you because you selected private visibility."
+    : finalModerationStatus === "author_only"
+      ? moderation.explanation
+      : null;
 
   let resolvedCommunityId: string | null = null;
   if (typeof communityId === "string" && communityId.trim()) {
@@ -192,11 +214,9 @@ export async function POST(request: NextRequest) {
       sharedImageUrl,
       imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       isTextCard: isTextCard === true,
-      moderationStatus: moderation.status,
-      moderationReason:
-        moderation.status === "author_only" ? moderation.reasonShort : null,
-      moderationExplanation:
-        moderation.status === "author_only" ? moderation.explanation : null,
+      moderationStatus: finalModerationStatus,
+      moderationReason: finalModerationReason,
+      moderationExplanation: finalModerationExplanation,
       moderatedAt: new Date(),
       createdAt,
       fetchedAt: createdAt,
@@ -206,7 +226,7 @@ export async function POST(request: NextRequest) {
     include: buildPostInclude(session.userId),
   });
 
-  if (moderation.status === "visible" && resolvedCommunityId) {
+  if (finalModerationStatus === "visible" && resolvedCommunityId) {
     void createGroupPostNotifications({
       actorId: session.userId,
       communityId: resolvedCommunityId,
@@ -214,7 +234,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (moderation.status === "visible" && !resolvedCommunityId) {
+  if (finalModerationStatus === "visible" && !resolvedCommunityId) {
     void createFollowedUserPostNotifications({
       actorId: session.userId,
       postId: post.id,
@@ -224,8 +244,13 @@ export async function POST(request: NextRequest) {
   return Response.json(
     {
       post: serializePost(post),
-      moderation,
-      message: buildModerationMessage(moderation),
+      moderation: {
+        ...moderation,
+        status: finalModerationStatus,
+        reasonShort: finalModerationReason,
+        explanation: finalModerationExplanation,
+      },
+      message: buildModerationMessage(moderation, { forcedPrivate }),
     },
     { status: 201 }
   );
