@@ -1,21 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export default function QuerySyncSearchInput({
-  name = "q",
-  initialValue = "",
-  debounceMs = 300,
-  placeholder,
-  className,
-}: {
+type QuerySyncSearchInputProps = {
   name?: string;
   initialValue?: string;
   debounceMs?: number;
   placeholder: string;
   className?: string;
-}) {
+};
+
+function QuerySyncSearchInputInner({
+  name = "q",
+  initialValue = "",
+  debounceMs = 300,
+  placeholder,
+  className,
+}: QuerySyncSearchInputProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,5 +57,23 @@ export default function QuerySyncSearchInput({
       placeholder={placeholder}
       className={className}
     />
+  );
+}
+
+export default function QuerySyncSearchInput(props: QuerySyncSearchInputProps) {
+  return (
+    <Suspense
+      fallback={
+        <input
+          type="search"
+          name={props.name ?? "q"}
+          defaultValue={props.initialValue ?? ""}
+          placeholder={props.placeholder}
+          className={props.className}
+        />
+      }
+    >
+      <QuerySyncSearchInputInner {...props} />
+    </Suspense>
   );
 }

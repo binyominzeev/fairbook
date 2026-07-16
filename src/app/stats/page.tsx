@@ -185,7 +185,7 @@ export default async function StatsPage(props: {
               dashboard.topKnownVisitors.map((row) => (
                 <div key={row.user.id} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
                   <Link
-                    href={buildProfilePath({ id: row.user.id, slug: row.user.slug, name: row.user.name })}
+                    href={buildProfilePath({ id: row.user.id, slug: row.user.slug })}
                     className="text-slate-700 hover:text-slate-900"
                   >
                     {row.user.name}

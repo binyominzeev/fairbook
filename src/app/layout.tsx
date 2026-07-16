@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import TrafficTracker from "@/components/TrafficTracker";
@@ -19,7 +20,9 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-slate-50 font-sans">
         <ServiceWorkerRegistration />
-        <TrafficTracker />
+        <Suspense fallback={null}>
+          <TrafficTracker />
+        </Suspense>
         {children}
         <footer className="mt-auto border-t border-slate-200 bg-white/90 backdrop-blur-sm">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 text-sm text-slate-500 sm:px-6">
