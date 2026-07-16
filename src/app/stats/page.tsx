@@ -22,8 +22,16 @@ function formatPercent(value: number) {
   return `${value >= 0 ? "+" : ""}${formatDecimal(value, 1)}%`;
 }
 
-function formatDurationHours(value: number) {
-  return `${formatDecimal(value, 1)} ora`;
+function formatDurationSmartFromHours(value: number) {
+  const totalMinutes = Math.max(0, Math.round(value * 60));
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes} perc`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours} ora ${minutes} perc` : `${hours} ora`;
 }
 
 type SearchParams = {
@@ -110,7 +118,7 @@ export default async function StatsPage(props: {
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Atlag aktiv ido / session</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{formatDecimal(dashboard.overview.avgActiveMinutesPerSession)} perc</p>
-            <p className="mt-1 text-xs text-slate-500">ossz aktiv ido: {formatDurationHours(dashboard.overview.totalActiveHours)}</p>
+            <p className="mt-1 text-xs text-slate-500">ossz aktiv ido: {formatDurationSmartFromHours(dashboard.overview.totalActiveHours)}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Engaged / Bounce</p>
@@ -191,7 +199,7 @@ export default async function StatsPage(props: {
                     {row.user.name}
                   </Link>
                   <span className="text-slate-500">
-                    {formatInt(row.sessions)} session • {formatDurationHours(row.activeHours)}
+                    {formatInt(row.sessions)} session • {formatDurationSmartFromHours(row.activeHours)}
                   </span>
                 </div>
               ))
