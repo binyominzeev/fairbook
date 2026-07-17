@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
+import { normalizeAndOptimizeAvatarUrl } from "@/lib/avatar-image";
 import {
   isCommunityModeratorRole,
-  normalizeCommunityAvatarUrl,
   normalizeCommunityDescription,
   normalizeCommunityName,
 } from "@/lib/communities";
@@ -142,7 +142,9 @@ export async function PATCH(
   let avatarUrl: string | null | undefined;
   if (shouldUpdateAvatar) {
     try {
-      avatarUrl = normalizeCommunityAvatarUrl((body as { avatarUrl?: unknown }).avatarUrl);
+      avatarUrl = await normalizeAndOptimizeAvatarUrl(
+        (body as { avatarUrl?: unknown }).avatarUrl
+      );
     } catch (error) {
       return Response.json(
         { error: error instanceof Error ? error.message : "Invalid avatar." },

@@ -4,8 +4,6 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/Avatar";
 
-const MAX_FILE_SIZE = 1024 * 1024;
-
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -43,11 +41,6 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
 
     if (!file.type.startsWith("image/")) {
       setFileError("Only image files are allowed.");
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setFileError("Group avatar must be at most 1 MB.");
       return;
     }
 
@@ -97,7 +90,8 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Group avatar</h2>
           <p className="mt-1 text-xs text-slate-500">
-            JPG, PNG, WebP or GIF, up to 1 MB.
+            JPG, PNG, WebP or GIF. The server optimizes uploaded avatars to stay under
+            1 MB.
           </p>
         </div>
 

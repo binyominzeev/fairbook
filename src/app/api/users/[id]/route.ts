@@ -1,35 +1,9 @@
 import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { getCommentInsightsEnabled, setCommentInsightsEnabled } from "@/lib/app-config";
+import { normalizeAndOptimizeAvatarUrl } from "@/lib/avatar-image";
 import { prisma } from "@/lib/prisma";
 import { claimRequestedUserSlug } from "@/lib/user-slugs";
-
-function normalizeAvatarUrl(value: unknown) {
-  if (typeof value !== "string") return null;
-
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) {
-    if (trimmed.length > 1_500_000) {
-      throw new Error("Avatar image is too large.");
-    }
-    return trimmed;
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(trimmed);
-  } catch {
-    throw new Error("Avatar must be a valid image URL.");
-  }
-
-  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-    throw new Error("Avatar must use http or https.");
-  }
-
-  return parsedUrl.toString();
-}
 
 export async function GET(
   _req: Request,
@@ -94,7 +68,7 @@ export async function PATCH(
   let slug: string | undefined;
   if (shouldUpdateAvatar) {
     try {
-      avatarUrl = normalizeAvatarUrl(body.avatarUrl);
+      avatarUrl = await normalizeAndOptimizeAvatarUrl(body.avatarUrl);
     } catch (error) {
       return Response.json(
         { error: error instanceof Error ? error.message : "Invalid avatar." },

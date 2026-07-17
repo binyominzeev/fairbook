@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
+import { normalizeAndOptimizeAvatarUrl } from "@/lib/avatar-image";
 import {
   ensureUniqueCommunitySlug,
-  normalizeCommunityAvatarUrl,
   normalizeCommunityDescription,
   normalizeCommunityName,
 } from "@/lib/communities";
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   let avatarUrl: string | null | undefined;
   if (avatarInput !== undefined) {
     try {
-      avatarUrl = normalizeCommunityAvatarUrl(avatarInput);
+      avatarUrl = await normalizeAndOptimizeAvatarUrl(avatarInput);
     } catch (error) {
       return Response.json(
         { error: error instanceof Error ? error.message : "Invalid avatar." },

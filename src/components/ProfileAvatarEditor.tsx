@@ -6,8 +6,6 @@ import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import { buildProfilePath } from "@/lib/profile-path";
 
-const MAX_FILE_SIZE = 1024 * 1024;
-
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -67,11 +65,6 @@ export default function ProfileAvatarEditor({
 
     if (!file.type.startsWith("image/")) {
       setFileError("Csak képfájl tölthető fel.");
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setFileError("A profilkép legfeljebb 1 MB lehet.");
       return;
     }
 
@@ -185,7 +178,8 @@ export default function ProfileAvatarEditor({
               <div>
                 <p className="text-sm font-medium text-slate-900">Profilkép</p>
                 <p className="text-xs text-slate-500">
-                  JPG, PNG, WebP vagy GIF, maximum 1 MB.
+                  JPG, PNG, WebP vagy GIF. Feltöltés után a szerver automatikusan
+                  1 MB alá optimalizálja.
                 </p>
               </div>
               <input
