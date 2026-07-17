@@ -6,6 +6,16 @@ import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import { buildProfilePath } from "@/lib/profile-path";
 
+async function readJsonSafe(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return { error: text || `Request failed (${response.status}).` };
+}
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -39,6 +49,7 @@ export default function ProfileAvatarEditor({
   const router = useRouter();
   const [draftSlug, setDraftSlug] = useState(slug ?? "");
   const [draftAvatarUrl, setDraftAvatarUrl] = useState(avatarUrl ?? null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const [draftHideViolentFeed, setDraftHideViolentFeed] = useState(hideViolentFeed);
   const [draftCommentInsightsEnabled, setDraftCommentInsightsEnabled] =
     useState(commentInsightsEnabled);
@@ -71,9 +82,27 @@ export default function ProfileAvatarEditor({
     try {
       const dataUrl = await readFileAsDataUrl(file);
       setDraftAvatarUrl(dataUrl);
+      setPendingAvatarFile(file);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "A kép beolvasása sikertelen volt.");
     }
+  };
+
+  const uploadPendingAvatar = async (file: File) => {
+    const formData = new FormData();
+    formData.set("file", file);
+
+    const response = await fetch("/api/uploads/avatars", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await readJsonSafe(response);
+    if (!response.ok || typeof data?.url !== "string") {
+      throw new Error(data?.error ?? "A profilkép feltöltése sikertelen volt.");
+    }
+
+    return data.url;
   };
 
   const saveAvatar = async (nextAvatarUrl: string | null) => {
@@ -82,17 +111,21 @@ export default function ProfileAvatarEditor({
     setSaveSuccess("");
 
     try {
+      const resolvedAvatarUrl = pendingAvatarFile
+        ? await uploadPendingAvatar(pendingAvatarFile)
+        : nextAvatarUrl;
+
       const response = await fetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug: draftSlug,
-          avatarUrl: nextAvatarUrl,
+          avatarUrl: resolvedAvatarUrl,
           hideViolentFeed: draftHideViolentFeed,
           ...(isAdmin ? { commentInsightsEnabled: draftCommentInsightsEnabled } : {}),
         }),
       });
-      const data = await response.json();
+      const data = await readJsonSafe(response);
 
       if (!response.ok) {
         setSaveError(data.error ?? "A profilkép mentése sikertelen volt.");
@@ -100,6 +133,7 @@ export default function ProfileAvatarEditor({
       }
 
       setDraftAvatarUrl(data.user.avatarUrl ?? null);
+      setPendingAvatarFile(null);
       setDraftSlug(data.user.slug ?? "");
       setDraftHideViolentFeed(Boolean(data.user.hideViolentFeed));
       if (isAdmin && data.appConfig) {
@@ -201,6 +235,7 @@ export default function ProfileAvatarEditor({
                   type="button"
                   onClick={() => {
                     setDraftAvatarUrl(null);
+                    setPendingAvatarFile(null);
                     setFileError("");
                     setSaveError("");
                     setSaveSuccess("");

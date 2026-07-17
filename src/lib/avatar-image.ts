@@ -1,22 +1,10 @@
 import sharp from "sharp";
 
-const MAX_AVATAR_BYTES = 1024 * 1024;
+export const MAX_AVATAR_BYTES = 1024 * 1024;
 const MAX_INPUT_DATA_URL_CHARS = 20_000_000;
 const DATA_URL_REGEX = /^data:image\/(png|jpeg|jpg|webp|gif);base64,([a-z0-9+/=\s]+)$/i;
 
-async function optimizeAvatarDataUrl(dataUrl: string) {
-  if (dataUrl.length > MAX_INPUT_DATA_URL_CHARS) {
-    throw new Error("Avatar image is too large to process.");
-  }
-
-  const match = dataUrl.match(DATA_URL_REGEX);
-  if (!match) {
-    throw new Error("Avatar must be a valid image URL.");
-  }
-
-  const base64Payload = match[2].replace(/\s+/g, "");
-  const inputBuffer = Buffer.from(base64Payload, "base64");
-
+export async function optimizeAvatarBufferToWebp(inputBuffer: Buffer) {
   if (inputBuffer.length === 0) {
     throw new Error("Avatar image data is invalid.");
   }
@@ -43,12 +31,28 @@ async function optimizeAvatarDataUrl(dataUrl: string) {
         .toBuffer();
 
       if (outputBuffer.length <= MAX_AVATAR_BYTES) {
-        return `data:image/webp;base64,${outputBuffer.toString("base64")}`;
+        return outputBuffer;
       }
     }
   }
 
   throw new Error("Avatar image is too large. Please use a smaller image.");
+}
+
+async function optimizeAvatarDataUrl(dataUrl: string) {
+  if (dataUrl.length > MAX_INPUT_DATA_URL_CHARS) {
+    throw new Error("Avatar image is too large to process.");
+  }
+
+  const match = dataUrl.match(DATA_URL_REGEX);
+  if (!match) {
+    throw new Error("Avatar must be a valid image URL.");
+  }
+
+  const base64Payload = match[2].replace(/\s+/g, "");
+  const inputBuffer = Buffer.from(base64Payload, "base64");
+  const outputBuffer = await optimizeAvatarBufferToWebp(inputBuffer);
+  return `data:image/webp;base64,${outputBuffer.toString("base64")}`;
 }
 
 export async function normalizeAndOptimizeAvatarUrl(value: unknown) {

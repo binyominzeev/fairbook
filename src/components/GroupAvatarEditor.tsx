@@ -4,6 +4,16 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/Avatar";
 
+async function readJsonSafe(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return { error: text || `Request failed (${response.status}).` };
+}
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -22,6 +32,7 @@ interface Props {
 export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl }: Props) {
   const router = useRouter();
   const [draftAvatarUrl, setDraftAvatarUrl] = useState(avatarUrl ?? null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [fileError, setFileError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -47,9 +58,27 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
     try {
       const dataUrl = await readFileAsDataUrl(file);
       setDraftAvatarUrl(dataUrl);
+      setPendingAvatarFile(file);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "Failed to read image.");
     }
+  };
+
+  const uploadPendingAvatar = async (file: File) => {
+    const formData = new FormData();
+    formData.set("file", file);
+
+    const response = await fetch("/api/uploads/avatars", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await readJsonSafe(response);
+    if (!response.ok || typeof data?.url !== "string") {
+      throw new Error(data?.error ?? "Failed to upload group avatar.");
+    }
+
+    return data.url;
   };
 
   const saveAvatar = async (nextAvatarUrl: string | null) => {
@@ -58,14 +87,18 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
     setSaveSuccess("");
 
     try {
+      const resolvedAvatarUrl = pendingAvatarFile
+        ? await uploadPendingAvatar(pendingAvatarFile)
+        : nextAvatarUrl;
+
       const response = await fetch(`/api/communities/${encodeURIComponent(groupIdOrSlug)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          avatarUrl: nextAvatarUrl,
+          avatarUrl: resolvedAvatarUrl,
         }),
       });
-      const data = await response.json();
+      const data = await readJsonSafe(response);
 
       if (!response.ok) {
         setSaveError(data.error ?? "Failed to save group avatar.");
@@ -73,6 +106,7 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
       }
 
       setDraftAvatarUrl(data.community?.avatarUrl ?? null);
+      setPendingAvatarFile(null);
       setSaveSuccess("Group avatar saved.");
       startTransition(() => {
         router.refresh();
@@ -122,6 +156,7 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
                 type="button"
                 onClick={() => {
                   setDraftAvatarUrl(null);
+                  setPendingAvatarFile(null);
                   setFileError("");
                   setSaveError("");
                   setSaveSuccess("");
