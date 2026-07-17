@@ -6,6 +6,9 @@ import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import { buildProfilePath } from "@/lib/profile-path";
 
+const MAX_AVATAR_DIMENSION = 1600;
+const AVATAR_WEBP_QUALITY = 0.82;
+
 async function readJsonSafe(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -23,6 +26,44 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(new Error("Failed to read the selected image."));
     reader.readAsDataURL(file);
   });
+}
+
+async function compressAvatarImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+
+  let targetWidth = width;
+  let targetHeight = height;
+  const largestSide = Math.max(width, height);
+  if (largestSide > MAX_AVATAR_DIMENSION) {
+    const ratio = MAX_AVATAR_DIMENSION / largestSide;
+    targetWidth = Math.round(width * ratio);
+    targetHeight = Math.round(height * ratio);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Failed to process image.");
+  }
+
+  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", AVATAR_WEBP_QUALITY);
+  });
+
+  if (!blob) {
+    throw new Error("Failed to compress image.");
+  }
+
+  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "avatar";
+  return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
 }
 
 interface Props {
@@ -80,9 +121,10 @@ export default function ProfileAvatarEditor({
     }
 
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const compressedFile = await compressAvatarImage(file);
+      const dataUrl = await readFileAsDataUrl(compressedFile);
       setDraftAvatarUrl(dataUrl);
-      setPendingAvatarFile(file);
+      setPendingAvatarFile(compressedFile);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "A kép beolvasása sikertelen volt.");
     }
@@ -90,19 +132,25 @@ export default function ProfileAvatarEditor({
 
   const uploadPendingAvatar = async (file: File) => {
     const formData = new FormData();
-    formData.set("file", file);
+    formData.append("files", file);
 
-    const response = await fetch("/api/uploads/avatars", {
+    const response = await fetch("/api/uploads/images", {
       method: "POST",
       body: formData,
     });
 
+    if (response.status === 413) {
+      throw new Error(
+        "A kép túl nagy a szerver feltöltési limitjéhez (413). Növeld az nginx client_max_body_size értékét."
+      );
+    }
+
     const data = await readJsonSafe(response);
-    if (!response.ok || typeof data?.url !== "string") {
+    if (!response.ok || !Array.isArray(data?.urls) || typeof data.urls[0] !== "string") {
       throw new Error(data?.error ?? "A profilkép feltöltése sikertelen volt.");
     }
 
-    return data.url;
+    return data.urls[0];
   };
 
   const saveAvatar = async (nextAvatarUrl: string | null) => {
@@ -144,8 +192,10 @@ export default function ProfileAvatarEditor({
         router.push(buildProfilePath({ id: data.user.id, slug: data.user.slug }));
         router.refresh();
       });
-    } catch {
-      setSaveError("A profilkép mentése sikertelen volt.");
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "A profilkép mentése sikertelen volt."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -212,8 +262,8 @@ export default function ProfileAvatarEditor({
               <div>
                 <p className="text-sm font-medium text-slate-900">Profilkép</p>
                 <p className="text-xs text-slate-500">
-                  JPG, PNG, WebP vagy GIF. Feltöltés után a szerver automatikusan
-                  1 MB alá optimalizálja.
+                  JPG, PNG, WebP vagy GIF. A böngésző feltöltés előtt tömöríti,
+                  ugyanazzal a folyamattal, mint a posztképeknél.
                 </p>
               </div>
               <input

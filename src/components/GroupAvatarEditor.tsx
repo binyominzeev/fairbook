@@ -4,6 +4,9 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/Avatar";
 
+const MAX_AVATAR_DIMENSION = 1600;
+const AVATAR_WEBP_QUALITY = 0.82;
+
 async function readJsonSafe(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -21,6 +24,44 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(new Error("Failed to read the selected image."));
     reader.readAsDataURL(file);
   });
+}
+
+async function compressAvatarImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
+
+  let targetWidth = width;
+  let targetHeight = height;
+  const largestSide = Math.max(width, height);
+  if (largestSide > MAX_AVATAR_DIMENSION) {
+    const ratio = MAX_AVATAR_DIMENSION / largestSide;
+    targetWidth = Math.round(width * ratio);
+    targetHeight = Math.round(height * ratio);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("Failed to process image.");
+  }
+
+  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/webp", AVATAR_WEBP_QUALITY);
+  });
+
+  if (!blob) {
+    throw new Error("Failed to compress image.");
+  }
+
+  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "avatar";
+  return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
 }
 
 interface Props {
@@ -56,9 +97,10 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
     }
 
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const compressedFile = await compressAvatarImage(file);
+      const dataUrl = await readFileAsDataUrl(compressedFile);
       setDraftAvatarUrl(dataUrl);
-      setPendingAvatarFile(file);
+      setPendingAvatarFile(compressedFile);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "Failed to read image.");
     }
@@ -66,19 +108,25 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
 
   const uploadPendingAvatar = async (file: File) => {
     const formData = new FormData();
-    formData.set("file", file);
+    formData.append("files", file);
 
-    const response = await fetch("/api/uploads/avatars", {
+    const response = await fetch("/api/uploads/images", {
       method: "POST",
       body: formData,
     });
 
+    if (response.status === 413) {
+      throw new Error(
+        "A kép túl nagy a szerver feltöltési limitjéhez (413). Növeld az nginx client_max_body_size értékét."
+      );
+    }
+
     const data = await readJsonSafe(response);
-    if (!response.ok || typeof data?.url !== "string") {
+    if (!response.ok || !Array.isArray(data?.urls) || typeof data.urls[0] !== "string") {
       throw new Error(data?.error ?? "Failed to upload group avatar.");
     }
 
-    return data.url;
+    return data.urls[0];
   };
 
   const saveAvatar = async (nextAvatarUrl: string | null) => {
@@ -111,8 +159,10 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
       startTransition(() => {
         router.refresh();
       });
-    } catch {
-      setSaveError("Failed to save group avatar.");
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Failed to save group avatar."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -124,8 +174,8 @@ export default function GroupAvatarEditor({ groupIdOrSlug, groupName, avatarUrl 
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Group avatar</h2>
           <p className="mt-1 text-xs text-slate-500">
-            JPG, PNG, WebP or GIF. The server optimizes uploaded avatars to stay under
-            1 MB.
+            JPG, PNG, WebP or GIF. The browser compresses before upload using the same
+            flow as post images.
           </p>
         </div>
 
