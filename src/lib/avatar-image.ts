@@ -69,6 +69,11 @@ export async function normalizeAndOptimizeAvatarUrl(value: unknown) {
     return optimizeAvatarDataUrl(trimmed);
   }
 
+  // Allow app-local uploaded avatar paths returned by /api/uploads/images.
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(trimmed);
