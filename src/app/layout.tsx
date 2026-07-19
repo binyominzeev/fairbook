@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import { Suspense } from "react";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
@@ -16,8 +17,53 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const devCleanupScript = `
+    (function () {
+      var isLocalHost =
+        location.hostname === "localhost" ||
+        location.hostname === "127.0.0.1" ||
+        location.hostname === "0.0.0.0";
+      if (!isLocalHost || !("serviceWorker" in navigator)) {
+        return;
+      }
+
+      navigator.serviceWorker
+        .getRegistrations()
+        .then(function (registrations) {
+          return Promise.all(
+            registrations.map(function (registration) {
+              return registration.unregister();
+            })
+          );
+        })
+        .catch(function () {});
+
+      if ("caches" in window) {
+        caches
+          .keys()
+          .then(function (keys) {
+            return Promise.all(
+              keys.map(function (key) {
+                return caches.delete(key);
+              })
+            );
+          })
+          .catch(function () {});
+      }
+    })();
+  `;
+
   return (
     <html lang="en" className="h-full antialiased">
+      {process.env.NODE_ENV !== "production" ? (
+        <head>
+          <Script
+            id="fairbook-dev-sw-cleanup"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{ __html: devCleanupScript }}
+          />
+        </head>
+      ) : null}
       <body className="min-h-full flex flex-col bg-slate-50 font-sans">
         <ServiceWorkerRegistration />
         <Suspense fallback={null}>

@@ -7,7 +7,10 @@ import Avatar from "@/components/Avatar";
 import { buildProfilePath } from "@/lib/profile-path";
 
 const MAX_AVATAR_DIMENSION = 1600;
-const AVATAR_WEBP_QUALITY = 0.82;
+const AVATAR_MAX_BYTES = 1024 * 1024;
+const AVATAR_QUALITY_STEPS = [0.82, 0.74, 0.66, 0.58, 0.5, 0.42, 0.34];
+const AVATAR_SCALE_STEPS = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
+const PASSTHROUGH_IMAGE_TYPES = new Set(["image/webp", "image/jpeg", "image/png"]);
 
 async function readJsonSafe(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
@@ -29,41 +32,65 @@ function readFileAsDataUrl(file: File) {
 }
 
 async function compressAvatarImage(file: File) {
+  if (file.size <= AVATAR_MAX_BYTES && PASSTHROUGH_IMAGE_TYPES.has(file.type)) {
+    return file;
+  }
+
   const bitmap = await createImageBitmap(file);
   const width = bitmap.width;
   const height = bitmap.height;
 
-  let targetWidth = width;
-  let targetHeight = height;
-  const largestSide = Math.max(width, height);
-  if (largestSide > MAX_AVATAR_DIMENSION) {
-    const ratio = MAX_AVATAR_DIMENSION / largestSide;
-    targetWidth = Math.round(width * ratio);
-    targetHeight = Math.round(height * ratio);
-  }
+  const baseLargestSide = Math.max(width, height);
+  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "avatar";
+  const maxAllowedBytes = Math.min(file.size, AVATAR_MAX_BYTES);
 
   const canvas = document.createElement("canvas");
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
   const context = canvas.getContext("2d");
   if (!context) {
     bitmap.close();
     throw new Error("Failed to process image.");
   }
 
-  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
-  bitmap.close();
+  let smallestBlob: Blob | null = null;
 
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, "image/webp", AVATAR_WEBP_QUALITY);
-  });
+  for (const scale of AVATAR_SCALE_STEPS) {
+    const scaledLargestSide = Math.min(MAX_AVATAR_DIMENSION, Math.round(baseLargestSide * scale));
+    const ratio = Math.min(1, scaledLargestSide / baseLargestSide);
+    const targetWidth = Math.max(1, Math.round(width * ratio));
+    const targetHeight = Math.max(1, Math.round(height * ratio));
 
-  if (!blob) {
-    throw new Error("Failed to compress image.");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    context.clearRect(0, 0, targetWidth, targetHeight);
+    context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+    for (const quality of AVATAR_QUALITY_STEPS) {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/webp", quality);
+      });
+
+      if (!blob) {
+        continue;
+      }
+
+      if (!smallestBlob || blob.size < smallestBlob.size) {
+        smallestBlob = blob;
+      }
+
+      if (blob.size <= maxAllowedBytes) {
+        bitmap.close();
+        return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
+      }
+    }
   }
 
-  const normalizedName = file.name.replace(/\.[^.]+$/, "") || "avatar";
-  return new File([blob], `${normalizedName}.webp`, { type: "image/webp" });
+  bitmap.close();
+
+  if (smallestBlob && smallestBlob.size <= AVATAR_MAX_BYTES) {
+    return new File([smallestBlob], `${normalizedName}.webp`, { type: "image/webp" });
+  }
+
+  throw new Error("A kép túl nagy. Válassz kisebb felbontású képet.");
 }
 
 interface Props {

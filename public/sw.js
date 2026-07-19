@@ -1,4 +1,4 @@
-const SW_VERSION = "v1";
+const SW_VERSION = "v2";
 const STATIC_CACHE = `fairbook-static-${SW_VERSION}`;
 const PAGE_CACHE = `fairbook-pages-${SW_VERSION}`;
 const IMAGE_CACHE = `fairbook-images-${SW_VERSION}`;
@@ -67,6 +67,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Never intercept Next.js internals. Caching HMR/runtime chunks can cause
+  // stale chunk responses and reload loops in dev.
+  if (url.pathname.startsWith("/_next/")) {
+    return;
+  }
+
   if (request.mode === "navigate") {
     event.respondWith(handleNavigationRequest(request, url));
     return;
@@ -121,10 +127,6 @@ async function handleApiGetRequest(request, url) {
 }
 
 function isStaticAssetRequest(request, url) {
-  if (url.pathname.startsWith("/_next/static/")) {
-    return true;
-  }
-
   if (STATIC_PATHS.has(url.pathname)) {
     return true;
   }
