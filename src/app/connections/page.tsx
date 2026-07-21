@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import FollowButton from "@/components/FollowButton";
 import HighlightedText from "@/components/HighlightedText";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
+import AdminResendVerificationButton from "@/components/AdminResendVerificationButton";
 import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/auth";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
@@ -161,6 +162,7 @@ export default async function ConnectionsPage(props: {
                         <p className="mt-0.5 text-[11px] text-slate-500">
                           Regisztráció ideje: {pendingUser.createdAt.toLocaleString("hu-HU")}
                         </p>
+                        <AdminResendVerificationButton userId={pendingUser.id} />
                       </li>
                     ))}
                   </ul>
