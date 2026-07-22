@@ -93,6 +93,7 @@ interface PostData {
   canDeleteByViewer?: boolean;
   community?: Community | null;
   _count: { comments: number; likes: number; sharedBy: number };
+  uniqueViewerCount?: number;
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: Array<{
     id: string;
@@ -113,6 +114,7 @@ interface Props {
   shareRedirectPath?: string | null;
   showCommunityHeader?: boolean;
   requireAuthForInteractions?: boolean;
+  showUniqueViewerCount?: boolean;
 }
 
 const MAX_EDIT_IMAGES = 4;
@@ -282,6 +284,7 @@ export default function PostCard({
   shareRedirectPath = null,
   showCommunityHeader = true,
   requireAuthForInteractions = false,
+  showUniqueViewerCount = false,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
@@ -1978,6 +1981,11 @@ export default function PostCard({
             {bookmarked ? "Remove bookmark" : "Bookmark"}
           </span>
         </button>
+        {showUniqueViewerCount && typeof post.uniqueViewerCount === "number" && (
+          <span className="ml-auto inline-flex items-center rounded-full px-2 py-1 text-xs text-slate-500">
+            👁 {post.uniqueViewerCount}
+          </span>
+        )}
       </div>
       {actionError && (
         <p className="mt-2 text-xs text-red-600">{actionError}</p>

@@ -63,6 +63,7 @@ export interface SerializedPost {
   sharedPost: SerializedSharedPost | null;
   community: SerializedCommunity | null;
   _count: { comments: number; likes: number; sharedBy: number };
+  uniqueViewerCount?: number;
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: SerializedCommentPreview[];
 }

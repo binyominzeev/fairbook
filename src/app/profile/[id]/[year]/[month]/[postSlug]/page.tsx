@@ -11,6 +11,7 @@ import ThreadReflection from "@/components/ThreadReflection";
 import GenerateReflectionButton from "@/components/GenerateReflectionButton";
 import CommentForm from "@/components/CommentForm";
 import AdminDevSidebar from "@/components/AdminDevSidebar";
+import PostDetailViewTracker from "@/components/PostDetailViewTracker";
 import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
 import { canViewerAccessCommunity } from "@/lib/community-visibility";
@@ -437,6 +438,7 @@ export default async function PostPermalinkPage(props: {
     <>
       {user ? <Navbar user={user} /> : <PublicNavbar />}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        <PostDetailViewTracker postId={post.id} enabled={isLoggedIn} />
         <PostCard
           post={postForCard}
           currentUserId={user?.id ?? ""}

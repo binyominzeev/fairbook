@@ -62,6 +62,7 @@ model User {
   authEmailTokens               AuthEmailToken[]
   trafficSessions             TrafficSession[]
   trafficEvents               TrafficEvent[]
+  postUniqueViews            PostUniqueView[]
 }
 
 model AuthEmailToken {
@@ -128,6 +129,7 @@ model Post {
   notifications Notification[]
   notificationPreferences PostNotificationPreference[]
   trafficEvents TrafficEvent[]
+  uniqueViews PostUniqueView[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -636,4 +638,18 @@ model TrafficEvent {
   @@index([eventType, createdAt])
   @@index([routeType, createdAt])
   @@index([sessionId, createdAt])
+}
+
+model PostUniqueView {
+  id        String   @id @default(cuid())
+  postId    String
+  viewerId  String
+  createdAt DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  viewer User @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, viewerId])
+  @@index([postId])
+  @@index([viewerId])
 }

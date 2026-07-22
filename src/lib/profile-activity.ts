@@ -76,6 +76,32 @@ async function attachCommentPreviews(posts: SerializedPost[]): Promise<Serialize
   }));
 }
 
+async function attachUniqueViewerCounts(
+  posts: SerializedPost[],
+  isOwnProfile: boolean
+): Promise<SerializedPost[]> {
+  if (!isOwnProfile || posts.length === 0) {
+    return posts;
+  }
+
+  const postIds = posts.map((post) => post.id);
+  const grouped = await prisma.postUniqueView.groupBy({
+    by: ["postId"],
+    where: { postId: { in: postIds } },
+    _count: { _all: true },
+  });
+
+  const countsByPostId = new Map<string, number>();
+  for (const row of grouped) {
+    countsByPostId.set(row.postId, row._count._all);
+  }
+
+  return posts.map((post) => ({
+    ...post,
+    uniqueViewerCount: countsByPostId.get(post.id) ?? 0,
+  }));
+}
+
 function buildPostSearchWhere(query: string): Prisma.PostWhereInput {
   return {
     OR: [
@@ -189,9 +215,10 @@ export async function getProfilePostsPage({
   const hasMore = batch.length > PROFILE_POST_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_POST_PAGE_SIZE) : batch;
   const serialized = items.map((post: PostRecord) => serializePost(post));
+  const withViewerCounts = await attachUniqueViewerCounts(serialized, isOwnProfile);
 
   return {
-    posts: await attachCommentPreviews(serialized),
+    posts: await attachCommentPreviews(withViewerCounts),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

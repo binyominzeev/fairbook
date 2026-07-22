@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import HighlightedText from "@/components/HighlightedText";
 import PostCard from "@/components/PostCard";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
@@ -16,6 +16,128 @@ import type {
 } from "@/lib/profile-activity";
 
 type ProfilePostTab = "posts" | "likes" | "bookmarks" | "hidden";
+type TrackSource = "profile_card" | "post_detail";
+
+function useProfilePostViewTracking({
+  enabled,
+  currentUserId,
+  source,
+}: {
+  enabled: boolean;
+  currentUserId: string;
+  source: TrackSource;
+}) {
+  const trackedPostIdsRef = useRef(new Set<string>());
+  const pendingPostIdsRef = useRef(new Set<string>());
+  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushPending = useCallback(() => {
+    if (!enabled || !currentUserId) {
+      pendingPostIdsRef.current.clear();
+      return;
+    }
+
+    const postIds = Array.from(pendingPostIdsRef.current);
+    if (postIds.length === 0) {
+      return;
+    }
+
+    pendingPostIdsRef.current.clear();
+    void fetch("/api/posts/views/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      keepalive: true,
+      body: JSON.stringify({ postIds, source }),
+    }).catch(() => {
+      // Ignore transient tracking failures to keep UI responsive.
+    });
+  }, [currentUserId, enabled, source]);
+
+  const markPostVisible = useCallback(
+    (postId: string) => {
+      if (!enabled || !currentUserId) {
+        return;
+      }
+
+      if (trackedPostIdsRef.current.has(postId)) {
+        return;
+      }
+
+      trackedPostIdsRef.current.add(postId);
+      pendingPostIdsRef.current.add(postId);
+
+      if (pendingPostIdsRef.current.size >= 20) {
+        if (flushTimeoutRef.current) {
+          clearTimeout(flushTimeoutRef.current);
+          flushTimeoutRef.current = null;
+        }
+        flushPending();
+        return;
+      }
+
+      if (!flushTimeoutRef.current) {
+        flushTimeoutRef.current = setTimeout(() => {
+          flushTimeoutRef.current = null;
+          flushPending();
+        }, 500);
+      }
+    },
+    [currentUserId, enabled, flushPending]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (flushTimeoutRef.current) {
+        clearTimeout(flushTimeoutRef.current);
+        flushTimeoutRef.current = null;
+      }
+      flushPending();
+    };
+  }, [flushPending]);
+
+  return markPostVisible;
+}
+
+function TrackOnVisible({
+  children,
+  onVisible,
+  disabled = false,
+}: {
+  children: ReactNode;
+  onVisible: () => void;
+  disabled?: boolean;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (disabled) {
+      return;
+    }
+
+    const element = rootRef.current;
+    if (!element) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          onVisible();
+          observer.disconnect();
+          break;
+        }
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [disabled, onVisible]);
+
+  return <div ref={rootRef}>{children}</div>;
+}
 
 function getReelCoverImage(post: SerializedPost): string | null {
   return (
@@ -50,6 +172,8 @@ function InfinitePostActivityList({
   initiallyHidden,
   requireAuthForInteractions,
   query,
+  enableViewTracking,
+  showUniqueViewerCount,
 }: {
   resetKey: string;
   profileId: string;
@@ -63,7 +187,15 @@ function InfinitePostActivityList({
   initiallyHidden: boolean;
   requireAuthForInteractions: boolean;
   query: string;
+  enableViewTracking: boolean;
+  showUniqueViewerCount: boolean;
 }) {
+  const markPostVisible = useProfilePostViewTracking({
+    enabled: enableViewTracking,
+    currentUserId,
+    source: "profile_card",
+  });
+
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
     initialNextCursor,
@@ -97,15 +229,21 @@ function InfinitePostActivityList({
       )}
 
       {items.map((post) => (
-        <PostCard
+        <TrackOnVisible
           key={post.id}
-          post={post}
-          currentUserId={currentUserId}
-          showDelete={showDelete(post)}
-          initiallyHidden={initiallyHidden}
-          requireAuthForInteractions={requireAuthForInteractions}
-          highlightQuery={query}
-        />
+          onVisible={() => markPostVisible(post.id)}
+          disabled={!enableViewTracking}
+        >
+          <PostCard
+            post={post}
+            currentUserId={currentUserId}
+            showDelete={showDelete(post)}
+            initiallyHidden={initiallyHidden}
+            requireAuthForInteractions={requireAuthForInteractions}
+            highlightQuery={query}
+            showUniqueViewerCount={showUniqueViewerCount}
+          />
+        </TrackOnVisible>
       ))}
 
       {items.length > 0 && (
@@ -245,6 +383,8 @@ function InfiniteReelsPostActivityList({
   initiallyHidden,
   requireAuthForInteractions,
   query,
+  enableViewTracking,
+  showUniqueViewerCount,
 }: {
   resetKey: string;
   profileId: string;
@@ -258,8 +398,15 @@ function InfiniteReelsPostActivityList({
   initiallyHidden: boolean;
   requireAuthForInteractions: boolean;
   query: string;
+  enableViewTracking: boolean;
+  showUniqueViewerCount: boolean;
 }) {
   const [selectedPost, setSelectedPost] = useState<SerializedPost | null>(null);
+  const markPostVisible = useProfilePostViewTracking({
+    enabled: enableViewTracking,
+    currentUserId,
+    source: "profile_card",
+  });
 
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
@@ -300,34 +447,39 @@ function InfiniteReelsPostActivityList({
             const title = getReelTitle(post);
 
             return (
-              <button
+              <TrackOnVisible
                 key={post.id}
-                type="button"
-                onClick={() => setSelectedPost(post)}
-                className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left"
-                aria-label="Open post preview"
+                onVisible={() => markPostVisible(post.id)}
+                disabled={!enableViewTracking}
               >
-                {imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={imageUrl}
-                    alt={title}
-                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-3 text-center text-xs font-medium text-slate-500">
-                    No image
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPost(post)}
+                  className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left"
+                  aria-label="Open post preview"
+                >
+                  {imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imageUrl}
+                      alt={title}
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-3 text-center text-xs font-medium text-slate-500">
+                      No image
+                    </div>
+                  )}
 
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent p-2 text-white">
-                  <p className="line-clamp-2 text-xs font-medium">{title}</p>
-                  <p className="mt-1 text-[11px] text-slate-300">
-                    {new Date(post.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </button>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent p-2 text-white">
+                    <p className="line-clamp-2 text-xs font-medium">{title}</p>
+                    <p className="mt-1 text-[11px] text-slate-300">
+                      {new Date(post.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </button>
+              </TrackOnVisible>
             );
           })}
         </div>
@@ -375,6 +527,7 @@ function InfiniteReelsPostActivityList({
               initiallyHidden={initiallyHidden}
               requireAuthForInteractions={requireAuthForInteractions}
               highlightQuery={query}
+              showUniqueViewerCount={showUniqueViewerCount}
             />
           </div>
         </div>
@@ -460,6 +613,8 @@ export default function ProfileActivitySection({
       : "No posts yet.";
 
   const isReelsMode = profileViewMode === "reels";
+  const showUniqueViewerCount = isOwnProfile && postTab === "posts";
+  const enableViewTracking = true;
 
   return (
     <>
@@ -485,6 +640,8 @@ export default function ProfileActivitySection({
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}
+          enableViewTracking={enableViewTracking}
+          showUniqueViewerCount={showUniqueViewerCount}
         />
       ) : (
         <InfinitePostActivityList
@@ -501,6 +658,8 @@ export default function ProfileActivitySection({
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}
+          enableViewTracking={enableViewTracking}
+          showUniqueViewerCount={showUniqueViewerCount}
         />
       )}
     </>
