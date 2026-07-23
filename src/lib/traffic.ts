@@ -14,6 +14,10 @@ export type CollectTrafficInput = {
   userId?: string | null;
 };
 
+export type CollectTrafficBatchInput = CollectTrafficInput & {
+  postIds: string[];
+};
+
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -154,4 +158,69 @@ export async function collectTrafficEvent(input: CollectTrafficInput) {
   ]);
 
   return { ok: true as const };
+}
+
+export async function collectTrafficEventsBatch(input: CollectTrafficBatchInput) {
+  const sessionId = normalizeSessionId(input.sessionId);
+  const visitorKey = normalizeVisitorKey(input.visitorKey);
+
+  if (!sessionId || !visitorKey) {
+    return { ok: false as const, error: "Invalid session data." };
+  }
+
+  const path = normalizePath(input.path);
+  const routeType = inferRouteType(path);
+  const now = new Date();
+  const activeMsRaw = Number.isFinite(input.activeMs ?? null) ? Number(input.activeMs) : 0;
+  const activeMs = Math.max(0, Math.min(60_000, Math.floor(activeMsRaw)));
+  const pageViewIncrement = input.eventType === "page_view" ? 1 : 0;
+  const visitorSalt = process.env.TRAFFIC_VISITOR_SALT ?? "fairbook-traffic-salt";
+  const visitorKeyHash = sha256(`${visitorSalt}:${visitorKey}`);
+  const referrer = normalizeOptionalString(input.referrer, 512);
+  const uniquePostIds = Array.from(new Set(input.postIds.map((postId) => normalizeOptionalString(postId, 64)).filter((postId): postId is string => Boolean(postId))));
+
+  if (uniquePostIds.length === 0) {
+    return { ok: true as const, tracked: 0 };
+  }
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.trafficSession.upsert({
+      where: { id: sessionId },
+      create: {
+        id: sessionId,
+        visitorKeyHash,
+        userId: input.userId ?? null,
+        startedAt: now,
+        lastSeenAt: now,
+        endedAt: input.eventType === "page_hide" ? now : null,
+        entryPath: path,
+        referrer,
+        pageViewCount: pageViewIncrement,
+        activeMsTotal: activeMs,
+      },
+      update: {
+        userId: input.userId ?? undefined,
+        lastSeenAt: now,
+        endedAt: input.eventType === "page_hide" ? now : undefined,
+        pageViewCount: { increment: pageViewIncrement },
+        activeMsTotal: { increment: activeMs },
+      },
+    });
+
+    await transaction.trafficEvent.createMany({
+      data: uniquePostIds.map((postId) => ({
+        sessionId,
+        userId: input.userId ?? null,
+        eventType: input.eventType,
+        path,
+        routeType,
+        contentType: null,
+        postId,
+        activeMs: activeMs > 0 ? activeMs : null,
+        referrer,
+      })),
+    });
+  });
+
+  return { ok: true as const, tracked: uniquePostIds.length };
 }

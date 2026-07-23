@@ -1,88 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import PostCard from "@/components/PostCard";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
+import {
+  createAnonymousPostViewTracker,
+  createRegisteredPostViewTracker,
+} from "@/components/post-view-tracking";
 import type { SerializedPost } from "@/lib/post-presentation";
 import type { FeedSortMode } from "@/lib/feed-posts";
 
 const NEW_VISIBLE_POST_EVENT = "fairbook:new-visible-post";
-const FEED_TRACK_BATCH_SIZE = 20;
-const FEED_TRACK_FLUSH_DELAY_MS = 500;
-
-const trackedFeedPostIdsBySession = new Set<string>();
-
-function useFeedPostViewTracking(enabled: boolean, currentUserId: string) {
-  const pendingPostIdsRef = useRef(new Set<string>());
-  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushPending = useCallback(() => {
-    if (!enabled || !currentUserId) {
-      pendingPostIdsRef.current.clear();
-      return;
-    }
-
-    const postIds = Array.from(pendingPostIdsRef.current);
-    if (postIds.length === 0) {
-      return;
-    }
-
-    pendingPostIdsRef.current.clear();
-    void fetch("/api/posts/views/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      keepalive: true,
-      body: JSON.stringify({ postIds, source: "feed_card" }),
-    }).catch(() => {
-      // Ignore transient tracking failures to keep feed scrolling smooth.
-    });
-  }, [currentUserId, enabled]);
-
-  const markVisible = useCallback(
-    (postId: string) => {
-      if (!enabled || !currentUserId) {
-        return;
-      }
-
-      if (trackedFeedPostIdsBySession.has(postId)) {
-        return;
-      }
-
-      trackedFeedPostIdsBySession.add(postId);
-      pendingPostIdsRef.current.add(postId);
-
-      if (pendingPostIdsRef.current.size >= FEED_TRACK_BATCH_SIZE) {
-        if (flushTimeoutRef.current) {
-          clearTimeout(flushTimeoutRef.current);
-          flushTimeoutRef.current = null;
-        }
-        flushPending();
-        return;
-      }
-
-      if (!flushTimeoutRef.current) {
-        flushTimeoutRef.current = setTimeout(() => {
-          flushTimeoutRef.current = null;
-          flushPending();
-        }, FEED_TRACK_FLUSH_DELAY_MS);
-      }
-    },
-    [currentUserId, enabled, flushPending]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (flushTimeoutRef.current) {
-        clearTimeout(flushTimeoutRef.current);
-        flushTimeoutRef.current = null;
-      }
-      flushPending();
-    };
-  }, [flushPending]);
-
-  return markVisible;
-}
 
 function TrackOnVisible({
   children,
@@ -135,6 +63,16 @@ export default function FeedInfiniteList({
   query: string;
   sort: FeedSortMode;
 }) {
+  const tracker = useMemo(
+    () =>
+      currentUserId
+        ? createRegisteredPostViewTracker("feed_card")
+        : createAnonymousPostViewTracker(),
+    [currentUserId]
+  );
+
+  useEffect(() => () => tracker.dispose(), [tracker]);
+
   const { items, prependItem, hasMore, isLoading, error, sentinelRef } =
     useInfiniteCursorLoader({
       initialItems: initialPosts,
@@ -169,8 +107,6 @@ export default function FeedInfiniteList({
       };
       },
     });
-  const markFeedPostVisible = useFeedPostViewTracking(true, currentUserId);
-
   useEffect(() => {
     const handleNewPost = (event: Event) => {
       const customEvent = event as CustomEvent<SerializedPost>;
@@ -223,13 +159,14 @@ export default function FeedInfiniteList({
       {items.map((post) => (
         <TrackOnVisible
           key={post.id}
-          onVisible={() => markFeedPostVisible(post.id)}
+          onVisible={() => tracker.queue(post.id)}
         >
           <PostCard
             post={post}
             currentUserId={currentUserId}
             showDelete
             highlightQuery={query}
+            showUniqueViewerCount={false}
           />
         </TrackOnVisible>
       ))}

@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import HighlightedText from "@/components/HighlightedText";
 import PostCard from "@/components/PostCard";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
+import {
+  createAnonymousPostViewTracker,
+  createRegisteredPostViewTracker,
+} from "@/components/post-view-tracking";
 import type {
   SerializedPost,
   SerializedProfileComment,
@@ -16,88 +20,6 @@ import type {
 } from "@/lib/profile-activity";
 
 type ProfilePostTab = "posts" | "likes" | "bookmarks" | "hidden";
-type TrackSource = "profile_card" | "post_detail";
-
-function useProfilePostViewTracking({
-  enabled,
-  currentUserId,
-  source,
-}: {
-  enabled: boolean;
-  currentUserId: string;
-  source: TrackSource;
-}) {
-  const trackedPostIdsRef = useRef(new Set<string>());
-  const pendingPostIdsRef = useRef(new Set<string>());
-  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flushPending = useCallback(() => {
-    if (!enabled || !currentUserId) {
-      pendingPostIdsRef.current.clear();
-      return;
-    }
-
-    const postIds = Array.from(pendingPostIdsRef.current);
-    if (postIds.length === 0) {
-      return;
-    }
-
-    pendingPostIdsRef.current.clear();
-    void fetch("/api/posts/views/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      keepalive: true,
-      body: JSON.stringify({ postIds, source }),
-    }).catch(() => {
-      // Ignore transient tracking failures to keep UI responsive.
-    });
-  }, [currentUserId, enabled, source]);
-
-  const markPostVisible = useCallback(
-    (postId: string) => {
-      if (!enabled || !currentUserId) {
-        return;
-      }
-
-      if (trackedPostIdsRef.current.has(postId)) {
-        return;
-      }
-
-      trackedPostIdsRef.current.add(postId);
-      pendingPostIdsRef.current.add(postId);
-
-      if (pendingPostIdsRef.current.size >= 20) {
-        if (flushTimeoutRef.current) {
-          clearTimeout(flushTimeoutRef.current);
-          flushTimeoutRef.current = null;
-        }
-        flushPending();
-        return;
-      }
-
-      if (!flushTimeoutRef.current) {
-        flushTimeoutRef.current = setTimeout(() => {
-          flushTimeoutRef.current = null;
-          flushPending();
-        }, 500);
-      }
-    },
-    [currentUserId, enabled, flushPending]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (flushTimeoutRef.current) {
-        clearTimeout(flushTimeoutRef.current);
-        flushTimeoutRef.current = null;
-      }
-      flushPending();
-    };
-  }, [flushPending]);
-
-  return markPostVisible;
-}
 
 function TrackOnVisible({
   children,
@@ -190,11 +112,15 @@ function InfinitePostActivityList({
   enableViewTracking: boolean;
   showUniqueViewerCount: boolean;
 }) {
-  const markPostVisible = useProfilePostViewTracking({
-    enabled: enableViewTracking,
-    currentUserId,
-    source: "profile_card",
-  });
+  const tracker = useMemo(
+    () =>
+      currentUserId
+        ? createRegisteredPostViewTracker("profile_card")
+        : createAnonymousPostViewTracker(),
+    [currentUserId]
+  );
+
+  useEffect(() => () => tracker.dispose(), [tracker]);
 
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
@@ -231,7 +157,7 @@ function InfinitePostActivityList({
       {items.map((post) => (
         <TrackOnVisible
           key={post.id}
-          onVisible={() => markPostVisible(post.id)}
+          onVisible={() => tracker.queue(post.id)}
           disabled={!enableViewTracking}
         >
           <PostCard
@@ -402,11 +328,15 @@ function InfiniteReelsPostActivityList({
   showUniqueViewerCount: boolean;
 }) {
   const [selectedPost, setSelectedPost] = useState<SerializedPost | null>(null);
-  const markPostVisible = useProfilePostViewTracking({
-    enabled: enableViewTracking,
-    currentUserId,
-    source: "profile_card",
-  });
+  const tracker = useMemo(
+    () =>
+      currentUserId
+        ? createRegisteredPostViewTracker("profile_card")
+        : createAnonymousPostViewTracker(),
+    [currentUserId]
+  );
+
+  useEffect(() => () => tracker.dispose(), [tracker]);
 
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialPosts,
@@ -449,7 +379,7 @@ function InfiniteReelsPostActivityList({
             return (
               <TrackOnVisible
                 key={post.id}
-                onVisible={() => markPostVisible(post.id)}
+                onVisible={() => tracker.queue(post.id)}
                 disabled={!enableViewTracking}
               >
                 <button

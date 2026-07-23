@@ -94,6 +94,8 @@ interface PostData {
   community?: Community | null;
   _count: { comments: number; likes: number; sharedBy: number };
   uniqueViewerCount?: number;
+  uniqueRegisteredViewerCount?: number;
+  uniqueAnonymousViewerCount?: number;
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: Array<{
     id: string;
@@ -1982,8 +1984,16 @@ export default function PostCard({
           </span>
         </button>
         {showUniqueViewerCount && typeof post.uniqueViewerCount === "number" && (
-          <span className="ml-auto inline-flex items-center rounded-full px-2 py-1 text-xs text-slate-500">
+          <span
+            className="group relative ml-auto inline-flex items-center rounded-full px-2 py-1 text-xs text-slate-500"
+            aria-label={`Unique views: ${post.uniqueViewerCount}. Registered ${post.uniqueRegisteredViewerCount ?? 0}, anonymous ${post.uniqueAnonymousViewerCount ?? 0}.`}
+            tabIndex={0}
+          >
             👁 {post.uniqueViewerCount}
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              <span className="block">Regisztrált: {post.uniqueRegisteredViewerCount ?? 0}</span>
+              <span className="block">Anonim: {post.uniqueAnonymousViewerCount ?? 0}</span>
+            </span>
           </span>
         )}
       </div>

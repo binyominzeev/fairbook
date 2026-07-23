@@ -438,7 +438,7 @@ export default async function PostPermalinkPage(props: {
     <>
       {user ? <Navbar user={user} /> : <PublicNavbar />}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <PostDetailViewTracker postId={post.id} enabled={isLoggedIn} />
+        <PostDetailViewTracker postId={post.id} currentUserId={user?.id ?? ""} />
         <PostCard
           post={postForCard}
           currentUserId={user?.id ?? ""}

@@ -233,7 +233,7 @@ export default async function PostPage(props: {
     <>
       <Navbar user={user} />
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <PostDetailViewTracker postId={post.id} />
+        <PostDetailViewTracker postId={post.id} currentUserId={user.id} />
         <PostCard
           post={postForCard}
           currentUserId={user.id}

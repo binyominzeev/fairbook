@@ -1,15 +1,26 @@
 "use client";
 
-import { useEffect } from "react";
-
-const trackedDetailViewsBySession = new Set<string>();
+import { useEffect, useMemo } from "react";
+import {
+  createAnonymousPostViewTracker,
+  createRegisteredPostViewTracker,
+} from "@/components/post-view-tracking";
 
 type Props = {
   postId: string;
+  currentUserId?: string;
   enabled?: boolean;
 };
 
-export default function PostDetailViewTracker({ postId, enabled = true }: Props) {
+export default function PostDetailViewTracker({ postId, currentUserId = "", enabled = true }: Props) {
+  const tracker = useMemo(
+    () =>
+      currentUserId
+        ? createRegisteredPostViewTracker("post_detail")
+        : createAnonymousPostViewTracker(),
+    [currentUserId]
+  );
+
   useEffect(() => {
     if (!enabled) {
       return;
@@ -20,25 +31,10 @@ export default function PostDetailViewTracker({ postId, enabled = true }: Props)
       return;
     }
 
-    if (trackedDetailViewsBySession.has(normalizedPostId)) {
-      return;
-    }
+    tracker.queue(normalizedPostId);
 
-    trackedDetailViewsBySession.add(normalizedPostId);
-
-    void fetch("/api/posts/views/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      keepalive: true,
-      body: JSON.stringify({
-        source: "post_detail",
-        postIds: [normalizedPostId],
-      }),
-    }).catch(() => {
-      // Ignore transient tracking failures.
-    });
-  }, [enabled, postId]);
+    return () => tracker.dispose();
+  }, [enabled, postId, tracker]);
 
   return null;
 }

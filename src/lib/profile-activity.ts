@@ -85,20 +85,41 @@ async function attachUniqueViewerCounts(
   }
 
   const postIds = posts.map((post) => post.id);
-  const grouped = await prisma.postUniqueView.groupBy({
-    by: ["postId"],
-    where: { postId: { in: postIds } },
-    _count: { _all: true },
-  });
+  const [registeredRows, anonymousRows] = await Promise.all([
+    prisma.postUniqueView.groupBy({
+      by: ["postId"],
+      where: { postId: { in: postIds } },
+      _count: { _all: true },
+    }),
+    prisma.$queryRaw<Array<{ postId: string; anonymousCount: bigint | number }>>(Prisma.sql`
+      SELECT
+        e."postId" as "postId",
+        COUNT(DISTINCT s."visitorKeyHash") as "anonymousCount"
+      FROM "TrafficEvent" e
+      INNER JOIN "TrafficSession" s ON s."id" = e."sessionId"
+      WHERE e."postId" IN (${Prisma.join(postIds)})
+        AND e."eventType" = 'page_view'
+        AND e."userId" IS NULL
+      GROUP BY e."postId"
+    `),
+  ]);
 
-  const countsByPostId = new Map<string, number>();
-  for (const row of grouped) {
-    countsByPostId.set(row.postId, row._count._all);
+  const registeredCountsByPostId = new Map<string, number>();
+  for (const row of registeredRows) {
+    registeredCountsByPostId.set(row.postId, row._count._all);
+  }
+
+  const anonymousCountsByPostId = new Map<string, number>();
+  for (const row of anonymousRows) {
+    anonymousCountsByPostId.set(row.postId, Number(row.anonymousCount));
   }
 
   return posts.map((post) => ({
     ...post,
-    uniqueViewerCount: countsByPostId.get(post.id) ?? 0,
+    uniqueRegisteredViewerCount: registeredCountsByPostId.get(post.id) ?? 0,
+    uniqueAnonymousViewerCount: anonymousCountsByPostId.get(post.id) ?? 0,
+    uniqueViewerCount:
+      (registeredCountsByPostId.get(post.id) ?? 0) + (anonymousCountsByPostId.get(post.id) ?? 0),
   }));
 }
 
