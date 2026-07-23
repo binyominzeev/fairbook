@@ -14,6 +14,7 @@ import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
+import { getPostUniqueViewBreakdown } from "@/lib/post-views";
 
 export default async function PostPage(props: {
   params: Promise<{ id: string }>;
@@ -222,6 +223,18 @@ export default async function PostPage(props: {
       : null,
   };
 
+  const showUniqueViewerCount = post.author.id === user.id;
+  const uniqueViewBreakdown = showUniqueViewerCount
+    ? await getPostUniqueViewBreakdown(post.id)
+    : null;
+
+  const postForCardWithUniqueViews = {
+    ...postForCard,
+    uniqueViewerCount: uniqueViewBreakdown?.total,
+    uniqueRegisteredViewerCount: uniqueViewBreakdown?.registered,
+    uniqueAnonymousViewerCount: uniqueViewBreakdown?.anonymous,
+  };
+
   const commentCount = rawComments.length;
   const currentUserCanModerateGroup =
     isAdmin ||
@@ -235,7 +248,7 @@ export default async function PostPage(props: {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <PostDetailViewTracker postId={post.id} currentUserId={user.id} />
         <PostCard
-          post={postForCard}
+          post={postForCardWithUniqueViews}
           currentUserId={user.id}
           showDelete
           defaultShareCommunityId={post.community?.members.length ? post.community.id : null}
@@ -244,6 +257,7 @@ export default async function PostPage(props: {
               ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
               : null
           }
+          showUniqueViewerCount={showUniqueViewerCount}
         />
 
         {/* Thread reflection */}

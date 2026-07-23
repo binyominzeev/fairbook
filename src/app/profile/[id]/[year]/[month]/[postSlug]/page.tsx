@@ -19,6 +19,7 @@ import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { buildPostPermalinkMetadata } from "@/lib/post-metadata";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
+import { getPostUniqueViewBreakdown } from "@/lib/post-views";
 
 async function resolveMetadataPost(params: {
   id: string;
@@ -432,6 +433,18 @@ export default async function PostPermalinkPage(props: {
       : null,
   };
 
+  const showUniqueViewerCount = isLoggedIn && user?.id === post.author.id;
+  const uniqueViewBreakdown = showUniqueViewerCount
+    ? await getPostUniqueViewBreakdown(post.id)
+    : null;
+
+  const postForCardWithUniqueViews = {
+    ...postForCard,
+    uniqueViewerCount: uniqueViewBreakdown?.total,
+    uniqueRegisteredViewerCount: uniqueViewBreakdown?.registered,
+    uniqueAnonymousViewerCount: uniqueViewBreakdown?.anonymous,
+  };
+
   const commentCount = isLoggedIn ? rawComments.length : post._count.comments;
 
   return (
@@ -440,11 +453,12 @@ export default async function PostPermalinkPage(props: {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <PostDetailViewTracker postId={post.id} currentUserId={user?.id ?? ""} />
         <PostCard
-          post={postForCard}
+          post={postForCardWithUniqueViews}
           currentUserId={user?.id ?? ""}
           showDelete
           showPermalinkEditor={isLoggedIn}
           requireAuthForInteractions={!isLoggedIn}
+          showUniqueViewerCount={showUniqueViewerCount}
         />
 
         {isLoggedIn ? (
