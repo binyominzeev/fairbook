@@ -8,6 +8,7 @@ import {
   type SerializedPost,
 } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 export const FEED_PAGE_SIZE = 20;
 const OWN_POST_PENALTY = 18;
@@ -115,6 +116,7 @@ export async function getFeedPage({
   viewMode = "all",
   feedSourceIds,
   query,
+  topicId,
   sortMode = DEFAULT_FEED_SORT_MODE,
 }: {
   viewerId: string;
@@ -123,6 +125,7 @@ export async function getFeedPage({
   viewMode?: FeedViewMode;
   feedSourceIds?: string[];
   query?: string;
+  topicId?: string;
   sortMode?: FeedSortMode;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const trimmedQuery = query?.trim() ?? "";
@@ -131,6 +134,11 @@ export async function getFeedPage({
   );
 
   const orderBy = buildFeedOrderBy(sortMode);
+  const topicWhere: Prisma.PostWhereInput | null = topicId
+    ? {
+        topicId,
+      }
+    : null;
   if (viewMode === "group" && groupFeedSourceIds.length === 0) {
     return { posts: [], nextCursor: null };
   }
@@ -181,6 +189,7 @@ export async function getFeedPage({
   const followingWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
+      ...(topicWhere ? [topicWhere] : []),
       joinedCommunityIds.length > 0
         ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
         : { communityId: null },
@@ -216,6 +225,7 @@ export async function getFeedPage({
   const groupedFeedWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
+      ...(topicWhere ? [topicWhere] : []),
       joinedCommunityIds.length > 0
         ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
         : { communityId: null },
@@ -250,6 +260,7 @@ export async function getFeedPage({
           : {
               AND: [
                 ...(queryWhere ? [queryWhere] : []),
+                ...(topicWhere ? [topicWhere] : []),
                 { authorId: { in: authorIds } },
                 joinedCommunityIds.length > 0
                   ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
@@ -323,11 +334,13 @@ export async function getFeedPage({
     previewsByPostId.set(row.postId, bucket);
   }
 
-  return {
-    posts: orderedItems.map((post) => ({
+  const serializedPosts = orderedItems.map((post) => ({
       ...serializePost(post),
       commentPreviews: previewsByPostId.get(post.id) ?? [],
-    })),
+    }));
+
+  return {
+    posts: await applyAuthorTopicColors(serializedPosts),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

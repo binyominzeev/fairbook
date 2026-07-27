@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
+import { normalizeTopicKey } from "@/lib/topics";
 
 export interface SerializedAuthor {
   id: string;
@@ -66,6 +67,7 @@ export interface SerializedPost {
   uniqueViewerCount?: number;
   uniqueRegisteredViewerCount?: number;
   uniqueAnonymousViewerCount?: number;
+  topic?: { id: string; name: string; slug: string; color: string } | null;
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: SerializedCommentPreview[];
 }
@@ -108,6 +110,14 @@ export const buildPostInclude = (viewerId: string) =>
       },
     },
     postTags: { include: { tag: true } },
+    topic: {
+      select: {
+        id: true,
+        name: true,
+        normalizedName: true,
+        defaultColor: true,
+      },
+    },
     likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
     bookmarkedBy: { where: { userId: viewerId }, select: { id: true }, take: 1 },
     sharedBy: {
@@ -183,6 +193,7 @@ type PostForPresentation = {
   } | null;
   _count: { comments: number; likes: number; sharedBy: number };
   postTags: { tag: { id: string; name: string; color: string } }[];
+  topic: { id: string; name: string; normalizedName: string; defaultColor: string } | null;
 };
 
 type CommentForPresentation = {
@@ -268,6 +279,14 @@ export function serializePost(post: PostForPresentation): SerializedPost {
         }
       : null,
     tags: post.postTags?.map((pt) => ({ id: pt.tag.id, name: pt.tag.name, color: pt.tag.color })) ?? [],
+    topic: post.topic
+      ? {
+          id: post.topic.id,
+          name: post.topic.name,
+          slug: normalizeTopicKey(post.topic.name),
+          color: post.topic.defaultColor,
+        }
+      : null,
   };
 }
 

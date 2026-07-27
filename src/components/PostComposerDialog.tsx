@@ -34,6 +34,8 @@ type CreatePostPayload = {
   sharedSource: string | null;
   visibility?: "public" | "private";
   communityId?: string | null;
+  topicId?: string | null;
+  newTopicName?: string | null;
   imageUrls: string[];
   isTextCard?: boolean;
   preModeration?: {
@@ -57,6 +59,12 @@ type PostComposerDialogProps = {
   submitLabel?: string;
   textCardImageUrl?: string | null;
   communityId?: string | null;
+};
+
+type ComposerTopic = {
+  id: string;
+  name: string;
+  postCount?: number;
 };
 
 const MAX_IMAGES = 4;
@@ -161,6 +169,10 @@ export default function PostComposerDialog({
   const [lastTestKey, setLastTestKey] = useState<string | null>(null);
   const [lastTestResult, setLastTestResult] = useState<ModerationResult | null>(null);
   const [images, setImages] = useState<ComposerImage[]>(() => buildRemoteImages(initialImageUrls));
+  const [topics, setTopics] = useState<ComposerTopic[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(true);
+  const [selectedTopicId, setSelectedTopicId] = useState<string>("");
+  const [newTopicName, setNewTopicName] = useState("");
   const [isDraggingImages, setIsDraggingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imagesRef = useRef<ComposerImage[]>([]);
@@ -172,6 +184,33 @@ export default function PostComposerDialog({
   useEffect(() => {
     return () => {
       revokeLocalPreviewUrls(imagesRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/topics");
+        if (!response.ok) return;
+
+        const data = (await response.json()) as {
+          topics?: Array<{ id: string; name: string; postCount?: number }>;
+        };
+        if (cancelled) return;
+
+        const nextTopics = Array.isArray(data.topics) ? data.topics : [];
+        setTopics(nextTopics);
+      } finally {
+        if (!cancelled) {
+          setLoadingTopics(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -234,6 +273,11 @@ export default function PostComposerDialog({
       return;
     }
 
+    if (selectedTopicId === "__new__" && !newTopicName.trim()) {
+      setError("Add a topic name.");
+      return;
+    }
+
     setError("");
     setNotice(null);
     setSubmitting(true);
@@ -274,6 +318,8 @@ export default function PostComposerDialog({
         sharedSource: sharedSource.trim() || null,
         visibility,
         communityId,
+        topicId: selectedTopicId && selectedTopicId !== "__new__" ? selectedTopicId : null,
+        newTopicName: selectedTopicId === "__new__" ? newTopicName.trim() || null : null,
         imageUrls: finalImageUrls,
         isTextCard: Boolean(textCardImageUrl && finalImageUrls.includes(textCardImageUrl)),
       };
@@ -391,6 +437,35 @@ export default function PostComposerDialog({
         />
 
         <div className="mt-3">
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="mb-1 block text-xs font-medium text-slate-600">Téma (opcionális)</label>
+            <select
+              value={selectedTopicId}
+              onChange={(event) => setSelectedTopicId(event.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Nincs téma</option>
+              {topics.map((topic) => (
+                <option key={topic.id} value={topic.id}>
+                  {topic.name}
+                  {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
+                </option>
+              ))}
+              <option value="__new__">+ Új téma létrehozása</option>
+            </select>
+            {selectedTopicId === "__new__" ? (
+              <input
+                type="text"
+                value={newTopicName}
+                onChange={(event) => setNewTopicName(event.target.value)}
+                maxLength={40}
+                placeholder="Pl. Zene"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ) : null}
+            {loadingTopics ? <p className="mt-2 text-xs text-slate-500">Témák betöltése...</p> : null}
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { FeedSortMode } from "@/lib/feed-posts";
+import { buildGlobalTopicPath } from "@/lib/topic-path";
 
 const SORT_LABELS: Record<FeedSortMode, string> = {
   current: "Személyre szabott",
@@ -18,12 +19,14 @@ export default function FeedSortSelect({
   mode,
   groupId,
   query,
+  topicSlug,
 }: {
   initialSort: FeedSortMode;
   saveEndpoint?: string;
   mode: "all" | "following" | "group";
   groupId: string | null;
   query: string;
+  topicSlug: string | null;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<FeedSortMode>(initialSort);
@@ -50,7 +53,12 @@ export default function FeedSortSelect({
     }
 
     const search = params.toString();
-    return search ? `/feed?${search}` : "/feed";
+    if (!topicSlug) {
+      return search ? `/feed?${search}` : "/feed";
+    }
+
+    const topicPath = buildGlobalTopicPath(topicSlug);
+    return search ? `${topicPath}?${search}` : topicPath;
   };
 
   const handleChange = (nextSort: FeedSortMode) => {

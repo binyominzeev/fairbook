@@ -25,14 +25,20 @@ import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 import { isAdminEmail } from "@/lib/admin";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { Bookmark, EyeOff, Grid2x2, Heart, MessageSquare } from "lucide-react";
+import ProfileTopicStrip from "@/components/ProfileTopicStrip";
+import { buildProfileTopicPath } from "@/lib/topic-path";
+import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; settings?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; settings?: string; q?: string; topic?: string; topicSlug?: string }>;
 }) {
   const { id } = await props.params;
-  const { tab, settings, q } = await props.searchParams;
+  const { tab, settings, q, topic, topicSlug } = await props.searchParams;
   const query = q?.trim() ?? "";
+  const requestedTopicId = typeof topic === "string" && topic.trim() ? topic.trim() : null;
+  const requestedTopicSlug =
+    typeof topicSlug === "string" && topicSlug.trim() ? topicSlug.trim() : null;
   const session = await getSession();
   const viewerId = session?.userId ?? "__guest__";
 
@@ -78,13 +84,47 @@ export default async function ProfilePage(props: {
   if (!profileUser) notFound();
 
   const canonicalProfilePath = buildProfilePath(profileUser);
+
+  const selectedTopicFromSlug = requestedTopicSlug
+    ? await prisma.topic.findFirst({
+        where: {
+          normalizedName: { in: getTopicSlugLookupCandidates(requestedTopicSlug) },
+        },
+        select: {
+          id: true,
+          name: true,
+          normalizedName: true,
+        },
+      })
+    : null;
+  const selectedTopicFromId =
+    !selectedTopicFromSlug && requestedTopicId
+      ? await prisma.topic.findUnique({
+          where: { id: requestedTopicId },
+          select: {
+            id: true,
+            name: true,
+            normalizedName: true,
+          },
+        })
+      : null;
+  if (requestedTopicSlug && !selectedTopicFromSlug) {
+    notFound();
+  }
+  const selectedTopic = selectedTopicFromSlug ?? selectedTopicFromId;
+  const topicId = selectedTopic?.id ?? null;
+  const activeTopicSlug = selectedTopic ? normalizeTopicKey(selectedTopic.name) : null;
+
   if (id !== profileUser.id && id !== profileUser.slug) {
     const params = new URLSearchParams();
     if (tab) params.set("tab", tab);
     if (settings) params.set("settings", settings);
     if (query) params.set("q", query);
     const queryString = params.toString();
-    redirect(queryString ? `${canonicalProfilePath}?${queryString}` : canonicalProfilePath);
+    const basePath = activeTopicSlug
+      ? buildProfileTopicPath(canonicalProfilePath, activeTopicSlug)
+      : canonicalProfilePath;
+    redirect(queryString ? `${basePath}?${queryString}` : basePath);
   }
 
   const { isOwnProfile, isFollowing, canViewActivity } =
@@ -114,7 +154,8 @@ export default async function ProfilePage(props: {
 
   function buildProfileHref(
     nextTab?: "posts" | "likes" | "bookmarks" | "comments" | "hidden",
-    nextShowSettings = showSettings
+    nextShowSettings = showSettings,
+    nextTopicId: string | null = topicId
   ) {
     const params = new URLSearchParams();
 
@@ -139,7 +180,17 @@ export default async function ProfilePage(props: {
     }
 
     const queryString = params.toString();
-    return queryString ? `${canonicalProfilePath}?${queryString}` : canonicalProfilePath;
+    if (!nextTopicId) {
+      return queryString ? `${canonicalProfilePath}?${queryString}` : canonicalProfilePath;
+    }
+
+    const topicForHref = profileTopicsById.get(nextTopicId);
+    if (!topicForHref) {
+      return queryString ? `${canonicalProfilePath}?${queryString}` : canonicalProfilePath;
+    }
+
+    const topicPath = buildProfileTopicPath(canonicalProfilePath, topicForHref.slug);
+    return queryString ? `${topicPath}?${queryString}` : topicPath;
   }
 
   const initialPostsPage =
@@ -150,6 +201,7 @@ export default async function ProfilePage(props: {
           isOwnProfile,
           canViewActivity,
           query,
+          topicId,
         })
       : activeTab === "bookmarks"
         ? await getProfileBookmarkedPostsPage({
@@ -157,6 +209,7 @@ export default async function ProfilePage(props: {
             profileId: profileUser.id,
             isOwnProfile,
             query,
+            topicId,
           })
       : activeTab === "hidden"
         ? await getProfileHiddenPostsPage({
@@ -164,12 +217,14 @@ export default async function ProfilePage(props: {
             profileId: profileUser.id,
             isOwnProfile,
             query,
+            topicId,
           })
       : await getProfilePostsPage({
           viewerId,
           profileId: profileUser.id,
           isOwnProfile,
           query,
+          topicId,
         });
   const initialCommentsPage =
     activeTab === "comments"
@@ -179,8 +234,63 @@ export default async function ProfilePage(props: {
           isOwnProfile,
           canViewActivity,
           query,
+          topicId,
         })
       : { comments: [], nextCursor: null };
+
+  const topicUsage = await prisma.post.groupBy({
+    by: ["topicId"],
+    where: {
+      authorId: profileUser.id,
+      topicId: { not: null },
+      ...(isOwnProfile ? {} : { moderationStatus: "visible" }),
+      ...(isOwnProfile ? {} : buildVisibleCommunityPostWhere(viewerId)),
+    },
+    _count: { _all: true },
+    orderBy: { _count: { topicId: "desc" } },
+  });
+  const profileTopicIds = topicUsage
+    .map((row) => row.topicId)
+    .filter((value): value is string => typeof value === "string");
+  const [topicRows, topicPreferences] = await Promise.all([
+    profileTopicIds.length
+      ? prisma.topic.findMany({
+          where: { id: { in: profileTopicIds } },
+          select: { id: true, name: true, normalizedName: true, defaultColor: true },
+        })
+      : Promise.resolve([]),
+    profileTopicIds.length
+      ? prisma.userTopicPreference.findMany({
+          where: {
+            userId: profileUser.id,
+            topicId: { in: profileTopicIds },
+          },
+          select: {
+            topicId: true,
+            buttonColor: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+  const topicById = new Map(topicRows.map((row) => [row.id, row]));
+  const preferenceByTopicId = new Map(topicPreferences.map((row) => [row.topicId, row.buttonColor]));
+  const profileTopics = topicUsage
+    .map((usage) => {
+      if (!usage.topicId) return null;
+      const topicRow = topicById.get(usage.topicId);
+      if (!topicRow) return null;
+
+      return {
+        id: topicRow.id,
+        name: topicRow.name,
+        slug: normalizeTopicKey(topicRow.name),
+        postCount: usage._count._all,
+        defaultColor: topicRow.defaultColor,
+        buttonColor: preferenceByTopicId.get(topicRow.id) ?? null,
+      };
+    })
+    .filter((value): value is { id: string; name: string; slug: string; postCount: number; defaultColor: string; buttonColor: string | null } => Boolean(value));
+  const profileTopicsById = new Map(profileTopics.map((topic) => [topic.id, topic]));
   const initialNextCursor =
     activeTab === "comments" ? initialCommentsPage.nextCursor : initialPostsPage.nextCursor;
 
@@ -314,6 +424,18 @@ export default async function ProfilePage(props: {
               />
             )}
 
+            {profileTopics.length > 0 ? (
+              <ProfileTopicStrip
+                topics={profileTopics}
+                profilePath={canonicalProfilePath}
+                activeTab={activeTab}
+                showSettings={showSettings}
+                query={query}
+                activeTopicId={topicId}
+                isOwnProfile={isOwnProfile}
+              />
+            ) : null}
+
             <div className="flex items-start justify-between gap-3 px-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <IconNavLink
@@ -370,6 +492,8 @@ export default async function ProfilePage(props: {
                   isOwnProfile={isOwnProfile}
                   requireAuthForInteractions={!isLoggedIn}
                   query={query}
+                  topicId={topicId}
+                  topicBaseProfilePath={canonicalProfilePath}
                 />
               </>
             )}
@@ -388,6 +512,8 @@ export default async function ProfilePage(props: {
                   isOwnProfile={isOwnProfile}
                   requireAuthForInteractions={!isLoggedIn}
                   query={query}
+                  topicId={topicId}
+                  topicBaseProfilePath={canonicalProfilePath}
                 />
               </>
             )}
@@ -406,6 +532,8 @@ export default async function ProfilePage(props: {
                   isOwnProfile={isOwnProfile}
                   requireAuthForInteractions={!isLoggedIn}
                   query={query}
+                  topicId={topicId}
+                  topicBaseProfilePath={canonicalProfilePath}
                 />
               </>
             )}
@@ -424,6 +552,8 @@ export default async function ProfilePage(props: {
                   isOwnProfile={isOwnProfile}
                   requireAuthForInteractions={!isLoggedIn}
                   query={query}
+                  topicId={topicId}
+                  topicBaseProfilePath={canonicalProfilePath}
                 />
               </>
             )}
@@ -442,6 +572,8 @@ export default async function ProfilePage(props: {
                   isOwnProfile={isOwnProfile}
                   requireAuthForInteractions={!isLoggedIn}
                   query={query}
+                  topicId={topicId}
+                  topicBaseProfilePath={canonicalProfilePath}
                 />
               </>
             )}
@@ -462,6 +594,8 @@ export default async function ProfilePage(props: {
               isOwnProfile={isOwnProfile}
               requireAuthForInteractions={!isLoggedIn}
               query={query}
+              topicId={topicId}
+              topicBaseProfilePath={canonicalProfilePath}
             />
           </>
         )}

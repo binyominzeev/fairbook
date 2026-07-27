@@ -8,6 +8,7 @@ import { buildProfilePath } from "@/lib/profile-path";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { buildGlobalTopicPath, buildProfileTopicPath } from "@/lib/topic-path";
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 
@@ -96,6 +97,7 @@ interface PostData {
   uniqueViewerCount?: number;
   uniqueRegisteredViewerCount?: number;
   uniqueAnonymousViewerCount?: number;
+  topic?: { id: string; name: string; slug: string; color: string } | null;
   tags?: { id: string; name: string; color: string }[];
   commentPreviews?: Array<{
     id: string;
@@ -117,6 +119,7 @@ interface Props {
   showCommunityHeader?: boolean;
   requireAuthForInteractions?: boolean;
   showUniqueViewerCount?: boolean;
+  topicBaseProfilePath?: string | null;
 }
 
 const MAX_EDIT_IMAGES = 4;
@@ -287,6 +290,7 @@ export default function PostCard({
   showCommunityHeader = true,
   requireAuthForInteractions = false,
   showUniqueViewerCount = false,
+  topicBaseProfilePath = null,
 }: Props) {
   const router = useRouter();
   const [deleted, setDeleted] = useState(false);
@@ -349,6 +353,11 @@ export default function PostCard({
   const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
   const communityHref = post.community
     ? `/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`
+    : null;
+  const topicHref = post.topic
+    ? topicBaseProfilePath
+      ? buildProfileTopicPath(topicBaseProfilePath, post.topic.slug)
+      : buildGlobalTopicPath(post.topic.slug)
     : null;
 
   const openAuthDialog = (actionLabel: string) => {
@@ -1660,6 +1669,18 @@ export default function PostCard({
                     <Link href={post.permalinkPath} className="hover:text-slate-700 hover:underline">
                       {timeAgo(post.createdAt)}
                     </Link>
+                    {post.topic && topicHref ? (
+                      <>
+                        <span>·</span>
+                        <Link
+                          href={topicHref}
+                          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+                          style={{ backgroundColor: post.topic.color }}
+                        >
+                          {post.topic.name}
+                        </Link>
+                      </>
+                    ) : null}
                   </div>
                 </>
               ) : (
@@ -1674,6 +1695,18 @@ export default function PostCard({
                     <Link href={post.permalinkPath} className="hover:text-slate-600 hover:underline">
                       {timeAgo(post.createdAt)}
                     </Link>
+                    {post.topic && topicHref ? (
+                      <>
+                        <span>·</span>
+                        <Link
+                          href={topicHref}
+                          className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+                          style={{ backgroundColor: post.topic.color }}
+                        >
+                          {post.topic.name}
+                        </Link>
+                      </>
+                    ) : null}
                   </div>
                 </>
               )}

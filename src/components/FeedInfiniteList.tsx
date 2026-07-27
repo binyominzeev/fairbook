@@ -53,6 +53,7 @@ export default function FeedInfiniteList({
   mode,
   groupId,
   query,
+  topicId,
   sort,
 }: {
   initialPosts: SerializedPost[];
@@ -61,6 +62,7 @@ export default function FeedInfiniteList({
   mode: "all" | "following" | "group";
   groupId: string | null;
   query: string;
+  topicId: string | null;
   sort: FeedSortMode;
 }) {
   const tracker = useMemo(
@@ -88,6 +90,9 @@ export default function FeedInfiniteList({
         }
         if (query) {
           searchParams.set("q", query);
+        }
+        if (topicId) {
+          searchParams.set("topic", topicId);
         }
 
         const response = await fetch(`/api/posts?${searchParams.toString()}`);

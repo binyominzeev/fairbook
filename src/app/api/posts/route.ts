@@ -13,6 +13,8 @@ import {
 import { createFollowedUserPostNotifications, createGroupPostNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { moderatePost } from "@/lib/ai";
+import { normalizeTopicKey, normalizeTopicName } from "@/lib/topics";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 const MAX_IMAGE_COUNT = 4;
 
@@ -58,6 +60,7 @@ export async function GET(request: NextRequest) {
   const mode = searchParams.get("mode");
   const groupId = searchParams.get("group");
   const query = (searchParams.get("q") ?? "").trim();
+  const topicParam = (searchParams.get("topic") ?? "").trim();
   const sortMode = normalizeFeedSortMode(searchParams.get("sort"));
 
   let viewMode: "all" | "following" | "group" =
@@ -89,6 +92,7 @@ export async function GET(request: NextRequest) {
     viewMode,
     feedSourceIds: groupSourceIds,
     query,
+    topicId: topicParam || undefined,
     sortMode,
   });
 
@@ -112,6 +116,8 @@ export async function POST(request: NextRequest) {
     isTextCard,
     communityId,
     visibility,
+    topicId,
+    newTopicName,
     preModeration,
   } =
     await request.json();
@@ -121,6 +127,15 @@ export async function POST(request: NextRequest) {
   if (!content && !sharedUrl && normalizedImageUrls.length === 0) {
     return Response.json(
       { error: "Post must have content, images, or a shared URL." },
+      { status: 400 }
+    );
+  }
+
+  const requestedTopicId = typeof topicId === "string" ? topicId.trim() : "";
+  const requestedNewTopicName = normalizeTopicName(newTopicName);
+  if (requestedTopicId && requestedNewTopicName) {
+    return Response.json(
+      { error: "Choose an existing topic or create a new one, not both." },
       { status: 400 }
     );
   }
@@ -182,6 +197,32 @@ export async function POST(request: NextRequest) {
     resolvedCommunityId = communityId;
   }
 
+  let resolvedTopicId: string | null = null;
+  if (requestedTopicId) {
+    const existingTopic = await prisma.topic.findUnique({
+      where: { id: requestedTopicId },
+      select: { id: true },
+    });
+    if (!existingTopic) {
+      return Response.json({ error: "Topic not found." }, { status: 404 });
+    }
+    resolvedTopicId = existingTopic.id;
+  }
+
+  if (requestedNewTopicName) {
+    const normalizedName = normalizeTopicKey(requestedNewTopicName);
+    const createdOrExistingTopic = await prisma.topic.upsert({
+      where: { normalizedName },
+      update: {},
+      create: {
+        name: requestedNewTopicName,
+        normalizedName,
+      },
+      select: { id: true },
+    });
+    resolvedTopicId = createdOrExistingTopic.id;
+  }
+
   const initialPermalinkSlug = await ensureUniquePostSlug(
     buildInitialPostSlug(typeof content === "string" ? content : null, null),
     async (candidate) => {
@@ -201,6 +242,7 @@ export async function POST(request: NextRequest) {
     data: {
       authorId: session.userId,
       communityId: resolvedCommunityId,
+      topicId: resolvedTopicId,
       permalinkScopeId: buildPostPermalinkScopeId({
         authorId: session.userId,
         communityId: resolvedCommunityId,
@@ -241,9 +283,11 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const [serializedPost] = await applyAuthorTopicColors([serializePost(post)]);
+
   return Response.json(
     {
-      post: serializePost(post),
+      post: serializedPost,
       moderation: {
         ...moderation,
         status: finalModerationStatus,

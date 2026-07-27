@@ -94,6 +94,8 @@ function InfinitePostActivityList({
   initiallyHidden,
   requireAuthForInteractions,
   query,
+  topicId,
+  topicBaseProfilePath,
   enableViewTracking,
   showUniqueViewerCount,
 }: {
@@ -109,6 +111,8 @@ function InfinitePostActivityList({
   initiallyHidden: boolean;
   requireAuthForInteractions: boolean;
   query: string;
+  topicId: string | null;
+  topicBaseProfilePath: string;
   enableViewTracking: boolean;
   showUniqueViewerCount: boolean;
 }) {
@@ -127,7 +131,7 @@ function InfinitePostActivityList({
     initialNextCursor,
     loadPage: async (cursor) => {
       const response = await fetch(
-        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
+        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}${topicId ? `&topic=${encodeURIComponent(topicId)}` : ""}`
       );
 
       if (!response.ok) {
@@ -168,6 +172,7 @@ function InfinitePostActivityList({
             requireAuthForInteractions={requireAuthForInteractions}
             highlightQuery={query}
             showUniqueViewerCount={showUniqueViewerCount}
+            topicBaseProfilePath={topicBaseProfilePath}
           />
         </TrackOnVisible>
       ))}
@@ -191,6 +196,7 @@ function InfiniteCommentActivityList({
   emptyMessage,
   emptySearchMessage,
   query,
+  topicId,
 }: {
   resetKey: string;
   profileId: string;
@@ -199,13 +205,14 @@ function InfiniteCommentActivityList({
   emptyMessage: string;
   emptySearchMessage: string;
   query: string;
+  topicId: string | null;
 }) {
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialComments,
     initialNextCursor,
     loadPage: async (cursor) => {
       const response = await fetch(
-        `/api/users/${profileId}/activity?tab=comments&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
+        `/api/users/${profileId}/activity?tab=comments&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}${topicId ? `&topic=${encodeURIComponent(topicId)}` : ""}`
       );
 
       if (!response.ok) {
@@ -309,6 +316,8 @@ function InfiniteReelsPostActivityList({
   initiallyHidden,
   requireAuthForInteractions,
   query,
+  topicId,
+  topicBaseProfilePath,
   enableViewTracking,
   showUniqueViewerCount,
 }: {
@@ -324,6 +333,8 @@ function InfiniteReelsPostActivityList({
   initiallyHidden: boolean;
   requireAuthForInteractions: boolean;
   query: string;
+  topicId: string | null;
+  topicBaseProfilePath: string;
   enableViewTracking: boolean;
   showUniqueViewerCount: boolean;
 }) {
@@ -343,7 +354,7 @@ function InfiniteReelsPostActivityList({
     initialNextCursor,
     loadPage: async (cursor) => {
       const response = await fetch(
-        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}`
+        `/api/users/${profileId}/activity?tab=${activeTab}&cursor=${encodeURIComponent(cursor)}${query ? `&q=${encodeURIComponent(query)}` : ""}${topicId ? `&topic=${encodeURIComponent(topicId)}` : ""}`
       );
 
       if (!response.ok) {
@@ -458,6 +469,7 @@ function InfiniteReelsPostActivityList({
               requireAuthForInteractions={requireAuthForInteractions}
               highlightQuery={query}
               showUniqueViewerCount={showUniqueViewerCount}
+              topicBaseProfilePath={topicBaseProfilePath}
             />
           </div>
         </div>
@@ -477,6 +489,8 @@ export default function ProfileActivitySection({
   isOwnProfile,
   requireAuthForInteractions = false,
   query,
+  topicId,
+  topicBaseProfilePath,
 }: {
   profileId: string;
   activeTab: ProfileActivityTab;
@@ -488,8 +502,10 @@ export default function ProfileActivitySection({
   isOwnProfile: boolean;
   requireAuthForInteractions?: boolean;
   query: string;
+  topicId: string | null;
+  topicBaseProfilePath: string;
 }) {
-  const resetKey = `${activeTab}:${query}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
+  const resetKey = `${activeTab}:${query}:${topicId ?? "all"}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
 
   const searchPlaceholder =
     activeTab === "comments"
@@ -515,6 +531,7 @@ export default function ProfileActivitySection({
           emptyMessage={isOwnProfile ? "You have not commented yet." : "No public comments yet."}
           emptySearchMessage={`No comments found for "${query}".`}
           query={query}
+          topicId={topicId}
         />
       </>
     );
@@ -570,6 +587,8 @@ export default function ProfileActivitySection({
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}
+          topicId={topicId}
+          topicBaseProfilePath={topicBaseProfilePath}
           enableViewTracking={enableViewTracking}
           showUniqueViewerCount={showUniqueViewerCount}
         />
@@ -588,6 +607,8 @@ export default function ProfileActivitySection({
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}
+          topicId={topicId}
+          topicBaseProfilePath={topicBaseProfilePath}
           enableViewTracking={enableViewTracking}
           showUniqueViewerCount={showUniqueViewerCount}
         />

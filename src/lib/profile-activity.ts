@@ -9,6 +9,7 @@ import {
 } from "@/lib/post-presentation";
 import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import { prisma } from "@/lib/prisma";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 export type ProfileActivityTab = "posts" | "likes" | "bookmarks" | "comments" | "hidden";
 export type ProfileActivityViewMode = "normal" | "reels";
@@ -209,12 +210,14 @@ export async function getProfilePostsPage({
   isOwnProfile,
   cursor,
   query,
+  topicId,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
   query?: string;
+  topicId?: string | null;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const trimmedQuery = query?.trim() ?? "";
   const communityVisibilityWhere = isOwnProfile ? {} : buildVisibleCommunityPostWhere(viewerId);
@@ -226,6 +229,7 @@ export async function getProfilePostsPage({
         : { authorId: profileId, moderationStatus: "visible" }),
       ...communityVisibilityWhere,
       ...(trimmedQuery ? buildPostSearchWhere(trimmedQuery) : {}),
+      ...(topicId ? { topicId } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_POST_PAGE_SIZE + 1,
@@ -236,7 +240,8 @@ export async function getProfilePostsPage({
   const hasMore = batch.length > PROFILE_POST_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_POST_PAGE_SIZE) : batch;
   const serialized = items.map((post: PostRecord) => serializePost(post));
-  const withViewerCounts = await attachUniqueViewerCounts(serialized, isOwnProfile);
+  const withTopicColors = await applyAuthorTopicColors(serialized);
+  const withViewerCounts = await attachUniqueViewerCounts(withTopicColors, isOwnProfile);
 
   return {
     posts: await attachCommentPreviews(withViewerCounts),
@@ -251,6 +256,7 @@ export async function getProfileLikedPostsPage({
   canViewActivity,
   cursor,
   query,
+  topicId,
 }: {
   viewerId: string;
   profileId: string;
@@ -258,6 +264,7 @@ export async function getProfileLikedPostsPage({
   canViewActivity: boolean;
   cursor?: string | null;
   query?: string;
+  topicId?: string | null;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!canViewActivity) {
     return { posts: [], nextCursor: null };
@@ -269,13 +276,19 @@ export async function getProfileLikedPostsPage({
     where: isOwnProfile
       ? {
           userId: profileId,
-          ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+          post: {
+            AND: [
+              ...(trimmedQuery ? [buildPostSearchWhere(trimmedQuery)] : []),
+              ...(topicId ? [{ topicId }] : []),
+            ],
+          },
         }
       : {
           userId: profileId,
           post: {
             AND: [
               buildVisibleCommunityPostWhere(viewerId),
+              ...(topicId ? [{ topicId }] : []),
               {
                 OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
               },
@@ -297,9 +310,10 @@ export async function getProfileLikedPostsPage({
   const hasMore = batch.length > PROFILE_LIKES_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_LIKES_PAGE_SIZE) : batch;
   const serialized = items.map((like) => serializePost(like.post as PostRecord));
+  const withTopicColors = await applyAuthorTopicColors(serialized);
 
   return {
-    posts: await attachCommentPreviews(serialized),
+    posts: await attachCommentPreviews(withTopicColors),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
@@ -311,6 +325,7 @@ export async function getProfileCommentsPage({
   canViewActivity,
   cursor,
   query,
+  topicId,
 }: {
   viewerId: string;
   profileId: string;
@@ -318,6 +333,7 @@ export async function getProfileCommentsPage({
   canViewActivity: boolean;
   cursor?: string | null;
   query?: string;
+  topicId?: string | null;
 }): Promise<{ comments: SerializedProfileComment[]; nextCursor: string | null }> {
   if (!canViewActivity) {
     return { comments: [], nextCursor: null };
@@ -335,12 +351,14 @@ export async function getProfileCommentsPage({
             post: {
               AND: [
                 buildVisibleCommunityPostWhere(viewerId),
+                ...(topicId ? [{ topicId }] : []),
                 {
                   OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
                 },
               ],
             },
           }),
+      ...(isOwnProfile && topicId ? { post: { topicId } } : {}),
       ...(trimmedQuery ? buildProfileCommentSearchWhere(trimmedQuery) : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -377,12 +395,14 @@ export async function getProfileHiddenPostsPage({
   isOwnProfile,
   cursor,
   query,
+  topicId,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
   query?: string;
+  topicId?: string | null;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!isOwnProfile) {
     return { posts: [], nextCursor: null };
@@ -393,7 +413,12 @@ export async function getProfileHiddenPostsPage({
   const batch = await prisma.hiddenPost.findMany({
     where: {
       userId: profileId,
-      ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+      post: {
+        AND: [
+          ...(trimmedQuery ? [buildPostSearchWhere(trimmedQuery)] : []),
+          ...(topicId ? [{ topicId }] : []),
+        ],
+      },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_HIDDEN_PAGE_SIZE + 1,
@@ -409,9 +434,10 @@ export async function getProfileHiddenPostsPage({
   const hasMore = batch.length > PROFILE_HIDDEN_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_HIDDEN_PAGE_SIZE) : batch;
   const serialized = items.map((hiddenPost) => serializePost(hiddenPost.post as PostRecord));
+  const withTopicColors = await applyAuthorTopicColors(serialized);
 
   return {
-    posts: await attachCommentPreviews(serialized),
+    posts: await attachCommentPreviews(withTopicColors),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }
@@ -422,12 +448,14 @@ export async function getProfileBookmarkedPostsPage({
   isOwnProfile,
   cursor,
   query,
+  topicId,
 }: {
   viewerId: string;
   profileId: string;
   isOwnProfile: boolean;
   cursor?: string | null;
   query?: string;
+  topicId?: string | null;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   if (!isOwnProfile) {
     return { posts: [], nextCursor: null };
@@ -438,7 +466,12 @@ export async function getProfileBookmarkedPostsPage({
   const batch = await prisma.bookmarkedPost.findMany({
     where: {
       userId: profileId,
-      ...(trimmedQuery ? { post: buildPostSearchWhere(trimmedQuery) } : {}),
+      post: {
+        AND: [
+          ...(trimmedQuery ? [buildPostSearchWhere(trimmedQuery)] : []),
+          ...(topicId ? [{ topicId }] : []),
+        ],
+      },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_BOOKMARKS_PAGE_SIZE + 1,
@@ -454,9 +487,10 @@ export async function getProfileBookmarkedPostsPage({
   const hasMore = batch.length > PROFILE_BOOKMARKS_PAGE_SIZE;
   const items = hasMore ? batch.slice(0, PROFILE_BOOKMARKS_PAGE_SIZE) : batch;
   const serialized = items.map((bookmark) => serializePost(bookmark.post as PostRecord));
+  const withTopicColors = await applyAuthorTopicColors(serialized);
 
   return {
-    posts: await attachCommentPreviews(serialized),
+    posts: await attachCommentPreviews(withTopicColors),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   };
 }

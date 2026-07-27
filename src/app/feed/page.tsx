@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Avatar from "@/components/Avatar";
 import FeedInfiniteList from "@/components/FeedInfiniteList";
@@ -15,6 +15,8 @@ import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
+import { buildGlobalTopicPath } from "@/lib/topic-path";
+import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
 
 type FeedMode = "all" | "following" | "group";
 
@@ -26,11 +28,15 @@ export default async function FeedPage(props: {
     group?: string;
     q?: string;
     sort?: string;
+    topic?: string;
+    topicSlug?: string;
   }>;
 }) {
-  const { notice, noticeKind, mode, group, q, sort } = await props.searchParams;
+  const { notice, noticeKind, mode, group, q, sort, topic, topicSlug } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
   const query = q?.trim() ?? "";
+  const requestedTopicId = typeof topic === "string" && topic.trim() ? topic.trim() : null;
+  const requestedTopicSlug = typeof topicSlug === "string" && topicSlug.trim() ? topicSlug.trim() : null;
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -52,6 +58,29 @@ export default async function FeedPage(props: {
     ? normalizeFeedSortMode(sort)
     : normalizeFeedSortMode(user.feedSortMode);
 
+  const topics = await prisma.topic.findMany({
+    include: {
+      _count: {
+        select: {
+          posts: true,
+        },
+      },
+    },
+    orderBy: [{ posts: { _count: "desc" } }, { name: "asc" }],
+  });
+  const topicById = new Map(topics.map((candidate) => [candidate.id, candidate]));
+  const activeTopic = requestedTopicSlug
+    ? topics.find((candidate) =>
+        getTopicSlugLookupCandidates(requestedTopicSlug).includes(candidate.normalizedName)
+      ) ?? null
+    : requestedTopicId
+      ? topics.find((candidate) => candidate.id === requestedTopicId) ?? null
+      : null;
+  if (requestedTopicSlug && !activeTopic) {
+    notFound();
+  }
+  const topicId = activeTopic?.id ?? null;
+
   const feedGroups = await getFeedGroupsForUser(session.userId);
   const activeGroup = requestedGroupId
     ? feedGroups.find((feedGroup) => feedGroup.id === requestedGroupId) ?? null
@@ -68,10 +97,15 @@ export default async function FeedPage(props: {
     viewMode: activeMode,
     feedSourceIds: activeGroup?.feedSourceIds,
     query,
+    topicId: topicId ?? undefined,
     sortMode: activeSort,
   });
 
-  function buildFeedHref(nextMode: FeedMode, nextGroupId: string | null = activeGroup?.id ?? null) {
+  function buildFeedHref(
+    nextMode: FeedMode,
+    nextGroupId: string | null = activeGroup?.id ?? null,
+    nextTopicId: string | null = topicId
+  ) {
     const params = new URLSearchParams();
 
     if (nextMode === "following") {
@@ -91,7 +125,17 @@ export default async function FeedPage(props: {
     }
 
     const search = params.toString();
-    return search ? `/feed?${search}` : "/feed";
+    if (!nextTopicId) {
+      return search ? `/feed?${search}` : "/feed";
+    }
+
+    const topicForHref = topicById.get(nextTopicId);
+    if (!topicForHref) {
+      return search ? `/feed?${search}` : "/feed";
+    }
+
+    const topicPath = buildGlobalTopicPath(normalizeTopicKey(topicForHref.name));
+    return search ? `${topicPath}?${search}` : topicPath;
   }
 
   const followingPeopleCount = await prisma.connection.count({
@@ -173,16 +217,58 @@ export default async function FeedPage(props: {
                 <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
               </div>
               <FeedSortSelect
-                key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}`}
+                key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${topicId ?? "all"}`}
                 initialSort={activeSort}
                 mode={activeMode}
                 groupId={activeGroup?.id ?? null}
                 query={query}
+                topicSlug={activeTopic ? normalizeTopicKey(activeTopic.name) : null}
               />
             </div>
           </div>
 
-          <form action="/feed" method="GET" className="flex flex-col gap-2 sm:flex-row">
+          {topics.length > 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Témák</p>
+                {activeTopic ? (
+                  <Link
+                    href={buildFeedHref(activeMode, activeGroup?.id ?? null, null)}
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    Szűrő törlése
+                  </Link>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {topics.map((item) => {
+                  const isActive = item.id === topicId;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={buildFeedHref(activeMode, activeGroup?.id ?? null, item.id)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        isActive
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      <span>{item.name}</span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${isActive ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"}`}>
+                        {item._count.posts}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <form
+            action={activeTopic ? buildGlobalTopicPath(normalizeTopicKey(activeTopic.name)) : "/feed"}
+            method="GET"
+            className="flex flex-col gap-2 sm:flex-row"
+          >
             {activeMode === "following" && <input type="hidden" name="mode" value="following" />}
             {activeMode === "group" && activeGroup?.id && (
               <input type="hidden" name="group" value={activeGroup.id} />
@@ -213,13 +299,14 @@ export default async function FeedPage(props: {
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${topicId ?? "all"}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
             mode={activeMode}
             groupId={activeGroup?.id ?? null}
             query={query}
+            topicId={topicId}
             sort={activeSort}
           />
         </div>

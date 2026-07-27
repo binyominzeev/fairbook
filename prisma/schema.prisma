@@ -63,6 +63,7 @@ model User {
   trafficSessions             TrafficSession[]
   trafficEvents               TrafficEvent[]
   postUniqueViews            PostUniqueView[]
+  topicPreferences           UserTopicPreference[]
 }
 
 model AuthEmailToken {
@@ -99,6 +100,7 @@ model Post {
   isTextCard         Boolean  @default(false)
   sharedPostId       String?
   communityId        String?
+  topicId            String?
   score              Float    @default(0)
   freshnessScore     Float    @default(0)
   sourceScore        Float    @default(0)
@@ -118,6 +120,7 @@ model Post {
   sharedPost Post?             @relation("PostShares", fields: [sharedPostId], references: [id], onDelete: SetNull)
   sharedBy   Post[]            @relation("PostShares")
   community  Community?        @relation(fields: [communityId], references: [id])
+  topic      Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
   likes      PostLike[]
   comments   Comment[]
   reflections ThreadReflection[]
@@ -137,7 +140,38 @@ model Post {
   @@index([urlHash])
   @@index([titleHash])
   @@index([feedSourceId, isFeedVisible])
+  @@index([topicId, createdAt])
   @@index([score, createdAt])
+}
+
+model Topic {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  defaultColor   String   @default("#64748B")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  posts           Post[]
+  userPreferences UserTopicPreference[]
+
+  @@unique([name])
+  @@index([createdAt])
+}
+
+model UserTopicPreference {
+  id          String   @id @default(cuid())
+  userId      String
+  topicId     String
+  buttonColor String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([topicId])
 }
 
 model Tag {
