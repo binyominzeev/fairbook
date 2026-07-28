@@ -46,6 +46,17 @@ export default function ManifestoContent({
               és ahol a részvétel tudatos vállalás.
             </p>
           )}
+          <p className="text-sm font-medium text-slate-700">
+            Rólunk írták:{" "}
+            <a
+              href="https://mazsihisz.hu/binjomin-rabbi-itt-a-fairbook-a-koser-facebook/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-700 underline decoration-amber-300 underline-offset-4 transition hover:text-amber-800"
+            >
+              Mazsihisz cikk
+            </a>
+          </p>
         </div>
 
         <div className="h-px w-full bg-gradient-to-r from-amber-200 via-slate-200 to-transparent" />
