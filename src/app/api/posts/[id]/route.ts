@@ -1,7 +1,9 @@
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 import { prisma } from "@/lib/prisma";
+import { normalizeTopicKey, normalizeTopicName } from "@/lib/topics";
 import { unlink } from "fs/promises";
 import path from "path";
 
@@ -269,6 +271,13 @@ export async function PATCH(
   const sharedTitle = normalizeOptionalString(payload?.sharedTitle);
   const sharedDescription = normalizeOptionalString(payload?.sharedDescription);
   const sharedSource = normalizeOptionalString(payload?.sharedSource);
+  const hasTopicSelectionInPayload =
+    typeof payload === "object" &&
+    payload !== null &&
+    (Object.hasOwn(payload, "topicId") || Object.hasOwn(payload, "newTopicName"));
+  const requestedTopicId =
+    typeof payload?.topicId === "string" ? payload.topicId.trim() : "";
+  const requestedNewTopicName = normalizeTopicName(payload?.newTopicName);
   const hasImageUrlsInPayload = Array.isArray(payload?.imageUrls);
   const moderationKey = buildPreModerationKey({
     content,
@@ -303,6 +312,41 @@ export async function PATCH(
 
   if (post.authorId !== session.userId) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  if (hasTopicSelectionInPayload && requestedTopicId && requestedNewTopicName) {
+    return Response.json(
+      { error: "Choose an existing topic or create a new one, not both." },
+      { status: 400 }
+    );
+  }
+
+  let resolvedTopicId: string | null = null;
+  if (hasTopicSelectionInPayload) {
+    if (requestedTopicId) {
+      const existingTopic = await prisma.topic.findUnique({
+        where: { id: requestedTopicId },
+        select: { id: true },
+      });
+      if (!existingTopic) {
+        return Response.json({ error: "Topic not found." }, { status: 404 });
+      }
+      resolvedTopicId = existingTopic.id;
+    }
+
+    if (requestedNewTopicName) {
+      const normalizedName = normalizeTopicKey(requestedNewTopicName);
+      const createdOrExistingTopic = await prisma.topic.upsert({
+        where: { normalizedName },
+        update: {},
+        create: {
+          name: requestedNewTopicName,
+          normalizedName,
+        },
+        select: { id: true },
+      });
+      resolvedTopicId = createdOrExistingTopic.id;
+    }
   }
 
   const previousImageUrls = parseImageUrls(post.imageUrls);
@@ -349,6 +393,7 @@ export async function PATCH(
       sharedTitle,
       sharedDescription,
       sharedSource,
+      ...(hasTopicSelectionInPayload ? { topicId: resolvedTopicId } : {}),
       imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       moderationStatus: moderation.status,
       moderationReason:
@@ -366,8 +411,10 @@ export async function PATCH(
     nextImageUrls: normalizedImageUrls,
   });
 
+  const [serializedPost] = await applyAuthorTopicColors([serializePost(updatedPost)]);
+
   return Response.json({
-    post: serializePost(updatedPost),
+    post: serializedPost,
     moderation,
     message: buildModerationMessage(moderation),
   });

@@ -68,6 +68,12 @@ type RemoteEditImage = {
 
 type EditComposerImage = LocalEditImage | RemoteEditImage;
 
+type EditableTopic = {
+  id: string;
+  name: string;
+  postCount?: number;
+};
+
 interface PostData {
   id: string;
   permalinkSlug?: string | null;
@@ -279,7 +285,7 @@ function SinglePostImage({
 }
 
 export default function PostCard({
-  post,
+  post: initialPost,
   currentUserId,
   showDelete,
   showPermalinkEditor,
@@ -293,6 +299,7 @@ export default function PostCard({
   topicBaseProfilePath = null,
 }: Props) {
   const router = useRouter();
+  const [post, setPost] = useState(initialPost);
   const [deleted, setDeleted] = useState(false);
   const [hidden, setHidden] = useState(initiallyHidden);
   const [now, setNow] = useState(() => Date.now());
@@ -338,6 +345,10 @@ export default function PostCard({
   const [editTesting, setEditTesting] = useState(false);
   const [lastEditTestKey, setLastEditTestKey] = useState<string | null>(null);
   const [lastEditTestResult, setLastEditTestResult] = useState<ShareTestResult | null>(null);
+  const [editTopics, setEditTopics] = useState<EditableTopic[]>([]);
+  const [loadingEditTopics, setLoadingEditTopics] = useState(false);
+  const [editSelectedTopicId, setEditSelectedTopicId] = useState<string>(post.topic?.id ?? "");
+  const [editNewTopicName, setEditNewTopicName] = useState("");
   const [editImages, setEditImages] = useState<EditComposerImage[]>(() =>
     buildRemoteEditImages(post.imageUrls ?? [])
   );
@@ -762,11 +773,30 @@ export default function PostCard({
     });
     setLastEditTestKey(null);
     setLastEditTestResult(null);
+    setEditSelectedTopicId(post.topic?.id ?? "");
+    setEditNewTopicName("");
     setActionError("");
     setActionNotice(null);
     setEditComposerOpen(true);
     menuRef.current?.removeAttribute("open");
     setIsMenuOpen(false);
+
+    setLoadingEditTopics(true);
+    void (async () => {
+      try {
+        const response = await fetch("/api/topics");
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as {
+          topics?: Array<{ id: string; name: string; postCount?: number }>;
+        };
+        setEditTopics(Array.isArray(data.topics) ? data.topics : []);
+      } finally {
+        setLoadingEditTopics(false);
+      }
+    })();
   };
 
   const closeEditComposer = () => {
@@ -900,11 +930,24 @@ export default function PostCard({
     const hasLinkFields =
       normalizedSharedUrl || normalizedSharedTitle || normalizedSharedDescription || normalizedSharedSource;
     const hasStaticContent = editImages.length > 0 || Boolean(post.sharedPost);
+    const trimmedNewTopicName = editNewTopicName.trim();
+    const nextTopicSelection = editSelectedTopicId;
+    const resolvedNextTopicId =
+      nextTopicSelection && nextTopicSelection !== "__new__" ? nextTopicSelection : null;
+    const nextTopicName = nextTopicSelection === "__new__" ? trimmedNewTopicName : "";
 
     if (!normalizedContent && !normalizedSharedUrl && !hasStaticContent) {
       setActionNotice({
         kind: "error",
         message: "Post must have content, images, or a shared URL.",
+      });
+      return;
+    }
+
+    if (nextTopicSelection === "__new__" && !nextTopicName) {
+      setActionNotice({
+        kind: "error",
+        message: "Add a topic name.",
       });
       return;
     }
@@ -922,6 +965,9 @@ export default function PostCard({
       (image): image is LocalEditImage => image.kind === "local"
     );
     const existingImageUrls = post.imageUrls ?? [];
+    const topicUnchanged =
+      nextTopicSelection !== "__new__" &&
+      (post.topic?.id ?? null) === resolvedNextTopicId;
     const imageOrderUnchanged =
       localImages.length === 0 &&
       existingImageUrls.length === remoteImageUrls.length &&
@@ -933,6 +979,7 @@ export default function PostCard({
       sharedTitleUnchanged &&
       sharedDescriptionUnchanged &&
       sharedSourceUnchanged &&
+      topicUnchanged &&
       imageOrderUnchanged
     ) {
       closeEditComposer();
@@ -974,6 +1021,8 @@ export default function PostCard({
         sharedTitle: hasLinkFields ? normalizedSharedTitle || null : null,
         sharedDescription: hasLinkFields ? normalizedSharedDescription || null : null,
         sharedSource: hasLinkFields ? normalizedSharedSource || null : null,
+        topicId: resolvedNextTopicId,
+        newTopicName: nextTopicSelection === "__new__" ? nextTopicName : null,
         imageUrls: finalImageUrls,
       };
 
@@ -1007,6 +1056,10 @@ export default function PostCard({
         return;
       }
 
+      if (data.post && typeof data.post === "object") {
+        setPost(data.post as PostData);
+      }
+
       setActionNotice({
         kind: data.moderation?.status === "author_only" ? "warning" : "success",
         message: data.message ?? "Post updated.",
@@ -1023,6 +1076,8 @@ export default function PostCard({
       setEditSharedTitle(data.post?.sharedTitle ?? normalizedSharedTitle);
       setEditSharedDescription(data.post?.sharedDescription ?? normalizedSharedDescription);
       setEditSharedSource(data.post?.sharedSource ?? normalizedSharedSource);
+      setEditSelectedTopicId(data.post?.topic?.id ?? resolvedNextTopicId ?? "");
+      setEditNewTopicName("");
       router.refresh();
     } finally {
       setSavingEdit(false);
@@ -1436,6 +1491,39 @@ export default function PostCard({
                 minRows={4}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-1 text-sm font-medium text-slate-800">Topic</p>
+                <p className="mb-2 text-xs text-slate-500">
+                  Keep, change, remove, or create a new topic for this post.
+                </p>
+                <select
+                  value={editSelectedTopicId}
+                  onChange={(event) => setEditSelectedTopicId(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No topic</option>
+                  {editTopics.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                      {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Create new topic</option>
+                </select>
+                {editSelectedTopicId === "__new__" ? (
+                  <input
+                    value={editNewTopicName}
+                    onChange={(event) => setEditNewTopicName(event.target.value)}
+                    placeholder="e.g. Zene"
+                    maxLength={40}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : null}
+                {loadingEditTopics ? (
+                  <p className="mt-2 text-xs text-slate-500">Loading topics...</p>
+                ) : null}
+              </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
