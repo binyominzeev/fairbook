@@ -13,6 +13,13 @@ import { t, tf } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+const YOUTUBE_HOSTNAMES = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "youtu.be",
+]);
+const YOUTUBE_VIDEO_ID_PATTERN = /^[a-zA-Z0-9_-]{11}$/;
 
 interface Author {
   id: string;
@@ -192,6 +199,49 @@ function buildRemoteEditImages(imageUrls: string[]) {
   }));
 }
 
+function normalizeUrlToken(url: string) {
+  return url.replace(/[),.?!]+$/u, "");
+}
+
+function extractYouTubeVideoId(url: string) {
+  try {
+    const parsedUrl = new URL(normalizeUrlToken(url));
+    if (!YOUTUBE_HOSTNAMES.has(parsedUrl.hostname)) {
+      return null;
+    }
+
+    const segments = parsedUrl.pathname.split("/").filter(Boolean);
+    const candidateFromPath =
+      segments[0] === "shorts" || segments[0] === "embed" ? segments[1] : segments[0];
+    const candidateFromQuery = parsedUrl.searchParams.get("v");
+    const videoId = candidateFromQuery ?? candidateFromPath ?? "";
+
+    return YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
+function getYouTubeEmbedUrl(url: string) {
+  const videoId = extractYouTubeVideoId(url);
+  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : null;
+}
+
+function findYouTubeEmbedUrls(text: string) {
+  const seen = new Set<string>();
+  const embedUrls: string[] = [];
+
+  for (const rawUrl of text.match(URL_PATTERN) ?? []) {
+    const embedUrl = getYouTubeEmbedUrl(rawUrl);
+    if (embedUrl && !seen.has(embedUrl)) {
+      seen.add(embedUrl);
+      embedUrls.push(embedUrl);
+    }
+  }
+
+  return embedUrls;
+}
+
 function getSharedOriginLabel(sharedPost: SharedPostData) {
   return sharedPost.community?.name ?? sharedPost.author.name;
 }
@@ -202,6 +252,45 @@ function getSharedOriginHref(sharedPost: SharedPostData) {
   }
 
   return buildProfilePath(sharedPost.author);
+}
+
+function YouTubeEmbed({ url }: { url: string }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-black shadow-sm">
+      <div className="aspect-video">
+        <iframe
+          src={url}
+          title="YouTube video embed"
+          className="h-full w-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+          loading="lazy"
+        />
+      </div>
+    </div>
+  );
+}
+
+function PostTextContent({
+  text,
+  className,
+  query,
+}: {
+  text: string;
+  className: string;
+  query?: string;
+}) {
+  const youtubeEmbedUrls = findYouTubeEmbedUrls(text);
+
+  return (
+    <>
+      {renderTextWithLinks(text, className, query)}
+      {youtubeEmbedUrls.map((url) => (
+        <YouTubeEmbed key={url} url={url} />
+      ))}
+    </>
+  );
 }
 
 function renderTextWithLinks(text: string, className: string, query?: string) {
@@ -1342,7 +1431,11 @@ export default function PostCard({
                 </div>
 
                 {post.content && (
-                  renderTextWithLinks(post.content, "whitespace-pre-wrap text-sm text-slate-800", highlightQuery)
+                  <PostTextContent
+                    text={post.content}
+                    className="whitespace-pre-wrap text-sm text-slate-800"
+                    query={highlightQuery}
+                  />
                 )}
 
                 {post.imageUrls &&
@@ -1383,11 +1476,11 @@ export default function PostCard({
                     </div>
 
                     {post.sharedPost.content && (
-                      renderTextWithLinks(
-                        post.sharedPost.content,
-                        "whitespace-pre-wrap text-sm text-slate-800",
-                        highlightQuery
-                      )
+                      <PostTextContent
+                        text={post.sharedPost.content}
+                        className="whitespace-pre-wrap text-sm text-slate-800"
+                        query={highlightQuery}
+                      />
                     )}
 
                     {post.sharedPost.imageUrls &&
@@ -1864,12 +1957,13 @@ export default function PostCard({
         </div>
 
         {/* Post body */}
-        {post.content &&
-          renderTextWithLinks(
-            post.content,
-            "mb-3 whitespace-pre-wrap text-sm text-slate-800",
-            highlightQuery
-          )}
+        {post.content && (
+          <PostTextContent
+            text={post.content}
+            className="mb-3 whitespace-pre-wrap text-sm text-slate-800"
+            query={highlightQuery}
+          />
+        )}
 
         {post.imageUrls &&
           post.imageUrls.length > 0 &&
@@ -1954,11 +2048,11 @@ export default function PostCard({
           </div>
 
           {post.sharedPost.content && (
-            renderTextWithLinks(
-              post.sharedPost.content,
-              "whitespace-pre-wrap text-sm text-slate-800",
-              highlightQuery
-            )
+            <PostTextContent
+              text={post.sharedPost.content}
+              className="whitespace-pre-wrap text-sm text-slate-800"
+              query={highlightQuery}
+            />
           )}
 
           {post.sharedPost.imageUrls &&
