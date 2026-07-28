@@ -409,6 +409,18 @@ export default async function ProfilePage(props: {
           </div>
         </div>
 
+        {profileTopics.length > 0 ? (
+          <ProfileTopicStrip
+            topics={profileTopics}
+            profilePath={canonicalProfilePath}
+            activeTab={activeTab}
+            showSettings={showSettings}
+            query={query}
+            activeTopicId={topicId}
+            isOwnProfile={isOwnProfile}
+          />
+        ) : null}
+
         {canViewActivity ? (
           <>
             {isOwnProfile && showSettings && currentUser && (
@@ -423,18 +435,6 @@ export default async function ProfilePage(props: {
                 commentInsightsEnabled={commentInsightsEnabled}
               />
             )}
-
-            {profileTopics.length > 0 ? (
-              <ProfileTopicStrip
-                topics={profileTopics}
-                profilePath={canonicalProfilePath}
-                activeTab={activeTab}
-                showSettings={showSettings}
-                query={query}
-                activeTopicId={topicId}
-                isOwnProfile={isOwnProfile}
-              />
-            ) : null}
 
             <div className="flex items-start justify-between gap-3 px-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
