@@ -8,6 +8,8 @@ import { BarChart3, Bell, FileText, Home, LayoutGrid, LogOut, UserRound, UserSea
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { t } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 interface User {
   id: string;
@@ -23,6 +25,7 @@ interface Props {
 export default function Navbar({ user }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useAppLocale();
   const [unreadCount, setUnreadCount] = useState(0);
   const [canViewStats, setCanViewStats] = useState(false);
 
@@ -85,12 +88,12 @@ export default function Navbar({ user }: Props) {
   };
 
   const navLinks = [
-    { href: "/feed", label: "Feed", icon: Home },
-    { href: "/groups", label: "Groups", icon: LayoutGrid },
-    { href: "/connections", label: "People", icon: UserSearch },
-    { href: "/pages", label: "Pages", icon: FileText },
-    { href: "/notifications", label: "Notifications", icon: Bell },
-    ...(canViewStats ? [{ href: "/stats", label: "Stats", icon: BarChart3 }] : []),
+    { href: "/feed", label: t(locale, "nav.feed"), icon: Home },
+    { href: "/groups", label: t(locale, "nav.groups"), icon: LayoutGrid },
+    { href: "/connections", label: t(locale, "nav.people"), icon: UserSearch },
+    { href: "/pages", label: t(locale, "nav.pages"), icon: FileText },
+    { href: "/notifications", label: t(locale, "nav.notifications"), icon: Bell },
+    ...(canViewStats ? [{ href: "/stats", label: t(locale, "nav.stats"), icon: BarChart3 }] : []),
   ];
   const profileHref = buildProfilePath(user);
 
@@ -111,19 +114,19 @@ export default function Navbar({ user }: Props) {
           ))}
           <IconNavLink
             href={profileHref}
-            label="Profile"
+            label={t(locale, "nav.profile")}
             icon={UserRound}
             active={pathname.startsWith(profileHref)}
             className="ml-auto sm:ml-2"
           />
           <button
             onClick={logout}
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={t(locale, "nav.signOut")}
+            title={t(locale, "nav.signOut")}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
           >
             <LogOut aria-hidden="true" className="h-5 w-5" strokeWidth={2} />
-            <span className="sr-only">Sign out</span>
+            <span className="sr-only">{t(locale, "nav.signOut")}</span>
           </button>
         </nav>
       </div>

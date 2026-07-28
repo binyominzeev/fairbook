@@ -3,6 +3,8 @@
 import { useState } from "react";
 import PostComposerDialog from "./PostComposerDialog";
 import { useRouter } from "next/navigation";
+import { t } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 export default function CreatePostForm({
   communityId = null,
@@ -12,6 +14,7 @@ export default function CreatePostForm({
   returnToPath?: string | null;
 } = {}) {
   const router = useRouter();
+  const locale = useAppLocale();
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [notice, setNotice] = useState<{
     kind: "success" | "warning";
@@ -40,9 +43,9 @@ export default function CreatePostForm({
         onClick={() => setIsComposerOpen(true)}
         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300"
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Create post</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{t(locale, "composer.launchTitle")}</p>
         <p className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-          Share a thought, start a discussion...
+          {t(locale, "composer.launchPlaceholder")}
         </p>
       </button>
       {notice && (
@@ -59,7 +62,7 @@ export default function CreatePostForm({
           onSuccess={(result) => {
             setNotice({
               kind: result.moderation?.status === "author_only" ? "warning" : "success",
-              message: result.message ?? "Post accepted.",
+              message: result.message ?? t(locale, "composer.postAccepted"),
             });
             setIsComposerOpen(false);
           }}

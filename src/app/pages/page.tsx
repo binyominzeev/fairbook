@@ -15,6 +15,8 @@ import { getRecentFeedCronRuns } from "@/lib/feed-cron-logs";
 import { getFeedGroupsForUser, getUserFeedSubscriptions } from "@/lib/feed-groups";
 import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
+import { getRequestLocale } from "@/lib/request-locale";
+import { t, tf } from "@/lib/i18n";
 
 type SearchParams = {
   q?: string;
@@ -24,6 +26,7 @@ type SearchParams = {
 export default async function PagesPage(props: {
   searchParams: Promise<SearchParams>;
 }) {
+  const locale = await getRequestLocale();
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -140,13 +143,13 @@ export default async function PagesPage(props: {
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-slate-900">Pages</h1>
+              <h1 className="text-lg font-bold text-slate-900">{t(locale, "pages.title")}</h1>
               <p className="text-sm text-slate-500 mt-1">
-                Follow RSS-powered pages and their articles will show up in your feed like any other post.
+                {t(locale, "pages.description")}
               </p>
             </div>
             <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
-              <p className="text-xs text-slate-400">Following pages</p>
+              <p className="text-xs text-slate-400">{t(locale, "pages.followingPages")}</p>
               <p className="text-lg font-semibold text-slate-900">{feedCount}</p>
             </div>
           </div>
@@ -160,7 +163,7 @@ export default async function PagesPage(props: {
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              Discover
+              {t(locale, "pages.tab.discover")}
             </Link>
             <Link
               href={query ? `/pages?tab=following&q=${encodeURIComponent(query)}` : "/pages?tab=following"}
@@ -170,7 +173,7 @@ export default async function PagesPage(props: {
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              Following
+              {t(locale, "pages.tab.following")}
             </Link>
             {isAdmin && (
               <Link
@@ -181,7 +184,7 @@ export default async function PagesPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Logs
+                {t(locale, "pages.tab.logs")}
               </Link>
             )}
           </div>
@@ -191,14 +194,14 @@ export default async function PagesPage(props: {
               <input type="hidden" name="tab" value={activeTab} />
               <QuerySyncSearchInput
                 initialValue={query}
-                placeholder="Search pages or publishers"
+                placeholder={t(locale, "pages.searchPlaceholder")}
                 className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
               />
               <button
                 type="submit"
                 className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
               >
-                Search
+                {t(locale, "pages.searchButton")}
               </button>
             </form>
           )}
@@ -208,10 +211,10 @@ export default async function PagesPage(props: {
           ) : pages.length === 0 ? (
             <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
               {activeTab === "following"
-                ? "You are not following any pages yet."
+                ? t(locale, "pages.empty.following")
                 : query
-                ? `No pages found for \"${query}\".`
-                : "No pages are available yet."}
+                ? tf(locale, "pages.empty.query", { query })
+                : t(locale, "pages.empty.none")}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -237,7 +240,7 @@ export default async function PagesPage(props: {
                             <HighlightedText text={page.name} query={query} />
                           </Link>
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
-                            Page
+                            {t(locale, "pages.badge.page")}
                           </span>
                         </div>
                         {page.bio && (
@@ -246,10 +249,16 @@ export default async function PagesPage(props: {
                           </p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                          <span>{page._count.posts} articles</span>
-                          <span>{page._count.followers} followers</span>
+                          <span>{page._count.posts} {t(locale, "pages.meta.articles")}</span>
+                          <span>{page._count.followers} {t(locale, "pages.meta.followers")}</span>
                           {page.feedSource?.lastFetchedAt && (
-                            <span>Synced {new Date(page.feedSource.lastFetchedAt).toLocaleString()}</span>
+                            <span>
+                              {tf(locale, "pages.meta.synced", {
+                                value: new Date(page.feedSource.lastFetchedAt).toLocaleString(
+                                  locale === "hu" ? "hu-HU" : "en-US"
+                                ),
+                              })}
+                            </span>
                           )}
                           {page.feedSource?.siteUrl && (
                             <a
@@ -258,7 +267,7 @@ export default async function PagesPage(props: {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline"
                             >
-                              Source site
+                              {t(locale, "pages.meta.sourceSite")}
                             </a>
                           )}
                         </div>

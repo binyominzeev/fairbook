@@ -28,6 +28,8 @@ import { Bookmark, EyeOff, Grid2x2, Heart, MessageSquare } from "lucide-react";
 import ProfileTopicStrip from "@/components/ProfileTopicStrip";
 import { buildProfileTopicPath } from "@/lib/topic-path";
 import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
+import { normalizeAppLocale, t } from "@/lib/i18n";
+import { getRequestLocale } from "@/lib/request-locale";
 
 export default async function ProfilePage(props: {
   params: Promise<{ id: string }>;
@@ -35,6 +37,7 @@ export default async function ProfilePage(props: {
 }) {
   const { id } = await props.params;
   const { tab, settings, q, topic, topicSlug } = await props.searchParams;
+  const locale = await getRequestLocale();
   const query = q?.trim() ?? "";
   const requestedTopicId = typeof topic === "string" && topic.trim() ? topic.trim() : null;
   const requestedTopicSlug =
@@ -59,6 +62,7 @@ export default async function ProfilePage(props: {
           avatarUrl: true,
           hideViolentFeed: true,
           profileActivityViewMode: true,
+          locale: true,
         },
       })
     : null;
@@ -314,7 +318,7 @@ export default async function ProfilePage(props: {
                 </h1>
                 {profileUser.isPage && (
                   <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 mt-1">
-                    Page
+                    {t(locale, "profile.pageBadge")}
                   </span>
                 )}
                 {profileUser.bio && (
@@ -327,21 +331,21 @@ export default async function ProfilePage(props: {
                     <strong className="text-slate-900">
                       {visiblePostCount}
                     </strong>{" "}
-                    posts
+                    {t(locale, "profile.stats.posts")}
                   </span>
                   {isOwnProfile ? (
                     <Link href="/connections?tab=followers" className="hover:text-slate-700">
                       <strong className="text-slate-900">
                         {profileUser._count.followers}
                       </strong>{" "}
-                      followers
+                      {t(locale, "profile.stats.followers")}
                     </Link>
                   ) : (
                     <span>
                       <strong className="text-slate-900">
                         {profileUser._count.followers}
                       </strong>{" "}
-                      followers
+                      {t(locale, "profile.stats.followers")}
                     </span>
                   )}
                   {isOwnProfile ? (
@@ -349,14 +353,14 @@ export default async function ProfilePage(props: {
                       <strong className="text-slate-900">
                         {profileUser._count.following}
                       </strong>{" "}
-                      following
+                      {t(locale, "profile.stats.following")}
                     </Link>
                   ) : (
                     <span>
                       <strong className="text-slate-900">
                         {profileUser._count.following}
                       </strong>{" "}
-                      following
+                      {t(locale, "profile.stats.following")}
                     </span>
                   )}
                 </div>
@@ -365,8 +369,8 @@ export default async function ProfilePage(props: {
             {isOwnProfile && currentUser ? (
               <Link
                 href={buildProfileHref(activeTab, !showSettings)}
-                aria-label={showSettings ? "Beállítások bezárása" : "Beállítások megnyitása"}
-                title={showSettings ? "Beállítások bezárása" : "Beállítások megnyitása"}
+                aria-label={showSettings ? t(locale, "profile.settingsClose") : t(locale, "profile.settingsOpen")}
+                title={showSettings ? t(locale, "profile.settingsClose") : t(locale, "profile.settingsOpen")}
                 className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${showSettings ? "border-slate-300 bg-slate-100 text-slate-900" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"}`}
               >
                 <svg
@@ -401,7 +405,7 @@ export default async function ProfilePage(props: {
                     href="/login?mode=register"
                     className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   >
-                    Register to follow
+                    {t(locale, "profile.registerToFollow")}
                   </Link>
                 )}
               </>
@@ -431,6 +435,7 @@ export default async function ProfilePage(props: {
                 email={currentUser.email}
                 avatarUrl={profileUser.avatarUrl}
                 hideViolentFeed={currentUser.hideViolentFeed}
+                localePreference={normalizeAppLocale(currentUser.locale)}
                 isAdmin={isAdmin}
                 commentInsightsEnabled={commentInsightsEnabled}
               />
@@ -440,26 +445,26 @@ export default async function ProfilePage(props: {
               <div className="flex flex-wrap items-center gap-2">
                 <IconNavLink
                   href={buildProfileHref("posts")}
-                  label="Posts"
+                  label={t(locale, "profile.tab.posts")}
                   icon={Grid2x2}
                   active={activeTab === "posts"}
                 />
                 <IconNavLink
                   href={buildProfileHref("likes")}
-                  label="Likes"
+                  label={t(locale, "profile.tab.likes")}
                   icon={Heart}
                   active={activeTab === "likes"}
                 />
                 <IconNavLink
                   href={buildProfileHref("comments")}
-                  label="Comments"
+                  label={t(locale, "profile.tab.comments")}
                   icon={MessageSquare}
                   active={activeTab === "comments"}
                 />
                 {isOwnProfile && (
                   <IconNavLink
                     href={buildProfileHref("bookmarks")}
-                    label="Bookmarks"
+                    label={t(locale, "profile.tab.bookmarks")}
                     icon={Bookmark}
                     active={activeTab === "bookmarks"}
                   />
@@ -467,7 +472,7 @@ export default async function ProfilePage(props: {
                 {isOwnProfile && (
                   <IconNavLink
                     href={buildProfileHref("hidden")}
-                    label="Hidden"
+                    label={t(locale, "profile.tab.hidden")}
                     icon={EyeOff}
                     active={activeTab === "hidden"}
                   />
@@ -480,7 +485,7 @@ export default async function ProfilePage(props: {
 
             {activeTab === "posts" && (
               <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">Posts</h2>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.posts")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
@@ -500,7 +505,7 @@ export default async function ProfilePage(props: {
 
             {activeTab === "likes" && (
               <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">Liked posts</h2>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.likedPosts")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
@@ -520,7 +525,7 @@ export default async function ProfilePage(props: {
 
             {activeTab === "bookmarks" && isOwnProfile && (
               <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">Bookmarked posts</h2>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.bookmarkedPosts")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
@@ -540,7 +545,7 @@ export default async function ProfilePage(props: {
 
             {activeTab === "comments" && (
               <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">Recent comments</h2>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.recentComments")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
@@ -560,7 +565,7 @@ export default async function ProfilePage(props: {
 
             {activeTab === "hidden" && isOwnProfile && (
               <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">Hidden posts</h2>
+                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.hiddenPosts")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
@@ -581,7 +586,7 @@ export default async function ProfilePage(props: {
         ) : (
           <>
             <div className="px-1">
-              <h2 className="text-sm font-semibold text-slate-700">Posts</h2>
+              <h2 className="text-sm font-semibold text-slate-700">{t(locale, "profile.heading.posts")}</h2>
             </div>
             <ProfileActivitySection
               profileId={profileUser.id}

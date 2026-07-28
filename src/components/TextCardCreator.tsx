@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PostComposerDialog, { type PostComposerSuccessResult } from "./PostComposerDialog";
+import { t, tf } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 type BackgroundPreset = {
   id: string;
@@ -45,7 +47,6 @@ const MAX_FONT_SIZE = 240;
 const HORIZONTAL_PADDING = 0.1;
 const VERTICAL_PADDING = 0.1;
 
-const SVG_BACKGROUNDS_ATTRIBUTION = "Backgrounds by SVGBackgrounds.com";
 const SVG_BACKGROUNDS_BASE_PATH = "/text-card-backgrounds/svgbackgrounds-free";
 
 function createPatternPreset(params: {
@@ -801,8 +802,6 @@ const RECENT_BACKGROUND_LIMIT = 6;
 const GOOGLE_FONTS_STYLESHEET =
   "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Poppins:wght@400;500;700&family=Noto+Sans:wght@400;500;700&family=Outfit:wght@400;500;700&family=PT+Sans:wght@400;700&family=Crimson+Text:wght@400;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,700&family=Forum&family=Playpen+Sans+Hebrew:wght@400;500;700&family=Caveat:wght@400;500;700&family=Kalam:wght@400;700&family=Baloo+2:wght@400;500;700&display=swap";
 
-const DEFAULT_TEXT = "Great conversations start where attention does not run out.";
-
 type TextCardCreatorProps = {
   initialText?: string;
   isAdmin?: boolean;
@@ -1320,7 +1319,8 @@ export default function TextCardCreator({
   returnToPath = null,
 }: TextCardCreatorProps) {
   const router = useRouter();
-  const [text, setText] = useState(() => initialText?.trim() || DEFAULT_TEXT);
+  const locale = useAppLocale();
+  const [text, setText] = useState(() => initialText?.trim() || t(locale, "textCard.defaultText"));
   const [backgroundId, setBackgroundId] = useState(BACKGROUNDS[0].id);
   const [fontId, setFontId] = useState(FONTS[0].id);
   const [fontSize, setFontSize] = useState(72);
@@ -1501,10 +1501,10 @@ export default function TextCardCreator({
   const fontPreviewText = useMemo(() => {
     const flattened = text.replace(/\s+/g, " ").trim();
     if (!flattened) {
-      return "The quick brown fox jumps over the lazy dog.";
+      return t(locale, "textCard.fontPreviewFallback");
     }
     return flattened.slice(0, 72);
-  }, [text]);
+  }, [locale, text]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1709,11 +1709,11 @@ export default function TextCardCreator({
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError("PNG export failed. Please try again.");
+      setError(t(locale, "textCard.error.exportPng"));
     } finally {
       setIsExporting(false);
     }
-  }, [isExporting, renderCardBlob]);
+  }, [isExporting, locale, renderCardBlob]);
 
   const handlePostToFairbook = useCallback(async () => {
     if (isPosting) return;
@@ -1735,13 +1735,13 @@ export default function TextCardCreator({
       });
       const uploadData = await uploadRes.json();
       if (!uploadRes.ok) {
-        setError(uploadData.error ?? "Failed to upload image.");
+        setError(uploadData.error ?? t(locale, "textCard.error.uploadImage"));
         return;
       }
 
       const imageUrls = Array.isArray(uploadData.urls) ? uploadData.urls : [];
       if (imageUrls.length === 0) {
-        setError("No uploaded image URL was returned.");
+        setError(t(locale, "textCard.error.noUploadUrl"));
         return;
       }
 
@@ -1764,7 +1764,7 @@ export default function TextCardCreator({
       setPendingComposerImageUrl(imageUrls[0] ?? null);
       setIsComposerOpen(true);
     } catch {
-      setError("Posting failed. Please try again.");
+      setError(t(locale, "textCard.error.posting"));
     } finally {
       setIsPosting(false);
     }
@@ -1774,6 +1774,7 @@ export default function TextCardCreator({
     activeFont.id,
     includeCaptionInPost,
     isPosting,
+    locale,
     renderCardBlob,
     selectedPatternBackground,
     shouldApplyPatternSolidMix,
@@ -1784,7 +1785,7 @@ export default function TextCardCreator({
     if (!text.trim()) {
       setTextModerationNotice({
         kind: "warning",
-        message: "Add text first to run moderation test.",
+        message: t(locale, "textCard.notice.addTextForTest"),
       });
       return;
     }
@@ -1807,20 +1808,20 @@ export default function TextCardCreator({
       });
       const data = await response.json();
       if (!response.ok) {
-        setError(data.error ?? "Test failed.");
+        setError(data.error ?? t(locale, "textCard.error.test"));
         return;
       }
 
       setTextModerationNotice({
         kind: data.moderation?.status === "author_only" ? "warning" : "success",
-        message: data.moderation?.explanation ?? "Test completed.",
+        message: data.moderation?.explanation ?? t(locale, "textCard.notice.testCompleted"),
       });
     } catch {
-      setError("Test failed. Please try again.");
+      setError(t(locale, "textCard.error.testRetry"));
     } finally {
       setIsTextTesting(false);
     }
-  }, [text]);
+  }, [locale, text]);
 
   const updatePresetVisibility = useCallback(async (nextHiddenFontIds: string[]) => {
       if (!isAdmin) return;
@@ -1837,18 +1838,18 @@ export default function TextCardCreator({
 
         const data = await response.json();
         if (!response.ok) {
-          setError(data.error ?? "Failed to save preset visibility.");
+          setError(data.error ?? t(locale, "textCard.error.savePresetVisibility"));
           return;
         }
 
         setHiddenFontIds(Array.isArray(data.hiddenFontIds) ? data.hiddenFontIds : []);
       } catch {
-        setError("Failed to save preset visibility.");
+        setError(t(locale, "textCard.error.savePresetVisibility"));
       } finally {
         setIsSavingPresetVisibility(false);
       }
     },
-    [isAdmin]
+    [isAdmin, locale]
   );
 
   const toggleFontHidden = useCallback(
@@ -1922,7 +1923,7 @@ export default function TextCardCreator({
                 htmlFor="text-card-input"
                 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
               >
-                Text
+                {t(locale, "textCard.inputLabel")}
               </label>
               <button
                 type="button"
@@ -1930,18 +1931,18 @@ export default function TextCardCreator({
                 disabled={isTextTesting || isPosting || isExporting}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isTextTesting ? "Testing..." : "Test AI moderation"}
+                {isTextTesting ? t(locale, "textCard.testing") : t(locale, "textCard.testModeration")}
               </button>
             </div>
             <textarea
               id="text-card-input"
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Type any length of text here..."
+              placeholder={t(locale, "textCard.placeholder")}
               rows={8}
               className="w-full resize-y rounded-2xl border border-slate-300 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition-colors focus:border-amber-500"
             />
-            <p className="text-xs text-slate-500">Line breaks are preserved in preview and PNG.</p>
+            <p className="text-xs text-slate-500">{t(locale, "textCard.lineBreakHint")}</p>
             {textModerationNotice && (
               <p
                 className={`text-xs ${
@@ -1965,7 +1966,7 @@ export default function TextCardCreator({
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Live Preview
+                    {t(locale, "textCard.livePreview")}
                   </p>
                 </div>
                 <div
@@ -2011,7 +2012,7 @@ export default function TextCardCreator({
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Backgrounds
+              {t(locale, "textCard.backgrounds")}
             </p>
             <div
               ref={backgroundGalleryScrollRef}
@@ -2029,7 +2030,11 @@ export default function TextCardCreator({
                       onClick={() => scrollToGalleryCategory(category)}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
                     >
-                      {category === "gradients" ? "Grad" : category === "patterns" ? "Pattern" : "Solid"}
+                      {category === "gradients"
+                        ? t(locale, "textCard.galleryTab.grad")
+                        : category === "patterns"
+                          ? t(locale, "textCard.galleryTab.pattern")
+                          : t(locale, "textCard.galleryTab.solid")}
                     </button>
                   ))}
                 </div>
@@ -2078,7 +2083,7 @@ export default function TextCardCreator({
                                 availableSolidBackgrounds.length === 0
                               }
                             />
-                            Mix with Pattern
+                            {t(locale, "textCard.mixWithPattern")}
                           </label>
                         )}
                       </div>
@@ -2112,7 +2117,7 @@ export default function TextCardCreator({
                                 />
                                 {active && (
                                   <span className="pointer-events-none absolute right-1 top-1 rounded bg-black/65 px-1 text-[10px] font-semibold text-white">
-                                    Active
+                                    {t(locale, "textCard.active")}
                                   </span>
                                 )}
                                 <span className="absolute inset-x-0 bottom-0 bg-black/25 px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-white">
@@ -2128,13 +2133,13 @@ export default function TextCardCreator({
                 })}
               </div>
 
-              <p className="mt-4 text-center text-[11px] text-slate-400">{SVG_BACKGROUNDS_ATTRIBUTION}</p>
+              <p className="mt-4 text-center text-[11px] text-slate-400">{t(locale, "textCard.attribution")}</p>
             </div>
           </div>
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Font Style
+              {t(locale, "textCard.fontStyle")}
             </p>
             <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2172,7 +2177,7 @@ export default function TextCardCreator({
                           disabled={isSavingPresetVisibility}
                           className="absolute right-2 top-2 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
                         >
-                          {isHidden ? "Restore" : "Hide"}
+                          {isHidden ? t(locale, "textCard.font.restore") : t(locale, "textCard.font.hide")}
                         </button>
                       )}
                     </div>
@@ -2182,8 +2187,8 @@ export default function TextCardCreator({
             </div>
             {isAdmin && (
               <p className="text-[11px] text-slate-500">
-                Hidden presets are not shown for non-admin users.
-                {isSavingPresetVisibility ? " Saving..." : ""}
+                {t(locale, "textCard.font.hiddenHint")}
+                {isSavingPresetVisibility ? ` ${t(locale, "textCard.saving")}` : ""}
               </p>
             )}
           </div>
@@ -2195,13 +2200,13 @@ export default function TextCardCreator({
               onChange={(event) => setIncludeCaptionInPost(event.target.checked)}
               className="h-4 w-4 rounded border-slate-300 text-slate-900"
             />
-            Include this text as post caption when posting directly
+            {t(locale, "textCard.includeCaption")}
           </label>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            <p>Auto contrast: on</p>
-            <p>Current fitted font size: {fontSize}px</p>
-            <p>Shortcut for download: Ctrl/Cmd + E</p>
+            <p>{t(locale, "textCard.autoContrast")}</p>
+            <p>{tf(locale, "textCard.currentFontSize", { size: fontSize })}</p>
+            <p>{t(locale, "textCard.downloadShortcut")}</p>
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
@@ -2213,7 +2218,7 @@ export default function TextCardCreator({
               disabled={isExporting || isPosting}
               className="inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              {isExporting ? "Exporting PNG..." : "Download PNG"}
+              {isExporting ? t(locale, "textCard.exporting") : t(locale, "textCard.downloadPng")}
             </button>
             <button
               type="button"
@@ -2221,7 +2226,7 @@ export default function TextCardCreator({
               disabled={isPosting || isExporting}
               className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPosting ? "Preparing post..." : "Post to Fairbook"}
+              {isPosting ? t(locale, "textCard.preparingPost") : t(locale, "textCard.postToFairbook")}
             </button>
           </div>
         </aside>
@@ -2229,7 +2234,7 @@ export default function TextCardCreator({
         {isDesktopPreviewLayout && (
         <div className="hidden space-y-3 self-start lg:block lg:sticky lg:top-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Live Preview
+            {t(locale, "textCard.livePreview")}
           </p>
           <div
             className="relative aspect-square w-full overflow-hidden rounded-[1.6rem] border border-slate-300 shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
@@ -2277,7 +2282,7 @@ export default function TextCardCreator({
           communityId={communityId}
           onSuccess={(result: PostComposerSuccessResult) => {
             const params = new URLSearchParams({
-              notice: result.message ?? "Text card posted.",
+              notice: result.message ?? t(locale, "textCard.posted"),
               noticeKind: result.moderation?.status === "author_only" ? "warning" : "success",
             });
             setIsComposerOpen(false);

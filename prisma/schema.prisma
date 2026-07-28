@@ -29,6 +29,8 @@ model User {
   profileActivityViewMode String @default("normal")
   // Feed sort mode: "current" | "weighted" | "likes" | "comments" | "time"
   feedSortMode String @default("current")
+  // App locale preference: "hu" | "en"
+  locale       String @default("hu")
 
   managedBy          User?               @relation("ManagedPages", fields: [managedById], references: [id])
   managedPages       User[]              @relation("ManagedPages")

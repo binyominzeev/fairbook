@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { t, tf } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 const MENU_ROOT_ATTR = "data-notification-menu-root";
 
@@ -46,106 +48,114 @@ type NotificationItem = {
   } | null;
 };
 
-function timeAgo(dateIso: string) {
+function timeAgo(dateIso: string, locale: "hu" | "en") {
   const diff = Date.now() - new Date(dateIso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t(locale, "notifications.time.justNow");
+  if (mins < 60) return tf(locale, "notifications.time.minutesAgo", { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return tf(locale, "notifications.time.hoursAgo", { count: hours });
+  return tf(locale, "notifications.time.daysAgo", { count: Math.floor(hours / 24) });
 }
 
-function buildLabel(item: NotificationItem) {
+function buildLabel(item: NotificationItem, locale: "hu" | "en") {
   if (item.type === "comment_reply") {
-    return `${item.actor.name} replied to your comment`;
+    return tf(locale, "notifications.label.comment_reply", { actorName: item.actor.name });
   }
 
   if (item.type === "followed_user_commented") {
-    return `${item.actor.name} commented on a post`;
+    return tf(locale, "notifications.label.followed_user_commented", { actorName: item.actor.name });
   }
 
   if (item.type === "followed_user_new_post") {
-    return `${item.actor.name} posted something new`;
+    return tf(locale, "notifications.label.followed_user_new_post", { actorName: item.actor.name });
   }
 
   if (item.type === "post_liked") {
-    return `${item.actor.name} liked your post`;
+    return tf(locale, "notifications.label.post_liked", { actorName: item.actor.name });
   }
 
   if (item.type === "comment_liked") {
-    return `${item.actor.name} liked your comment`;
+    return tf(locale, "notifications.label.comment_liked", { actorName: item.actor.name });
   }
 
   if (item.type === "group_invited") {
-    return `${item.actor.name} invited you to a group`;
+    return tf(locale, "notifications.label.group_invited", { actorName: item.actor.name });
   }
 
   if (item.type === "group_new_post") {
-    return `${item.actor.name} posted in your group`;
+    return tf(locale, "notifications.label.group_new_post", { actorName: item.actor.name });
   }
 
   if (item.type === "group_join_requested") {
-    return `${item.actor.name} requested to join your group`;
+    return tf(locale, "notifications.label.group_join_requested", { actorName: item.actor.name });
   }
 
   if (item.type === "group_join_approved") {
-    return `${item.actor.name} approved your join request`;
+    return tf(locale, "notifications.label.group_join_approved", { actorName: item.actor.name });
   }
 
   if (item.type === "group_invite_accepted") {
-    return `${item.actor.name} accepted your group invite`;
+    return tf(locale, "notifications.label.group_invite_accepted", { actorName: item.actor.name });
   }
 
   if (item.type === "post_subscribed_commented") {
-    return `${item.actor.name} commented on a post you follow`;
+    return tf(locale, "notifications.label.post_subscribed_commented", { actorName: item.actor.name });
   }
 
-  return `${item.actor.name} sent an update`;
+  return tf(locale, "notifications.label.default", { actorName: item.actor.name });
 }
 
-function buildContext(item: NotificationItem) {
+function buildContext(item: NotificationItem, locale: "hu" | "en") {
   if (item.type === "post_liked") {
-    return item.post?.previewText?.trim() || "Your post was liked.";
+    return item.post?.previewText?.trim() || t(locale, "notifications.context.postLikedFallback");
   }
 
   if (item.type === "comment_liked" || item.type === "comment_reply") {
-    return item.comment?.content?.trim() || "Your comment was updated.";
+    return item.comment?.content?.trim() || t(locale, "notifications.context.commentFallback");
   }
 
   if (item.type === "followed_user_commented") {
-    return item.comment?.content?.trim() || item.post?.previewText?.trim() || "Open post";
+    return item.comment?.content?.trim() || item.post?.previewText?.trim() || t(locale, "notifications.context.openPost");
   }
 
   if (item.type === "followed_user_new_post") {
-    return item.post?.previewText?.trim() || "Open post";
+    return item.post?.previewText?.trim() || t(locale, "notifications.context.openPost");
   }
 
   if (item.type === "group_invited") {
-    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+    return item.community?.name
+      ? tf(locale, "notifications.context.groupName", { name: item.community.name })
+      : t(locale, "notifications.context.openGroup");
   }
 
   if (item.type === "group_new_post") {
-    return item.post?.previewText?.trim() || item.community?.name || "Open group post";
+    return item.post?.previewText?.trim() || item.community?.name || t(locale, "notifications.context.openGroupPost");
   }
 
   if (item.type === "group_join_requested") {
-    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+    return item.community?.name
+      ? tf(locale, "notifications.context.groupName", { name: item.community.name })
+      : t(locale, "notifications.context.openGroup");
   }
 
   if (item.type === "group_join_approved") {
-    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+    return item.community?.name
+      ? tf(locale, "notifications.context.groupName", { name: item.community.name })
+      : t(locale, "notifications.context.openGroup");
   }
 
   if (item.type === "group_invite_accepted") {
-    return item.community?.name ? `Group: ${item.community.name}` : "Open group";
+    return item.community?.name
+      ? tf(locale, "notifications.context.groupName", { name: item.community.name })
+      : t(locale, "notifications.context.openGroup");
   }
 
   if (item.type === "post_subscribed_commented") {
-    return item.comment?.content?.trim() || item.post?.previewText?.trim() || "Open post";
+    return item.comment?.content?.trim() || item.post?.previewText?.trim() || t(locale, "notifications.context.openPost");
   }
 
-  return item.post?.previewText?.trim() || item.comment?.content?.trim() || "Open";
+  return item.post?.previewText?.trim() || item.comment?.content?.trim() || t(locale, "notifications.context.openGeneric");
 }
 
 export default function NotificationsPanel({
@@ -155,6 +165,7 @@ export default function NotificationsPanel({
   initialNotifications: NotificationItem[];
   initialNextCursor: string | null;
 }) {
+  const locale = useAppLocale();
   const [items, setItems] = useState(initialNotifications);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -228,12 +239,12 @@ export default function NotificationsPanel({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to mark notifications as read.");
+        throw new Error(data.error ?? t(locale, "notifications.markReadFailed"));
       }
 
       applyUnreadCount(Number(data.unreadCount ?? 0));
     },
-    [applyUnreadCount]
+    [applyUnreadCount, locale]
   );
 
   useEffect(() => {
@@ -376,13 +387,13 @@ export default function NotificationsPanel({
       !("PushManager" in window) ||
       !("Notification" in window)
     ) {
-      setError("This device does not support web push notifications.");
+      setError(t(locale, "notifications.phoneUnsupported"));
       return;
     }
 
     const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY;
     if (!publicKey) {
-      setError("Push notifications are not configured yet.");
+      setError(t(locale, "notifications.phoneNotConfigured"));
       return;
     }
 
@@ -406,13 +417,13 @@ export default function NotificationsPanel({
           const data = await response.json().catch(() => ({}));
 
           if (!response.ok) {
-            setError(data.error ?? "Could not disable phone notifications.");
+            setError(data.error ?? t(locale, "notifications.disableFailed"));
             return;
           }
         }
 
         setPhonePushEnabled(false);
-        setInfo("Disabled phone notifications.");
+        setInfo(t(locale, "notifications.disabled"));
         return;
       }
 
@@ -421,7 +432,7 @@ export default function NotificationsPanel({
 
       if (permission !== "granted") {
         setPhonePushEnabled(false);
-        setError("Notification permission was not granted.");
+        setError(t(locale, "notifications.permissionDenied"));
         return;
       }
 
@@ -440,14 +451,14 @@ export default function NotificationsPanel({
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setError(data.error ?? "Could not register this device for push notifications.");
+        setError(data.error ?? t(locale, "notifications.registerFailed"));
         return;
       }
 
       setPhonePushEnabled(true);
-      setInfo("Enabled phone notifications.");
+      setInfo(t(locale, "notifications.enabled"));
     } catch {
-      setError("Could not update phone notifications.");
+      setError(t(locale, "notifications.updateFailed"));
     } finally {
       setTogglingPhonePush(false);
     }
@@ -463,7 +474,7 @@ export default function NotificationsPanel({
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error ?? "Failed to load notifications.");
+        setError(data.error ?? t(locale, "notifications.loadFailed"));
         return;
       }
 
@@ -484,7 +495,7 @@ export default function NotificationsPanel({
 
       setItems((current) => current.map((item) => ({ ...item, isRead: true })));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to mark notifications as read.");
+      setError(err instanceof Error ? err.message : t(locale, "notifications.markReadFailed"));
     } finally {
       setMarkingRead(false);
     }
@@ -502,7 +513,7 @@ export default function NotificationsPanel({
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error ?? "Could not update push preferences.");
+        setError(data.error ?? t(locale, "notifications.preferenceUpdateFailed"));
         return;
       }
 
@@ -512,7 +523,7 @@ export default function NotificationsPanel({
       }));
       setActiveMenuItemId(null);
     } catch {
-      setError("Could not update push preferences.");
+      setError(t(locale, "notifications.preferenceUpdateFailed"));
     } finally {
       setUpdatingType(null);
     }
@@ -534,14 +545,14 @@ export default function NotificationsPanel({
           )
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to open notification.");
+        setError(err instanceof Error ? err.message : t(locale, "notifications.openFailed"));
         return;
       }
     }
 
     const targetPath = item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath;
     if (!targetPath) {
-      setError("Failed to open notification.");
+      setError(t(locale, "notifications.openFailed"));
       return;
     }
 
@@ -551,7 +562,7 @@ export default function NotificationsPanel({
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-        No notifications yet.
+        {t(locale, "notifications.none")}
       </div>
     );
   }
@@ -574,11 +585,11 @@ export default function NotificationsPanel({
           >
             {togglingPhonePush
               ? phonePushEnabled
-                ? "Disabling phone notifications..."
-                : "Enabling phone notifications..."
+                ? t(locale, "notifications.phoneDisabling")
+                : t(locale, "notifications.phoneEnabling")
               : phonePushEnabled
-                ? "Enabled phone notifications"
-                : "Enable phone notifications"}
+                ? t(locale, "notifications.phoneEnabled")
+                : t(locale, "notifications.phoneEnable")}
           </button>
         )}
         <button
@@ -587,7 +598,7 @@ export default function NotificationsPanel({
           disabled={markingRead}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50 disabled:text-slate-300"
         >
-          {markingRead ? "Marking..." : "Mark all as read"}
+          {markingRead ? t(locale, "notifications.marking") : t(locale, "notifications.markAll")}
         </button>
       </div>
 
@@ -607,7 +618,7 @@ export default function NotificationsPanel({
             <div className="absolute right-2 top-2" data-notification-menu-root="true">
               <button
                 type="button"
-                aria-label="Notification options"
+                aria-label={t(locale, "notifications.options")}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -638,22 +649,22 @@ export default function NotificationsPanel({
                     className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 disabled:text-slate-400"
                   >
                     {updatingType === item.type
-                      ? "Working..."
+                      ? t(locale, "notifications.menuWorking")
                       : pushMutedForType
-                        ? "Subscribe this type on phone"
-                        : "Unsubscribe this type on phone"}
+                        ? t(locale, "notifications.menuSubscribeType")
+                        : t(locale, "notifications.menuUnsubscribeType")}
                   </button>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-slate-900">{buildLabel(item)}</p>
-              <span className="text-xs text-slate-400">{timeAgo(item.createdAt)}</span>
+              <p className="text-sm font-medium text-slate-900">{buildLabel(item, locale)}</p>
+              <span className="text-xs text-slate-400">{timeAgo(item.createdAt, locale)}</span>
             </div>
-            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{buildContext(item)}</p>
+            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{buildContext(item, locale)}</p>
             {pushMutedForType && (
-              <p className="mt-2 text-[11px] font-medium text-amber-700">Phone push muted for this type</p>
+              <p className="mt-2 text-[11px] font-medium text-amber-700">{t(locale, "notifications.typeMuted")}</p>
             )}
           </Link>
           );
@@ -668,7 +679,7 @@ export default function NotificationsPanel({
             disabled={loadingMore}
             className="rounded-lg border border-slate-200 px-4 py-2 text-xs text-slate-600 transition-colors hover:bg-slate-50 disabled:text-slate-300"
           >
-            {loadingMore ? "Loading..." : "Load more"}
+            {loadingMore ? t(locale, "notifications.loading") : t(locale, "notifications.loadMore")}
           </button>
         </div>
       )}

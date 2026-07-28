@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buildGlobalTopicPath, buildProfileTopicPath } from "@/lib/topic-path";
+import { t, tf } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
 
@@ -299,6 +301,7 @@ export default function PostCard({
   topicBaseProfilePath = null,
 }: Props) {
   const router = useRouter();
+  const locale = useAppLocale();
   const [post, setPost] = useState(initialPost);
   const [deleted, setDeleted] = useState(false);
   const [hidden, setHidden] = useState(initiallyHidden);
@@ -356,7 +359,6 @@ export default function PostCard({
   const editImageInputRef = useRef<HTMLInputElement | null>(null);
   const editImagesRef = useRef<EditComposerImage[]>(editImages);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
-  const [authDialogActionLabel, setAuthDialogActionLabel] = useState("interact");
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
   const canEditPost = post.author.id === currentUserId;
@@ -371,8 +373,7 @@ export default function PostCard({
       : buildGlobalTopicPath(post.topic.slug)
     : null;
 
-  const openAuthDialog = (actionLabel: string) => {
-    setAuthDialogActionLabel(actionLabel);
+  const openAuthDialog = () => {
     setAuthDialogOpen(true);
   };
 
@@ -457,15 +458,15 @@ export default function PostCard({
   const timeAgo = (date: string) => {
     const diff = now - new Date(date).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return t(locale, "postCard.time.justNow");
+    if (mins < 60) return tf(locale, "postCard.time.minutesAgo", { count: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (hrs < 24) return tf(locale, "postCard.time.hoursAgo", { count: hrs });
+    return tf(locale, "postCard.time.daysAgo", { count: Math.floor(hrs / 24) });
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this post?")) return;
+    if (!confirm(t(locale, "postCard.confirmDelete"))) return;
     const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
     if (res.ok) {
       setDeleted(true);
@@ -475,7 +476,7 @@ export default function PostCard({
 
   const handleLike = async () => {
     if (needsAuthForInteractions) {
-      openAuthDialog("like posts");
+      openAuthDialog();
       return;
     }
 
@@ -488,7 +489,7 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to update like.");
+        setActionError(data.error ?? t(locale, "postCard.error.like"));
         return;
       }
 
@@ -508,20 +509,20 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to hide post.");
+        setActionError(data.error ?? t(locale, "postCard.error.hide"));
         return;
       }
 
       setHidden(Boolean(data.hidden));
       router.refresh();
     } catch {
-      setActionError("Failed to hide post.");
+      setActionError(t(locale, "postCard.error.hide"));
     }
   };
 
   const handleBookmark = async () => {
     if (needsAuthForInteractions) {
-      openAuthDialog("bookmark posts");
+      openAuthDialog();
       return;
     }
 
@@ -534,13 +535,13 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to update bookmark.");
+        setActionError(data.error ?? t(locale, "postCard.error.bookmark"));
         return;
       }
 
       setBookmarked(Boolean(data.bookmarked));
     } catch {
-      setActionError("Failed to update bookmark.");
+      setActionError(t(locale, "postCard.error.bookmark"));
     } finally {
       setPendingAction(null);
     }
@@ -563,7 +564,7 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to update post notifications.");
+        setActionError(data.error ?? t(locale, "postCard.error.postNotifications"));
         return;
       }
 
@@ -572,11 +573,11 @@ export default function PostCard({
       setActionNotice({
         kind: "success",
         message: subscribed
-          ? "Post notifications enabled."
-          : "Post notifications disabled.",
+          ? t(locale, "postCard.notice.postNotificationsEnabled")
+          : t(locale, "postCard.notice.postNotificationsDisabled"),
       });
     } catch {
-      setActionError("Failed to update post notifications.");
+      setActionError(t(locale, "postCard.error.postNotifications"));
     } finally {
       setUpdatingPostNotifications(false);
     }
@@ -608,7 +609,7 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to share post.");
+        setActionError(data.error ?? t(locale, "postCard.error.share"));
         return;
       }
 
@@ -634,7 +635,7 @@ export default function PostCard({
 
   const openShareComposer = async () => {
     if (needsAuthForInteractions) {
-      openAuthDialog("share posts");
+      openAuthDialog();
       return;
     }
 
@@ -696,7 +697,7 @@ export default function PostCard({
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error ?? "Failed to test share.");
+        setActionError(data.error ?? t(locale, "postCard.error.shareTest"));
         return;
       }
 
@@ -722,12 +723,12 @@ export default function PostCard({
       const data = await response.json();
 
       if (!response.ok) {
-        setPermalinkMessage(data.error ?? "Failed to update permalink.");
+        setPermalinkMessage(data.error ?? t(locale, "postCard.error.permalink"));
         return;
       }
 
       setPermalinkDraft(String(data.permalinkSlug ?? permalinkDraft));
-      setPermalinkMessage("Permalink updated.");
+      setPermalinkMessage(t(locale, "postCard.notice.permalinkUpdated"));
       if (typeof data.permalinkPath === "string" && data.permalinkPath.length > 0) {
         router.push(data.permalinkPath);
       } else {
@@ -816,7 +817,7 @@ export default function PostCard({
     if (remainingSlots <= 0) {
       setActionNotice({
         kind: "error",
-        message: `You can attach at most ${MAX_EDIT_IMAGES} images.`,
+        message: tf(locale, "postCard.error.maxImages", { count: MAX_EDIT_IMAGES }),
       });
       return;
     }
@@ -837,7 +838,7 @@ export default function PostCard({
     } catch {
       setActionNotice({
         kind: "error",
-        message: "One or more images could not be processed.",
+        message: t(locale, "postCard.error.imageProcess"),
       });
     }
   };
@@ -897,7 +898,7 @@ export default function PostCard({
       if (!response.ok) {
         setActionNotice({
           kind: "error",
-          message: data.error ?? "Test failed.",
+          message: data.error ?? t(locale, "postCard.error.editTest"),
         });
         return;
       }
@@ -913,7 +914,7 @@ export default function PostCard({
       setLastEditTestResult(data);
       setActionNotice({
         kind: data.moderation?.status === "author_only" ? "warning" : "success",
-        message: data.moderation?.explanation ?? "Test completed.",
+        message: data.moderation?.explanation ?? t(locale, "postCard.notice.editTestCompleted"),
       });
     } finally {
       setEditTesting(false);
@@ -939,7 +940,7 @@ export default function PostCard({
     if (!normalizedContent && !normalizedSharedUrl && !hasStaticContent) {
       setActionNotice({
         kind: "error",
-        message: "Post must have content, images, or a shared URL.",
+        message: t(locale, "postCard.error.editValidation"),
       });
       return;
     }
@@ -947,7 +948,7 @@ export default function PostCard({
     if (nextTopicSelection === "__new__" && !nextTopicName) {
       setActionNotice({
         kind: "error",
-        message: "Add a topic name.",
+        message: t(locale, "postCard.error.editTopicName"),
       });
       return;
     }
@@ -1006,7 +1007,7 @@ export default function PostCard({
         if (!uploadResponse.ok) {
           setActionNotice({
             kind: "error",
-            message: uploadData.error ?? "Failed to upload images.",
+            message: uploadData.error ?? t(locale, "postCard.error.uploadImages"),
           });
           return;
         }
@@ -1051,7 +1052,7 @@ export default function PostCard({
       if (!response.ok) {
         setActionNotice({
           kind: "error",
-          message: data.error ?? "Failed to update post.",
+          message: data.error ?? t(locale, "postCard.error.updatePost"),
         });
         return;
       }
@@ -1062,7 +1063,7 @@ export default function PostCard({
 
       setActionNotice({
         kind: data.moderation?.status === "author_only" ? "warning" : "success",
-        message: data.message ?? "Post updated.",
+        message: data.message ?? t(locale, "postCard.notice.postUpdated"),
       });
       setEditImages((current) => {
         revokeLocalEditPreviewUrls(current);
@@ -1193,7 +1194,7 @@ export default function PostCard({
               shiftLightbox(-1);
             }}
             className="mr-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
-            aria-label="Previous image"
+            aria-label={t(locale, "postCard.lightbox.previous")}
           >
             ←
           </button>
@@ -1202,7 +1203,7 @@ export default function PostCard({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={lightbox.urls[lightbox.index]}
-              alt={`Expanded image ${lightbox.index + 1}`}
+              alt={tf(locale, "postCard.lightbox.expandedAlt", { count: lightbox.index + 1 })}
               className="max-h-[90vh] w-auto max-w-full rounded-lg object-contain"
             />
             <p className="mt-2 text-center text-xs text-slate-200">
@@ -1217,7 +1218,7 @@ export default function PostCard({
               shiftLightbox(1);
             }}
             className="ml-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
-            aria-label="Next image"
+            aria-label={t(locale, "postCard.lightbox.next")}
           >
             →
           </button>
@@ -1229,7 +1230,7 @@ export default function PostCard({
               setLightbox(null);
             }}
             className="absolute right-3 top-3 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur hover:bg-white/25"
-            aria-label="Close lightbox"
+            aria-label={t(locale, "postCard.lightbox.close")}
           >
             ✕
           </button>
@@ -1241,9 +1242,9 @@ export default function PostCard({
           <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:max-h-[calc(100dvh-3rem)]">
             <div className="shrink-0 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Share to your feed</h2>
+                <h2 className="text-base font-semibold text-slate-900">{t(locale, "postCard.shareComposer.title")}</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Add your own note above the shared post.
+                  {t(locale, "postCard.shareComposer.description")}
                 </p>
               </div>
               <button
@@ -1255,7 +1256,7 @@ export default function PostCard({
                 }}
                 className="text-sm text-slate-400 transition-colors hover:text-slate-600"
               >
-                Close
+                {t(locale, "postCard.shareComposer.close")}
               </button>
             </div>
 
@@ -1263,35 +1264,35 @@ export default function PostCard({
               <textarea
                 value={shareContent}
                 onChange={(e) => setShareContent(e.target.value)}
-                placeholder="Say something about this…"
+                placeholder={t(locale, "postCard.shareComposer.placeholder")}
                 rows={4}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Share destination
+                  {t(locale, "postCard.shareComposer.destinationLabel")}
                 </p>
                 <select
                   value={shareCommunityId}
                   onChange={(event) => setShareCommunityId(event.target.value)}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">My personal feed</option>
+                  <option value="">{t(locale, "postCard.shareComposer.destinationMyFeed")}</option>
                   {shareDestinations.map((destination) => (
                     <option key={destination.id} value={destination.id}>
-                      Group: {destination.name}
+                      {tf(locale, "postCard.shareComposer.destinationGroup", { name: destination.name })}
                     </option>
                   ))}
                 </select>
                 {loadingShareDestinations && (
-                  <p className="mt-2 text-xs text-slate-500">Loading groups...</p>
+                  <p className="mt-2 text-xs text-slate-500">{t(locale, "postCard.shareComposer.loadingGroups")}</p>
                 )}
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Visibility
+                  {t(locale, "postCard.shareComposer.visibilityLabel")}
                 </p>
                 <select
                   value={shareVisibility}
@@ -1301,15 +1302,15 @@ export default function PostCard({
                   }}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="public">Public</option>
-                  <option value="private">Only me</option>
+                  <option value="public">{t(locale, "composer.visibilityPublic")}</option>
+                  <option value="private">{t(locale, "composer.visibilityPrivate")}</option>
                 </select>
               </div>
 
               {post.feedSourceId && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <p>
-                    Test the moderation result before sharing this RSS article with your note.
+                    {t(locale, "postCard.shareComposer.testHint")}
                   </p>
                   <button
                     type="button"
@@ -1317,7 +1318,7 @@ export default function PostCard({
                     disabled={shareTesting || !shareContent.trim()}
                     className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:border-amber-100 disabled:text-amber-300"
                   >
-                    {shareTesting ? "Testing…" : "Test"}
+                    {shareTesting ? t(locale, "postCard.shareComposer.testing") : t(locale, "postCard.shareComposer.test")}
                   </button>
                 </div>
               )}
@@ -1332,7 +1333,7 @@ export default function PostCard({
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-                  <span>Sharing from</span>
+                  <span>{t(locale, "postCard.shareComposer.sharingFrom")}</span>
                       <span className="font-medium text-slate-600">
                         <HighlightedText text={post.author.name} query={highlightQuery} />
                       </span>
@@ -1352,7 +1353,7 @@ export default function PostCard({
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                     {post.sharedSource && (
                       <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                        <HighlightedText text={post.sharedSource} query={highlightQuery} /> · External source
+                        <HighlightedText text={post.sharedSource} query={highlightQuery} /> · {t(locale, "postCard.externalSource")}
                       </p>
                     )}
                     {post.sharedTitle && (
@@ -1372,7 +1373,7 @@ export default function PostCard({
                 {post.sharedPost && (
                   <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-                      <span>Includes a shared post from</span>
+                      <span>{t(locale, "postCard.shareComposer.includesSharedFrom")}</span>
                       <Link
                         href={getSharedOriginHref(post.sharedPost)}
                         className="font-medium text-slate-600 hover:underline"
@@ -1399,7 +1400,7 @@ export default function PostCard({
                       <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
                         {post.sharedPost.sharedSource && (
                           <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                            <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · External source
+                            <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · {t(locale, "postCard.externalSource")}
                           </p>
                         )}
                         {post.sharedPost.sharedTitle && (
@@ -1431,7 +1432,7 @@ export default function PostCard({
                 disabled={pendingAction !== null}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:border-slate-100 disabled:text-slate-300"
               >
-                Cancel
+                {t(locale, "postCard.shareComposer.cancel")}
               </button>
               <button
                 type="button"
@@ -1439,7 +1440,7 @@ export default function PostCard({
                 disabled={pendingAction !== null}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
               >
-                {pendingAction === "share" ? "Sharing…" : "Share"}
+                {pendingAction === "share" ? t(locale, "postCard.shareComposer.sharing") : t(locale, "postCard.shareComposer.share")}
               </button>
             </div>
           </div>
@@ -1451,9 +1452,9 @@ export default function PostCard({
           <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Edit post</h2>
+                <h2 className="text-base font-semibold text-slate-900">{t(locale, "postCard.editComposer.title")}</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Saving runs moderation again and republishes if the update passes.
+                  {t(locale, "postCard.editComposer.description")}
                 </p>
               </div>
               <button
@@ -1465,7 +1466,7 @@ export default function PostCard({
                 }}
                 className="text-sm text-slate-400 transition-colors hover:text-slate-600"
               >
-                Close
+                {t(locale, "postCard.editComposer.close")}
               </button>
             </div>
 
@@ -1487,50 +1488,50 @@ export default function PostCard({
               <AutoResizeTextarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                placeholder="Say something..."
+                placeholder={t(locale, "postCard.editComposer.placeholder")}
                 minRows={4}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="mb-1 text-sm font-medium text-slate-800">Topic</p>
+                <p className="mb-1 text-sm font-medium text-slate-800">{t(locale, "postCard.editComposer.topicTitle")}</p>
                 <p className="mb-2 text-xs text-slate-500">
-                  Keep, change, remove, or create a new topic for this post.
+                  {t(locale, "postCard.editComposer.topicHelp")}
                 </p>
                 <select
                   value={editSelectedTopicId}
                   onChange={(event) => setEditSelectedTopicId(event.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">No topic</option>
+                  <option value="">{t(locale, "postCard.editComposer.noTopic")}</option>
                   {editTopics.map((topic) => (
                     <option key={topic.id} value={topic.id}>
                       {topic.name}
                       {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
                     </option>
                   ))}
-                  <option value="__new__">+ Create new topic</option>
+                  <option value="__new__">{t(locale, "postCard.editComposer.createTopic")}</option>
                 </select>
                 {editSelectedTopicId === "__new__" ? (
                   <input
                     value={editNewTopicName}
                     onChange={(event) => setEditNewTopicName(event.target.value)}
-                    placeholder="e.g. Zene"
+                    placeholder={t(locale, "postCard.editComposer.topicPlaceholder")}
                     maxLength={40}
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ) : null}
                 {loadingEditTopics ? (
-                  <p className="mt-2 text-xs text-slate-500">Loading topics...</p>
+                  <p className="mt-2 text-xs text-slate-500">{t(locale, "postCard.editComposer.loadingTopics")}</p>
                 ) : null}
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-800">Attached link</p>
+                    <p className="text-sm font-medium text-slate-800">{t(locale, "postCard.editComposer.linkTitle")}</p>
                     <p className="text-xs text-slate-500">
-                      Update or remove the external link metadata used during moderation.
+                      {t(locale, "postCard.editComposer.linkHelp")}
                     </p>
                   </div>
                   <button
@@ -1540,7 +1541,7 @@ export default function PostCard({
                     }}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
                   >
-                    {editShowLinkFields ? "Hide link fields" : "Edit link fields"}
+                    {editShowLinkFields ? t(locale, "postCard.editComposer.hideLinkFields") : t(locale, "postCard.editComposer.editLinkFields")}
                   </button>
                 </div>
 
@@ -1549,25 +1550,25 @@ export default function PostCard({
                     <input
                       value={editSharedUrl}
                       onChange={(e) => setEditSharedUrl(e.target.value)}
-                      placeholder="https://example.com/article"
+                      placeholder={t(locale, "postCard.editComposer.linkUrlPlaceholder")}
                       className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <input
                       value={editSharedTitle}
                       onChange={(e) => setEditSharedTitle(e.target.value)}
-                      placeholder="Link title"
+                      placeholder={t(locale, "postCard.editComposer.linkTitlePlaceholder")}
                       className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <input
                       value={editSharedSource}
                       onChange={(e) => setEditSharedSource(e.target.value)}
-                      placeholder="Source"
+                      placeholder={t(locale, "postCard.editComposer.linkSourcePlaceholder")}
                       className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <textarea
                       value={editSharedDescription}
                       onChange={(e) => setEditSharedDescription(e.target.value)}
-                      placeholder="Link description"
+                      placeholder={t(locale, "postCard.editComposer.linkDescriptionPlaceholder")}
                       rows={3}
                       className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1578,9 +1579,9 @@ export default function PostCard({
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-800">Images</p>
+                    <p className="text-sm font-medium text-slate-800">{t(locale, "postCard.editComposer.imagesTitle")}</p>
                     <p className="text-xs text-slate-500">
-                      Add new images or remove existing ones. Up to {MAX_EDIT_IMAGES} images.
+                      {tf(locale, "postCard.editComposer.imagesHint", { count: MAX_EDIT_IMAGES })}
                     </p>
                   </div>
                   <button
@@ -1588,7 +1589,7 @@ export default function PostCard({
                     onClick={() => editImageInputRef.current?.click()}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
                   >
-                    Add photos
+                    {t(locale, "postCard.editComposer.addPhotos")}
                   </button>
                 </div>
 
@@ -1602,32 +1603,32 @@ export default function PostCard({
                           className="relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt="Post image" className="h-24 w-full object-cover" />
+                          <img src={src} alt={t(locale, "composer.imageAlt")} className="h-24 w-full object-cover" />
                           <button
                             type="button"
                             onClick={() => removeEditImage(image.id)}
                             className="absolute right-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-white"
                           >
-                            Remove
+                            {t(locale, "composer.imageRemove")}
                           </button>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <p className="mt-3 text-xs text-slate-500">No images attached.</p>
+                  <p className="mt-3 text-xs text-slate-500">{t(locale, "postCard.editComposer.noImages")}</p>
                 )}
               </div>
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <p>Test moderation before saving this update.</p>
+                <p>{t(locale, "postCard.editComposer.testHint")}</p>
                 <button
                   type="button"
                   onClick={handleEditTest}
                   disabled={editTesting || (!editContent.trim() && !editSharedUrl.trim())}
                   className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:border-amber-100 disabled:text-amber-300"
                 >
-                  {editTesting ? "Testing…" : "Test"}
+                  {editTesting ? t(locale, "postCard.shareComposer.testing") : t(locale, "postCard.shareComposer.test")}
                 </button>
               </div>
 
@@ -1653,7 +1654,7 @@ export default function PostCard({
 
               {post.sharedPost && (
                 <p className="text-xs text-slate-500">
-                  The shared post stays attached; only your own note can be changed here.
+                  {t(locale, "postCard.editComposer.sharedPostNotice")}
                 </p>
               )}
 
@@ -1679,7 +1680,7 @@ export default function PostCard({
                 disabled={savingEdit || editTesting}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 disabled:border-slate-100 disabled:text-slate-300"
               >
-                Cancel
+                {t(locale, "postCard.editComposer.cancel")}
               </button>
               <button
                 type="button"
@@ -1687,7 +1688,7 @@ export default function PostCard({
                 disabled={savingEdit || editTesting}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
               >
-                {savingEdit ? "Saving…" : "Save changes"}
+                {savingEdit ? t(locale, "postCard.editComposer.saving") : t(locale, "postCard.editComposer.save")}
               </button>
             </div>
           </div>
@@ -1703,9 +1704,9 @@ export default function PostCard({
             className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-slate-900">Registration required</h3>
+            <h3 className="text-base font-semibold text-slate-900">{t(locale, "postCard.auth.title")}</h3>
             <p className="mt-2 text-sm text-slate-600">
-              To {authDialogActionLabel}, please create an account or sign in.
+              {t(locale, "postCard.auth.body")}
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
@@ -1713,13 +1714,13 @@ export default function PostCard({
                 onClick={() => setAuthDialogOpen(false)}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50"
               >
-                Close
+                {t(locale, "postCard.auth.close")}
               </button>
               <Link
                 href="/login?mode=register"
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
-                Open registration
+                {t(locale, "postCard.auth.openRegistration")}
               </Link>
             </div>
           </div>
@@ -1746,7 +1747,7 @@ export default function PostCard({
                     <HighlightedText text={post.community.name} query={highlightQuery} />
                   </Link>
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-500">
-                    <span>by</span>
+                    <span>{t(locale, "postCard.authorBy")}</span>
                     <Link
                       href={buildProfilePath(post.author)}
                       className="truncate font-medium text-slate-600 hover:underline"
@@ -1809,7 +1810,7 @@ export default function PostCard({
               }}
             >
             <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
-              More ▾
+              {t(locale, "postCard.menu.more")}
             </summary>
             <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
               {canEditPost && (
@@ -1818,7 +1819,7 @@ export default function PostCard({
                   onClick={openEditComposer}
                   className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  Edit
+                  {t(locale, "postCard.menu.edit")}
                 </button>
               )}
               <button
@@ -1826,7 +1827,7 @@ export default function PostCard({
                 onClick={handleHide}
                 className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
               >
-                {hidden ? "Unhide post" : "Hide post"}
+                {hidden ? t(locale, "postCard.menu.unhide") : t(locale, "postCard.menu.hide")}
               </button>
               <button
                 type="button"
@@ -1837,16 +1838,16 @@ export default function PostCard({
                 className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:text-slate-400"
               >
                 {updatingPostNotifications
-                  ? "Updating..."
+                  ? t(locale, "postCard.menu.updating")
                   : postNotificationsSubscribed
-                    ? "Unsubscribe from post notifications"
-                    : "Subscribe to post notifications"}
+                    ? t(locale, "postCard.menu.unsubscribePostNotifications")
+                    : t(locale, "postCard.menu.subscribePostNotifications")}
               </button>
               <Link
                 href={reportHref}
                 className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
               >
-                Report child safety concern
+                {t(locale, "postCard.menu.report")}
               </Link>
               {showDelete && (post.author.id === currentUserId || post.canDeleteByViewer) && (
                 <button
@@ -1854,7 +1855,7 @@ export default function PostCard({
                   onClick={handleDelete}
                   className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
                 >
-                  Delete
+                  {t(locale, "postCard.menu.delete")}
                 </button>
               )}
             </div>
@@ -1891,10 +1892,10 @@ export default function PostCard({
         {post.moderationStatus === "author_only" && post.author.id === currentUserId && (
           <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             <p className="font-medium">
-              Filtered{post.moderationReason ? ` · ${post.moderationReason}` : ""}
+              {t(locale, "postCard.moderation.filtered")}{post.moderationReason ? ` · ${post.moderationReason}` : ""}
             </p>
             <p className="mt-1 text-amber-800">
-              {post.moderationExplanation ?? "Only you can see this post."}
+              {post.moderationExplanation ?? t(locale, "postCard.moderation.authorOnly")}
             </p>
           </div>
         )}
@@ -1918,7 +1919,7 @@ export default function PostCard({
           <div className="p-3">
             {post.sharedSource && (
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">
-                <HighlightedText text={post.sharedSource} query={highlightQuery} /> · External source
+                <HighlightedText text={post.sharedSource} query={highlightQuery} /> · {t(locale, "postCard.externalSource")}
               </p>
             )}
             {post.sharedTitle && (
@@ -1941,7 +1942,7 @@ export default function PostCard({
       {post.sharedPost && (
         <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-slate-300">
           <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-            <span>Shared from</span>
+            <span>{t(locale, "postCard.sharedFrom")}</span>
             <Link
               href={getSharedOriginHref(post.sharedPost)}
               className="font-medium text-slate-600 hover:underline"
@@ -1978,7 +1979,7 @@ export default function PostCard({
               )}
               {post.sharedPost.sharedSource && (
                 <p className="mb-1 text-xs uppercase tracking-wide text-slate-400">
-                  <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · External source
+                  <HighlightedText text={post.sharedPost.sharedSource} query={highlightQuery} /> · {t(locale, "postCard.externalSource")}
                 </p>
               )}
               {post.sharedPost.sharedTitle && (
@@ -2002,7 +2003,7 @@ export default function PostCard({
               href={post.sharedPost.permalinkPath}
               className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
             >
-              Open original post →
+              {t(locale, "postCard.openOriginal")}
             </Link>
           </div>
         </div>
@@ -2011,13 +2012,13 @@ export default function PostCard({
       {canEditPermalink && (
         <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-            Permalink slug
+            {t(locale, "postCard.permalink.label")}
           </p>
           <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               value={permalinkDraft}
               onChange={(e) => setPermalinkDraft(e.target.value)}
-              placeholder="pl. a-bejegyzes-cime"
+              placeholder={t(locale, "postCard.permalink.placeholder")}
               className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
@@ -2026,7 +2027,7 @@ export default function PostCard({
               disabled={permalinkSaving}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:text-slate-400"
             >
-              {permalinkSaving ? "Saving…" : "Save"}
+              {permalinkSaving ? t(locale, "postCard.permalink.saving") : t(locale, "postCard.permalink.save")}
             </button>
           </div>
           {permalinkMessage && (
@@ -2040,9 +2041,9 @@ export default function PostCard({
         {needsAuthForInteractions ? (
           <button
             type="button"
-            onClick={() => openAuthDialog("open comments")}
+            onClick={() => openAuthDialog()}
             className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
-            aria-label="Open comments"
+            aria-label={t(locale, "postCard.action.openComments")}
           >
             <span className="text-sm leading-none" aria-hidden="true">💬</span>
             <span>{post._count.comments}</span>
@@ -2051,7 +2052,7 @@ export default function PostCard({
           <Link
             href={post.permalinkPath}
             className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600"
-            aria-label="Open comments"
+            aria-label={t(locale, "postCard.action.openComments")}
           >
             <span className="text-sm leading-none" aria-hidden="true">💬</span>
             <span>{post._count.comments}</span>
@@ -2062,13 +2063,13 @@ export default function PostCard({
           onClick={handleLike}
           disabled={pendingAction !== null}
           className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ${liked ? "text-blue-600 hover:bg-blue-50" : "text-slate-500 hover:bg-slate-100 hover:text-blue-600"} disabled:text-slate-300`}
-          aria-label={liked ? "Unlike" : "Like"}
+          aria-label={liked ? t(locale, "postCard.action.unlike") : t(locale, "postCard.action.like")}
         >
           <span className="text-base leading-none" aria-hidden="true">
             {liked ? "♥" : "♡"}
           </span>
           <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-            {liked ? "Unlike" : "Like"}
+            {liked ? t(locale, "postCard.action.unlike") : t(locale, "postCard.action.like")}
           </span>
         </button>
         <LikersListTrigger
@@ -2076,7 +2077,7 @@ export default function PostCard({
           targetId={post.id}
           likeCount={likeCount}
           onRequireAuth={
-            needsAuthForInteractions ? () => openAuthDialog("view likes") : undefined
+            needsAuthForInteractions ? () => openAuthDialog() : undefined
           }
         />
         <button
@@ -2087,33 +2088,39 @@ export default function PostCard({
           disabled={pendingAction !== null || shared}
           className={`text-xs transition-colors ${shared ? "text-blue-600" : "text-slate-500 hover:text-blue-600"} disabled:text-slate-300`}
         >
-          ↻ {shareCount} share{shareCount !== 1 ? "s" : ""}
-          {shared ? "d" : ""}
+          {tf(locale, "postCard.action.shareCount", {
+            count: shareCount,
+            suffix: shared ? (locale === "hu" ? " (saját)" : "d") : shareCount !== 1 ? "s" : "",
+          })}
         </button>
         <button
           type="button"
           onClick={handleBookmark}
           disabled={pendingAction !== null}
           className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors ${bookmarked ? "text-blue-600 hover:bg-blue-50" : "text-slate-500 hover:bg-slate-100 hover:text-blue-600"} disabled:text-slate-300`}
-          aria-label={bookmarked ? "Remove bookmark" : "Bookmark"}
+          aria-label={bookmarked ? t(locale, "postCard.action.removeBookmark") : t(locale, "postCard.action.bookmark")}
         >
           <span className="text-base leading-none" aria-hidden="true">
             {bookmarked ? "★" : "☆"}
           </span>
           <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-            {bookmarked ? "Remove bookmark" : "Bookmark"}
+            {bookmarked ? t(locale, "postCard.action.removeBookmark") : t(locale, "postCard.action.bookmark")}
           </span>
         </button>
         {showUniqueViewerCount && typeof post.uniqueViewerCount === "number" && (
           <span
             className="group relative ml-auto inline-flex items-center rounded-full px-2 py-1 text-xs text-slate-500"
-            aria-label={`Unique views: ${post.uniqueViewerCount}. Registered ${post.uniqueRegisteredViewerCount ?? 0}, anonymous ${post.uniqueAnonymousViewerCount ?? 0}.`}
+            aria-label={tf(locale, "postCard.uniqueViewsAria", {
+              total: post.uniqueViewerCount,
+              registered: post.uniqueRegisteredViewerCount ?? 0,
+              anonymous: post.uniqueAnonymousViewerCount ?? 0,
+            })}
             tabIndex={0}
           >
             👁 {post.uniqueViewerCount}
             <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-              <span className="block">Regisztrált: {post.uniqueRegisteredViewerCount ?? 0}</span>
-              <span className="block">Anonim: {post.uniqueAnonymousViewerCount ?? 0}</span>
+              <span className="block">{tf(locale, "postCard.uniqueViewsRegistered", { count: post.uniqueRegisteredViewerCount ?? 0 })}</span>
+              <span className="block">{tf(locale, "postCard.uniqueViewsAnonymous", { count: post.uniqueAnonymousViewerCount ?? 0 })}</span>
             </span>
           </span>
         )}
@@ -2130,7 +2137,7 @@ export default function PostCard({
               type="button"
               onClick={() => {
                 if (needsAuthForInteractions) {
-                  openAuthDialog("open comments");
+                  openAuthDialog();
                   return;
                 }
                 router.push(post.permalinkPath);
@@ -2148,17 +2155,17 @@ export default function PostCard({
           {needsAuthForInteractions ? (
             <button
               type="button"
-              onClick={() => openAuthDialog("open discussion")}
+              onClick={() => openAuthDialog()}
               className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
             >
-              Open discussion →
+              {t(locale, "postCard.openDiscussion")}
             </button>
           ) : (
             <Link
               href={post.permalinkPath}
               className="inline-flex text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
             >
-              Open discussion →
+              {t(locale, "postCard.openDiscussion")}
             </Link>
           )}
         </div>

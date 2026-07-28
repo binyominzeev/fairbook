@@ -10,6 +10,8 @@ import {
   createAnonymousPostViewTracker,
   createRegisteredPostViewTracker,
 } from "@/components/post-view-tracking";
+import { t, tf } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 import type {
   SerializedPost,
   SerializedProfileComment,
@@ -116,6 +118,7 @@ function InfinitePostActivityList({
   enableViewTracking: boolean;
   showUniqueViewerCount: boolean;
 }) {
+  const locale = useAppLocale();
   const tracker = useMemo(
     () =>
       currentUserId
@@ -135,7 +138,7 @@ function InfinitePostActivityList({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to load more posts.");
+        throw new Error(t(locale, "profile.error.loadMorePosts"));
       }
 
       const data = (await response.json()) as {
@@ -179,7 +182,11 @@ function InfinitePostActivityList({
 
       {items.length > 0 && (
         <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
-          {isLoading ? "Loading older posts…" : hasMore ? "Scroll for older posts" : "No more posts"}
+          {isLoading
+            ? t(locale, "profile.list.loadOlderPosts")
+            : hasMore
+              ? t(locale, "profile.list.scrollOlderPosts")
+              : t(locale, "profile.list.noMorePosts")}
         </div>
       )}
 
@@ -207,6 +214,7 @@ function InfiniteCommentActivityList({
   query: string;
   topicId: string | null;
 }) {
+  const locale = useAppLocale();
   const { items, hasMore, isLoading, error, sentinelRef } = useInfiniteCursorLoader({
     initialItems: initialComments,
     initialNextCursor,
@@ -216,7 +224,7 @@ function InfiniteCommentActivityList({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to load more comments.");
+        throw new Error(t(locale, "profile.error.loadMoreComments"));
       }
 
       const data = (await response.json()) as {
@@ -248,18 +256,18 @@ function InfiniteCommentActivityList({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
               <span>{new Date(comment.createdAt).toLocaleString()}</span>
               <span>·</span>
-              <span>On</span>
+              <span>{t(locale, "profile.comment.on")}</span>
               <Link
                 href={comment.post.permalinkPath}
                 className="font-medium text-blue-600 hover:underline"
               >
                 <HighlightedText
-                  text={comment.post.sharedTitle ?? comment.post.content?.slice(0, 80) ?? "Untitled post"}
+                  text={comment.post.sharedTitle ?? comment.post.content?.slice(0, 80) ?? t(locale, "profile.comment.untitledPost")}
                   query={query}
                 />
               </Link>
               <span>
-                by <HighlightedText text={comment.post.author.name} query={query} />
+                {t(locale, "profile.comment.by")} <HighlightedText text={comment.post.author.name} query={query} />
               </span>
               {comment.post.sharedSource && (
                 <span>
@@ -273,10 +281,11 @@ function InfiniteCommentActivityList({
             {comment.moderationStatus === "author_only" && (
               <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <p className="font-medium">
-                  Filtered{comment.moderationReason ? ` · ${comment.moderationReason}` : ""}
+                  {t(locale, "profile.comment.filtered")}
+                  {comment.moderationReason ? ` · ${comment.moderationReason}` : ""}
                 </p>
                 <p className="mt-1 text-amber-800">
-                  {comment.moderationExplanation ?? "Only you can see this comment."}
+                  {comment.moderationExplanation ?? t(locale, "profile.comment.authorOnlyFallback")}
                 </p>
               </div>
             )}
@@ -285,7 +294,7 @@ function InfiniteCommentActivityList({
                 href={comment.post.permalinkPath}
                 className="text-xs text-slate-500 hover:text-blue-600"
               >
-                Open discussion →
+                {t(locale, "profile.comment.openDiscussion")}
               </Link>
             </div>
           </article>
@@ -294,7 +303,11 @@ function InfiniteCommentActivityList({
 
       {items.length > 0 && (
         <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
-          {isLoading ? "Loading older comments…" : hasMore ? "Scroll for older comments" : "No more comments"}
+          {isLoading
+            ? t(locale, "profile.list.loadOlderComments")
+            : hasMore
+              ? t(locale, "profile.list.scrollOlderComments")
+              : t(locale, "profile.list.noMoreComments")}
         </div>
       )}
 
@@ -338,6 +351,7 @@ function InfiniteReelsPostActivityList({
   enableViewTracking: boolean;
   showUniqueViewerCount: boolean;
 }) {
+  const locale = useAppLocale();
   const [selectedPost, setSelectedPost] = useState<SerializedPost | null>(null);
   const tracker = useMemo(
     () =>
@@ -358,7 +372,7 @@ function InfiniteReelsPostActivityList({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to load more posts.");
+        throw new Error(t(locale, "profile.error.loadMorePosts"));
       }
 
       const data = (await response.json()) as {
@@ -397,7 +411,7 @@ function InfiniteReelsPostActivityList({
                   type="button"
                   onClick={() => setSelectedPost(post)}
                   className="group relative aspect-[3/4] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left"
-                  aria-label="Open post preview"
+                  aria-label={t(locale, "profile.reels.openPreview")}
                 >
                   {imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -409,7 +423,7 @@ function InfiniteReelsPostActivityList({
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-3 text-center text-xs font-medium text-slate-500">
-                      No image
+                      {t(locale, "profile.reels.noImage")}
                     </div>
                   )}
 
@@ -428,7 +442,11 @@ function InfiniteReelsPostActivityList({
 
       {items.length > 0 && (
         <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
-          {isLoading ? "Loading older posts…" : hasMore ? "Scroll for older posts" : "No more posts"}
+          {isLoading
+            ? t(locale, "profile.list.loadOlderPosts")
+            : hasMore
+              ? t(locale, "profile.list.scrollOlderPosts")
+              : t(locale, "profile.list.noMorePosts")}
         </div>
       )}
 
@@ -439,7 +457,7 @@ function InfiniteReelsPostActivityList({
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 px-3 py-6"
           role="dialog"
           aria-modal="true"
-          aria-label="Selected post"
+          aria-label={t(locale, "profile.reels.selectedPost")}
           onClick={() => setSelectedPost(null)}
         >
           <div
@@ -450,7 +468,7 @@ function InfiniteReelsPostActivityList({
               type="button"
               onClick={() => setSelectedPost(null)}
               className="sticky top-2 z-10 ml-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-slate-900"
-              aria-label="Close preview"
+              aria-label={t(locale, "profile.reels.closePreview")}
             >
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
                 <path
@@ -505,12 +523,13 @@ export default function ProfileActivitySection({
   topicId: string | null;
   topicBaseProfilePath: string;
 }) {
+  const locale = useAppLocale();
   const resetKey = `${activeTab}:${query}:${topicId ?? "all"}:${initialNextCursor ?? "end"}:${initialPosts[0]?.id ?? initialComments[0]?.id ?? "empty"}`;
 
   const searchPlaceholder =
     activeTab === "comments"
-      ? "Search comments and discussed posts"
-      : "Search posts, source, author or tags";
+      ? t(locale, "profile.search.commentsPlaceholder")
+      : t(locale, "profile.search.postsPlaceholder");
 
   if (activeTab === "comments") {
     return (
@@ -528,8 +547,8 @@ export default function ProfileActivitySection({
           profileId={profileId}
           initialComments={initialComments}
           initialNextCursor={initialNextCursor}
-          emptyMessage={isOwnProfile ? "You have not commented yet." : "No public comments yet."}
-          emptySearchMessage={`No comments found for "${query}".`}
+          emptyMessage={isOwnProfile ? t(locale, "profile.empty.commentsOwn") : t(locale, "profile.empty.commentsPublic")}
+          emptySearchMessage={tf(locale, "profile.empty.commentsSearch", { query })}
           query={query}
           topicId={topicId}
         />
@@ -551,13 +570,13 @@ export default function ProfileActivitySection({
   const emptyMessage =
     postTab === "likes"
       ? isOwnProfile
-        ? "You have not liked any posts yet."
-        : "No visible liked posts yet."
+        ? t(locale, "profile.empty.likesOwn")
+        : t(locale, "profile.empty.likesPublic")
       : postTab === "bookmarks"
-        ? "You have not bookmarked any posts yet."
+        ? t(locale, "profile.empty.bookmarks")
       : postTab === "hidden"
-        ? "You have not hidden any posts."
-      : "No posts yet.";
+        ? t(locale, "profile.empty.hidden")
+      : t(locale, "profile.empty.posts");
 
   const isReelsMode = profileViewMode === "reels";
   const showUniqueViewerCount = isOwnProfile && postTab === "posts";
@@ -583,7 +602,7 @@ export default function ProfileActivitySection({
           currentUserId={currentUserId}
           showDelete={showDelete}
           emptyMessage={emptyMessage}
-          emptySearchMessage={`No results found for "${query}".`}
+          emptySearchMessage={tf(locale, "profile.empty.search", { query })}
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}
@@ -603,7 +622,7 @@ export default function ProfileActivitySection({
           currentUserId={currentUserId}
           showDelete={showDelete}
           emptyMessage={emptyMessage}
-          emptySearchMessage={`No results found for "${query}".`}
+          emptySearchMessage={tf(locale, "profile.empty.search", { query })}
           initiallyHidden={postTab === "hidden"}
           requireAuthForInteractions={requireAuthForInteractions}
           query={query}

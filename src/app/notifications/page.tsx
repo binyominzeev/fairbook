@@ -4,9 +4,12 @@ import { getSession } from "@/lib/auth";
 import { partitionNotificationsByVisibility } from "@/lib/notification-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { prisma } from "@/lib/prisma";
+import { t } from "@/lib/i18n";
+import { getRequestLocale } from "@/lib/request-locale";
 import { redirect } from "next/navigation";
 
 export default async function NotificationsPage() {
+  const locale = await getRequestLocale();
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -135,7 +138,7 @@ export default async function NotificationsPage() {
     <>
       <Navbar user={user} />
       <div className="mx-auto max-w-2xl px-4 py-6">
-        <h1 className="mb-4 text-lg font-semibold text-slate-900">Notifications</h1>
+        <h1 className="mb-4 text-lg font-semibold text-slate-900">{t(locale, "notifications.heading")}</h1>
         <NotificationsPanel
           initialNotifications={initialItems}
           initialNextCursor={initialNextCursor}

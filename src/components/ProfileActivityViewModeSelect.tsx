@@ -3,11 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ProfileActivityViewMode } from "@/lib/profile-activity";
-
-const MODE_LABELS: Record<ProfileActivityViewMode, string> = {
-  normal: "Normal",
-  reels: "Reels",
-};
+import { t } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 export default function ProfileActivityViewModeSelect({
   initialMode,
@@ -15,6 +12,7 @@ export default function ProfileActivityViewModeSelect({
   initialMode: ProfileActivityViewMode;
 }) {
   const router = useRouter();
+  const locale = useAppLocale();
   const [mode, setMode] = useState<ProfileActivityViewMode>(initialMode);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startTransition] = useTransition();
@@ -38,7 +36,7 @@ export default function ProfileActivityViewModeSelect({
         router.refresh();
       } catch {
         setMode(initialMode);
-        setError("Nem sikerult menteni a nezetet.");
+        setError(t(locale, "profile.viewMode.saveError"));
       }
     });
   };
@@ -46,7 +44,7 @@ export default function ProfileActivityViewModeSelect({
   return (
     <div className="flex flex-col items-end gap-1">
       <label className="sr-only" htmlFor="profile-activity-view-mode">
-        Activity view mode
+        {t(locale, "profile.viewMode.label")}
       </label>
       <div className="relative">
         <select
@@ -55,10 +53,10 @@ export default function ProfileActivityViewModeSelect({
           onChange={(event) => saveMode(event.target.value as ProfileActivityViewMode)}
           disabled={isSaving}
           className="min-w-32 appearance-none rounded-lg border border-slate-300 bg-white px-3 py-1.5 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors hover:border-slate-400 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
-          aria-label="Profil nezetmod"
+          aria-label={t(locale, "profile.viewMode.label")}
         >
-          <option value="normal">{mode === "normal" ? "✓ " : ""}{MODE_LABELS.normal}</option>
-          <option value="reels">{mode === "reels" ? "✓ " : ""}{MODE_LABELS.reels}</option>
+          <option value="normal">{mode === "normal" ? "✓ " : ""}{t(locale, "profile.viewMode.normal")}</option>
+          <option value="reels">{mode === "reels" ? "✓ " : ""}{t(locale, "profile.viewMode.reels")}</option>
         </select>
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400">
           <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">

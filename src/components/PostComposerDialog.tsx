@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import type { SerializedPost } from "@/lib/post-presentation";
+import { t, tf } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 type LocalComposerImage = {
   id: string;
@@ -147,11 +149,12 @@ export default function PostComposerDialog({
   initialImageUrls = [],
   initialShowLinkFields = false,
   onOpenTextCardCreator,
-  title = "Create post",
-  submitLabel = "Post",
+  title,
+  submitLabel,
   textCardImageUrl = null,
   communityId = null,
 }: PostComposerDialogProps) {
+  const locale = useAppLocale();
   const [content, setContent] = useState(initialContent);
   const [sharedUrl, setSharedUrl] = useState(initialSharedUrl);
   const [sharedTitle, setSharedTitle] = useState(initialSharedTitle);
@@ -234,7 +237,7 @@ export default function PostComposerDialog({
 
     const remainingSlots = MAX_IMAGES - images.length;
     if (remainingSlots <= 0) {
-      setError(`You can attach at most ${MAX_IMAGES} images.`);
+      setError(tf(locale, "composer.error.maxImages", { count: MAX_IMAGES }));
       return;
     }
 
@@ -252,7 +255,7 @@ export default function PostComposerDialog({
 
       setImages((current) => [...current, ...newImages]);
     } catch {
-      setError("One or more images could not be processed.");
+      setError(t(locale, "composer.error.imageProcess"));
     }
   };
 
@@ -269,12 +272,12 @@ export default function PostComposerDialog({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!content.trim() && !sharedUrl.trim() && images.length === 0) {
-      setError("Add some content, images, or a link.");
+      setError(t(locale, "composer.error.addContent"));
       return;
     }
 
     if (selectedTopicId === "__new__" && !newTopicName.trim()) {
-      setError("Add a topic name.");
+      setError(t(locale, "composer.error.topicName"));
       return;
     }
 
@@ -303,7 +306,7 @@ export default function PostComposerDialog({
         });
         const uploadData = await uploadRes.json();
         if (!uploadRes.ok) {
-          setError(uploadData.error ?? "Failed to upload images.");
+          setError(uploadData.error ?? t(locale, "composer.error.uploadImages"));
           return;
         }
         uploadedImageUrls = Array.isArray(uploadData.urls) ? uploadData.urls : [];
@@ -342,7 +345,7 @@ export default function PostComposerDialog({
       };
 
       if (!res.ok) {
-        setError(data.error ?? "Failed to post.");
+        setError(data.error ?? t(locale, "composer.error.post"));
         return;
       }
 
@@ -390,10 +393,10 @@ export default function PostComposerDialog({
         setLastTestResult(data);
         setNotice({
           kind: data.moderation?.status === "author_only" ? "warning" : "success",
-          message: data.moderation?.explanation ?? "Test completed.",
+          message: data.moderation?.explanation ?? t(locale, "composer.notice.testCompleted"),
         });
       } else {
-        setError(data.error ?? "Test failed.");
+        setError(data.error ?? t(locale, "composer.error.test"));
       }
     } finally {
       setTesting(false);
@@ -417,41 +420,41 @@ export default function PostComposerDialog({
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-2xl"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+          <h2 className="text-sm font-semibold text-slate-800">{title ?? t(locale, "composer.dialogTitle")}</h2>
           <button
             type="button"
             onClick={onClose}
             disabled={submitting || testing}
             className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Close
+            {t(locale, "composer.close")}
           </button>
         </div>
 
         <AutoResizeTextarea
           value={content}
           onChange={(event) => setContent(event.target.value)}
-          placeholder="Share a thought, start a discussion..."
+          placeholder={t(locale, "composer.placeholder")}
           minRows={3}
           className="w-full resize-y text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
         />
 
         <div className="mt-3">
           <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">Téma (opcionális)</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t(locale, "composer.topicLabel")}</label>
             <select
               value={selectedTopicId}
               onChange={(event) => setSelectedTopicId(event.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Nincs téma</option>
+              <option value="">{t(locale, "composer.topicNone")}</option>
               {topics.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
                   {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
                 </option>
               ))}
-              <option value="__new__">+ Új téma létrehozása</option>
+              <option value="__new__">{t(locale, "composer.topicCreateNew")}</option>
             </select>
             {selectedTopicId === "__new__" ? (
               <input
@@ -459,11 +462,11 @@ export default function PostComposerDialog({
                 value={newTopicName}
                 onChange={(event) => setNewTopicName(event.target.value)}
                 maxLength={40}
-                placeholder="Pl. Zene"
+                placeholder={t(locale, "composer.topicNamePlaceholder")}
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             ) : null}
-            {loadingTopics ? <p className="mt-2 text-xs text-slate-500">Témák betöltése...</p> : null}
+            {loadingTopics ? <p className="mt-2 text-xs text-slate-500">{t(locale, "composer.topicsLoading")}</p> : null}
           </div>
 
           <input
@@ -509,14 +512,14 @@ export default function PostComposerDialog({
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-600">
-                Drag and drop images here, or pick files. Up to {MAX_IMAGES} images.
+                {tf(locale, "composer.imagesDropHint", { count: MAX_IMAGES })}
               </p>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
               >
-                Add photos
+                {t(locale, "composer.imagesAddPhotos")}
               </button>
             </div>
           </div>
@@ -533,7 +536,7 @@ export default function PostComposerDialog({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={src}
-                      alt="Selected upload"
+                      alt={t(locale, "composer.imageAlt")}
                       className="h-24 w-full object-cover"
                     />
                     <button
@@ -541,7 +544,7 @@ export default function PostComposerDialog({
                       onClick={() => removeImage(image.id)}
                       className="absolute right-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-white"
                     >
-                      Remove
+                      {t(locale, "composer.imageRemove")}
                     </button>
                   </div>
                 );
@@ -552,7 +555,7 @@ export default function PostComposerDialog({
 
         {showLinkFields && (
           <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-            <p className="text-xs font-medium text-slate-500">Share a link</p>
+            <p className="text-xs font-medium text-slate-500">{t(locale, "composer.linkSection")}</p>
             <input
               type="url"
               placeholder="https://..."
@@ -562,20 +565,20 @@ export default function PostComposerDialog({
             />
             <input
               type="text"
-              placeholder="Headline / title"
+              placeholder={t(locale, "composer.linkHeadline")}
               value={sharedTitle}
               onChange={(event) => setSharedTitle(event.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="text"
-              placeholder="Source (e.g. Reuters, The Atlantic)"
+              placeholder={t(locale, "composer.linkSource")}
               value={sharedSource}
               onChange={(event) => setSharedSource(event.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <textarea
-              placeholder="Brief description (optional)"
+              placeholder={t(locale, "composer.linkDescription")}
               value={sharedDescription}
               onChange={(event) => setSharedDescription(event.target.value)}
               rows={2}
@@ -597,10 +600,10 @@ export default function PostComposerDialog({
             onClick={() => setShowLinkFields((value) => !value)}
             className="text-left text-xs text-slate-500 transition-colors hover:text-blue-600"
           >
-            {showLinkFields ? "Hide link fields" : "Add a link"}
+            {showLinkFields ? t(locale, "composer.toggleHideLinkFields") : t(locale, "composer.toggleAddLink")}
           </button>
           <label className="flex items-center gap-2 text-xs text-slate-600">
-            Visibility
+            {t(locale, "composer.visibility")}
             <select
               value={visibility}
               onChange={(event) => {
@@ -609,8 +612,8 @@ export default function PostComposerDialog({
               }}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="public">Public</option>
-              <option value="private">Only me</option>
+              <option value="public">{t(locale, "composer.visibilityPublic")}</option>
+              <option value="private">{t(locale, "composer.visibilityPrivate")}</option>
             </select>
           </label>
           <div className={`grid w-full grid-cols-1 gap-2 sm:w-auto ${onOpenTextCardCreator ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
@@ -620,7 +623,7 @@ export default function PostComposerDialog({
                 onClick={() => onOpenTextCardCreator(content)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto"
               >
-                Text Card Creator
+                {t(locale, "composer.textCardCreator")}
               </button>
             )}
             <button
@@ -629,14 +632,14 @@ export default function PostComposerDialog({
               disabled={testing}
               className="w-full rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 sm:w-auto"
             >
-              {testing ? "Testing..." : "Test"}
+              {testing ? t(locale, "composer.testing") : t(locale, "composer.test")}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="w-full rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 sm:w-auto"
             >
-              {submitting ? "Posting..." : submitLabel}
+              {submitting ? t(locale, "composer.posting") : (submitLabel ?? t(locale, "composer.submit"))}
             </button>
           </div>
         </div>

@@ -9,6 +9,8 @@ import {
 } from "@/components/post-view-tracking";
 import type { SerializedPost } from "@/lib/post-presentation";
 import type { FeedSortMode } from "@/lib/feed-posts";
+import { t } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 const NEW_VISIBLE_POST_EVENT = "fairbook:new-visible-post";
 
@@ -65,6 +67,7 @@ export default function FeedInfiniteList({
   topicId: string | null;
   sort: FeedSortMode;
 }) {
+  const locale = useAppLocale();
   const tracker = useMemo(
     () =>
       currentUserId
@@ -139,21 +142,21 @@ export default function FeedInfiniteList({
         <p className="text-2xl mb-3">👋</p>
         <p className="font-medium text-slate-600">
           {query
-            ? "No posts match this search."
+            ? t(locale, "feed.list.empty.search")
             : mode === "following"
-              ? "Your Following feed is empty."
+              ? t(locale, "feed.list.empty.following")
               : mode === "group"
-                ? "This RSS group is empty."
-                : "Your feed is empty."}
+                ? t(locale, "feed.list.empty.group")
+                : t(locale, "feed.list.empty.default")}
         </p>
         <p className="text-sm mt-1">
           {query
-            ? "Try shorter keywords or clear the search field."
+            ? t(locale, "feed.list.tip.search")
             : mode === "following"
-              ? "Follow people to see their posts here."
+              ? t(locale, "feed.list.tip.following")
               : mode === "group"
-                ? "Add followed RSS sources to this group to populate it."
-                : "Follow people or pages to see posts here."}
+                ? t(locale, "feed.list.tip.group")
+                : t(locale, "feed.list.tip.default")}
         </p>
       </div>
     );
@@ -177,7 +180,11 @@ export default function FeedInfiniteList({
       ))}
 
       <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
-        {isLoading ? "Loading older posts…" : hasMore ? "Scroll for older posts" : "No more posts"}
+        {isLoading
+          ? t(locale, "feed.list.loadingOlder")
+          : hasMore
+            ? t(locale, "feed.list.scrollOlder")
+            : t(locale, "feed.list.noMore")}
       </div>
 
       {error && <p className="pb-4 text-center text-xs text-red-600">{error}</p>}

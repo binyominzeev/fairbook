@@ -11,6 +11,8 @@ import { getSession } from "@/lib/auth";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import { prisma } from "@/lib/prisma";
+import { getRequestLocale } from "@/lib/request-locale";
+import { t, tf } from "@/lib/i18n";
 
 type SearchParams = {
   q?: string;
@@ -20,6 +22,7 @@ type SearchParams = {
 export default async function ConnectionsPage(props: {
   searchParams: Promise<SearchParams>;
 }) {
+  const locale = await getRequestLocale();
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -121,17 +124,17 @@ export default async function ConnectionsPage(props: {
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <div>
-            <h1 className="text-lg font-bold text-slate-900">People</h1>
+            <h1 className="text-lg font-bold text-slate-900">{t(locale, "connections.title")}</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Search for people by name or email, then open their profile or follow them directly.
+              {t(locale, "connections.description")}
             </p>
           </div>
 
           <div className="space-y-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-700">Kit ismerhetek?</h2>
+              <h2 className="text-sm font-semibold text-slate-700">{t(locale, "connections.suggestionsTitle")}</h2>
               <p className="text-xs text-slate-500 mt-1">
-                Regisztrált felhasználók, akiket még nem követsz.
+                {t(locale, "connections.suggestionsDescription")}
               </p>
             </div>
 
@@ -139,16 +142,18 @@ export default async function ConnectionsPage(props: {
               <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-sm font-semibold text-amber-900">
-                    Megerősítésre váró regisztrációk
+                    {t(locale, "connections.admin.pendingTitle")}
                   </h3>
                   <p className="text-xs text-amber-800">
-                    {unverifiedUsers.length} felhasználó még nem erősítette meg az email címét.
+                    {tf(locale, "connections.admin.pendingCount", {
+                      count: unverifiedUsers.length,
+                    })}
                   </p>
                 </div>
 
                 {unverifiedUsers.length === 0 ? (
                   <p className="mt-2 text-xs text-amber-800/90">
-                    Jelenleg nincs megerősítésre váró felhasználó.
+                    {t(locale, "connections.admin.pendingEmpty")}
                   </p>
                 ) : (
                   <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -160,7 +165,9 @@ export default async function ConnectionsPage(props: {
                         <p className="truncate text-sm font-medium text-slate-900">{pendingUser.name}</p>
                         <p className="truncate text-xs text-slate-600">{pendingUser.email}</p>
                         <p className="mt-0.5 text-[11px] text-slate-500">
-                          Regisztráció ideje: {pendingUser.createdAt.toLocaleString("hu-HU")}
+                          {tf(locale, "connections.admin.registeredAt", {
+                            value: pendingUser.createdAt.toLocaleString(locale === "hu" ? "hu-HU" : "en-US"),
+                          })}
                         </p>
                         <AdminResendVerificationButton userId={pendingUser.id} />
                       </li>
@@ -172,7 +179,7 @@ export default async function ConnectionsPage(props: {
 
             {suggestedPeople.length === 0 ? (
               <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                Jelenleg nincs új javaslat. Próbáld meg a keresőt név vagy email alapján.
+                {t(locale, "connections.suggestionsEmpty")}
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
@@ -194,7 +201,7 @@ export default async function ConnectionsPage(props: {
                     </p>
                     {person.followsViewer && (
                       <p className="mt-1 text-[11px] font-medium text-emerald-700">
-                        Követ téged
+                        {t(locale, "connections.followsYou")}
                       </p>
                     )}
                   </Link>
@@ -207,27 +214,27 @@ export default async function ConnectionsPage(props: {
             <input type="hidden" name="tab" value={activeTab} />
             <QuerySyncSearchInput
               initialValue={query}
-              placeholder="Search by name or email"
+              placeholder={t(locale, "connections.searchPlaceholder")}
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
             />
             <button
               type="submit"
               className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
-              Search
+              {t(locale, "connections.searchButton")}
             </button>
           </form>
 
           {query ? (
             <div className="space-y-3">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">Search results</h2>
-                <span className="text-xs text-slate-400">{searchResults.length} result(s)</span>
+                <h2 className="text-sm font-semibold text-slate-700">{t(locale, "connections.searchResults")}</h2>
+                <span className="text-xs text-slate-400">{tf(locale, "connections.resultCount", { count: searchResults.length })}</span>
               </div>
 
               {searchResults.length === 0 ? (
                 <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                  No users found for &quot;{query}&quot;.
+                  {tf(locale, "connections.empty.query", { query })}
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -271,7 +278,7 @@ export default async function ConnectionsPage(props: {
             </div>
           ) : (
             <p className="text-sm text-slate-400">
-              Start with a name or email address to find people.
+              {t(locale, "connections.startSearch")}
             </p>
           )}
         </section>
@@ -279,9 +286,12 @@ export default async function ConnectionsPage(props: {
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 max-w-2xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-700">Your connections</h2>
+              <h2 className="text-sm font-semibold text-slate-700">{t(locale, "connections.yourConnections")}</h2>
               <p className="text-xs text-slate-500 mt-1">
-                {followingCount} following, {followersCount} followers
+                {tf(locale, "connections.summary", {
+                  following: followingCount,
+                  followers: followersCount,
+                })}
               </p>
             </div>
             <div className="flex w-full rounded-lg bg-slate-100 p-1 text-sm sm:w-auto">
@@ -293,7 +303,7 @@ export default async function ConnectionsPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Following
+                {t(locale, "connections.tab.following")}
               </Link>
               <Link
                 href={query ? `/connections?tab=followers&q=${encodeURIComponent(query)}` : "/connections?tab=followers"}
@@ -303,7 +313,7 @@ export default async function ConnectionsPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Followers
+                {t(locale, "connections.tab.followers")}
               </Link>
             </div>
           </div>
@@ -311,8 +321,8 @@ export default async function ConnectionsPage(props: {
           {connections.length === 0 ? (
             <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
               {activeTab === "following"
-                ? "You are not following anyone yet."
-                : "You do not have followers yet."}
+                ? t(locale, "connections.empty.following")
+                : t(locale, "connections.empty.followers")}
             </p>
           ) : (
             <ul className="space-y-3">

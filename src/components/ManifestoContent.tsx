@@ -54,7 +54,7 @@ export default function ManifestoContent({
               rel="noopener noreferrer"
               className="text-amber-700 underline decoration-amber-300 underline-offset-4 transition hover:text-amber-800"
             >
-              Mazsihisz cikk
+              Mazsihisz.hu: „Itt a Fairbook, a kóser Facebook”
             </a>
           </p>
         </div>

@@ -4,6 +4,8 @@ import Navbar from "@/components/Navbar";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Avatar from "@/components/Avatar";
 import { getSession } from "@/lib/auth";
+import { getRequestLocale } from "@/lib/request-locale";
+import { t } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,6 +13,7 @@ import { redirect } from "next/navigation";
 export default async function GroupsPage(props: {
   searchParams: Promise<{ q?: string; scope?: string }>;
 }) {
+  const locale = await getRequestLocale();
   const session = await getSession();
   if (!session) {
     redirect("/login");
@@ -110,7 +113,7 @@ export default async function GroupsPage(props: {
                   mode === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
                 }`}
               >
-                All Groups
+                {t(locale, "groups.tab.all")}
               </Link>
               <Link
                 href={buildHref("joined")}
@@ -118,28 +121,28 @@ export default async function GroupsPage(props: {
                   mode === "joined" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
                 }`}
               >
-                Joined
+                {t(locale, "groups.tab.joined")}
               </Link>
             </div>
             <form action="/groups" method="GET" className="flex gap-2">
               {mode === "joined" && <input type="hidden" name="scope" value="joined" />}
               <QuerySyncSearchInput
                 initialValue={query}
-                placeholder="Search groups"
+                placeholder={t(locale, "groups.searchPlaceholder")}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
               <button
                 type="submit"
                 className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                Search
+                {t(locale, "groups.searchButton")}
               </button>
             </form>
           </div>
 
           {communities.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
-              No groups found.
+              {t(locale, "groups.empty")}
             </div>
           ) : (
             <ul className="space-y-3">
@@ -167,7 +170,7 @@ export default async function GroupsPage(props: {
                               {community.name}
                             </Link>
                             <p className="mt-1 text-xs text-slate-500">
-                              {community.isPrivate ? "Closed" : "Public"} · {community._count.members} members · {community._count.posts} posts
+                              {community.isPrivate ? t(locale, "groups.visibility.closed") : t(locale, "groups.visibility.public")} · {community._count.members} {t(locale, "groups.meta.members")} · {community._count.posts} {t(locale, "groups.meta.posts")}
                             </p>
                           </div>
                         </div>

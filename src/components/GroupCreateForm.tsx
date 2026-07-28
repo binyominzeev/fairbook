@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { t } from "@/lib/i18n";
+import { useAppLocale } from "@/components/AppLocaleProvider";
 
 export default function GroupCreateForm() {
   const router = useRouter();
+  const locale = useAppLocale();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"public" | "closed">("public");
@@ -29,7 +32,7 @@ export default function GroupCreateForm() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error ?? "Failed to create group.");
+        setError(data.error ?? t(locale, "groupCreate.error"));
         return;
       }
 
@@ -50,17 +53,17 @@ export default function GroupCreateForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-slate-800">Create Group</h2>
+      <h2 className="text-sm font-semibold text-slate-800">{t(locale, "groupCreate.title")}</h2>
       <input
         value={name}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Group name"
+        placeholder={t(locale, "groupCreate.namePlaceholder")}
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
       />
       <textarea
         value={description}
         onChange={(event) => setDescription(event.target.value)}
-        placeholder="Group description and policy"
+        placeholder={t(locale, "groupCreate.descriptionPlaceholder")}
         rows={4}
         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
       />
@@ -73,7 +76,7 @@ export default function GroupCreateForm() {
             checked={visibility === "public"}
             onChange={() => setVisibility("public")}
           />
-          Public
+          {t(locale, "groupCreate.visibility.public")}
         </label>
         <label className="inline-flex items-center gap-2">
           <input
@@ -83,7 +86,7 @@ export default function GroupCreateForm() {
             checked={visibility === "closed"}
             onChange={() => setVisibility("closed")}
           />
-          Closed
+          {t(locale, "groupCreate.visibility.closed")}
         </label>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -92,7 +95,7 @@ export default function GroupCreateForm() {
         disabled={submitting}
         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-slate-300"
       >
-        {submitting ? "Creating..." : "Create"}
+        {submitting ? t(locale, "groupCreate.creating") : t(locale, "groupCreate.create")}
       </button>
     </form>
   );

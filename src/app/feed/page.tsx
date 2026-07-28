@@ -17,6 +17,8 @@ import Link from "next/link";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import { buildGlobalTopicPath } from "@/lib/topic-path";
 import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
+import { getRequestLocale } from "@/lib/request-locale";
+import { t } from "@/lib/i18n";
 
 type FeedMode = "all" | "following" | "group";
 
@@ -32,6 +34,7 @@ export default async function FeedPage(props: {
     topicSlug?: string;
   }>;
 }) {
+  const locale = await getRequestLocale();
   const { notice, noticeKind, mode, group, q, sort, topic, topicSlug } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
   const query = q?.trim() ?? "";
@@ -185,7 +188,7 @@ export default async function FeedPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                All
+                {t(locale, "feed.tab.all")}
               </Link>
               <Link
                 href={buildFeedHref("following")}
@@ -195,7 +198,7 @@ export default async function FeedPage(props: {
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                Friends
+                {t(locale, "feed.tab.friends")}
               </Link>
               {feedGroups.map((feedGroup) => (
                 <Link
@@ -213,7 +216,7 @@ export default async function FeedPage(props: {
             </div>
             <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
               <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
-                <p className="text-xs text-slate-400">Following people</p>
+                <p className="text-xs text-slate-400">{t(locale, "feed.followingPeople")}</p>
                 <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
               </div>
               <FeedSortSelect
@@ -276,14 +279,14 @@ export default async function FeedPage(props: {
             <input type="hidden" name="sort" value={activeSort} />
             <QuerySyncSearchInput
               initialValue={query}
-              placeholder="Filter posts by text, source, author or tag"
+              placeholder={t(locale, "feed.searchPlaceholder")}
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500"
             />
             <button
               type="submit"
               className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
-              Search
+              {t(locale, "feed.searchButton")}
             </button>
           </form>
 

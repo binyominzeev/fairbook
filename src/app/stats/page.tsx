@@ -6,6 +6,8 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildProfilePath } from "@/lib/profile-path";
 import { getTrafficDashboard, type TrafficRange } from "@/lib/traffic-stats";
+import { getRequestLocale } from "@/lib/request-locale";
+import { t } from "@/lib/i18n";
 
 function formatInt(value: number) {
   return new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 0 }).format(value);
@@ -31,7 +33,7 @@ function formatDurationSmartFromHours(value: number) {
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  return minutes > 0 ? `${hours} ora ${minutes} perc` : `${hours} ora`;
+  return minutes > 0 ? `${hours} óra ${minutes} perc` : `${hours} óra`;
 }
 
 type SearchParams = {
@@ -41,6 +43,7 @@ type SearchParams = {
 export default async function StatsPage(props: {
   searchParams: Promise<SearchParams>;
 }) {
+  const locale = await getRequestLocale();
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -64,7 +67,7 @@ export default async function StatsPage(props: {
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Stats</h1>
+              <h1 className="text-xl font-bold text-slate-900">{t(locale, "stats.title")}</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Elérés, visszatérés és figyelem alakulása a valós látogatási adatok alapján.
               </p>
@@ -96,24 +99,24 @@ export default async function StatsPage(props: {
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <article className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs text-slate-500">Unique latogatok</p>
+            <p className="text-xs text-slate-500">Egyedi látogatók</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{formatInt(dashboard.overview.uniqueVisitors)}</p>
-            <p className="mt-1 text-xs text-slate-500">elozo periodushoz: {formatPercent(dashboard.overview.uniqueVisitorsDelta)}</p>
+            <p className="mt-1 text-xs text-slate-500">Előző periódushoz: {formatPercent(dashboard.overview.uniqueVisitorsDelta)}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Sessionok</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{formatInt(dashboard.overview.sessions)}</p>
-            <p className="mt-1 text-xs text-slate-500">elozo periodushoz: {formatPercent(dashboard.overview.sessionsDelta)}</p>
+            <p className="mt-1 text-xs text-slate-500">Előző periódushoz: {formatPercent(dashboard.overview.sessionsDelta)}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Page view</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{formatInt(dashboard.overview.pageViews)}</p>
-            <p className="mt-1 text-xs text-slate-500">elozo periodushoz: {formatPercent(dashboard.overview.pageViewsDelta)}</p>
+            <p className="mt-1 text-xs text-slate-500">Előző periódushoz: {formatPercent(dashboard.overview.pageViewsDelta)}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Returning rate</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{formatDecimal(dashboard.overview.returningRate)}%</p>
-            <p className="mt-1 text-xs text-slate-500">returning latogato: {formatInt(dashboard.overview.returningVisitors)}</p>
+            <p className="mt-1 text-xs text-slate-500">Visszatérő látogató: {formatInt(dashboard.overview.returningVisitors)}</p>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Atlag aktiv ido / session</p>
@@ -155,7 +158,7 @@ export default async function StatsPage(props: {
             <h2 className="text-base font-semibold text-slate-900">Top oldalak</h2>
             <div className="mt-3 space-y-2 text-sm">
               {dashboard.topPaths.length === 0 ? (
-                <p className="text-slate-500">Meg nincs eleg adat.</p>
+                <p className="text-slate-500">Még nincs elég adat.</p>
               ) : (
                 dashboard.topPaths.map((row) => (
                   <div key={row.path} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
@@ -171,7 +174,7 @@ export default async function StatsPage(props: {
             <h2 className="text-base font-semibold text-slate-900">Top szekcio tipusok</h2>
             <div className="mt-3 space-y-2 text-sm">
               {dashboard.topRoutes.length === 0 ? (
-                <p className="text-slate-500">Meg nincs eleg adat.</p>
+                <p className="text-slate-500">Még nincs elég adat.</p>
               ) : (
                 dashboard.topRoutes.map((row) => (
                   <div key={row.routeType} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
@@ -185,10 +188,10 @@ export default async function StatsPage(props: {
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">Top ismert latogatok (&quot;kik&quot;)</h2>
+          <h2 className="text-base font-semibold text-slate-900">Top ismert látogatók (&quot;kik&quot;)</h2>
           <div className="mt-3 space-y-2 text-sm">
             {dashboard.topKnownVisitors.length === 0 ? (
-              <p className="text-slate-500">Meg nincs bejelentkezett latogatoi minta ebben az idoszakban.</p>
+              <p className="text-slate-500">Még nincs bejelentkezett látogatói minta ebben az időszakban.</p>
             ) : (
               dashboard.topKnownVisitors.map((row) => (
                 <div key={row.user.id} className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
