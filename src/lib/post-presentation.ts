@@ -7,6 +7,7 @@ export interface SerializedAuthor {
   slug: string | null;
   name: string;
   avatarUrl: string | null;
+  isPage?: boolean;
 }
 
 export interface SerializedCommunity {
@@ -44,6 +45,7 @@ export interface SerializedPost {
   permalinkPath: string;
   content: string | null;
   feedSourceId: string | null;
+  authorIsFollowedByCurrentUser?: boolean;
   moderationStatus: string;
   moderationReason: string | null;
   moderationExplanation: string | null;
@@ -91,7 +93,7 @@ export interface SerializedProfileComment {
 
 export const buildPostInclude = (viewerId: string) =>
   ({
-    author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+    author: { select: { id: true, slug: true, name: true, avatarUrl: true, isPage: true } },
     sharedPost: {
       select: {
         id: true,
@@ -105,7 +107,7 @@ export const buildPostInclude = (viewerId: string) =>
         imageUrls: true,
         isTextCard: true,
         createdAt: true,
-        author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+        author: { select: { id: true, slug: true, name: true, avatarUrl: true, isPage: true } },
         community: { select: { id: true, permalinkSlug: true, name: true } },
       },
     },

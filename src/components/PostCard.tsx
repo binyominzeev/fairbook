@@ -2,6 +2,7 @@
 
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
+import FollowButton from "@/components/FollowButton";
 import HighlightedText from "@/components/HighlightedText";
 import LikersListTrigger from "@/components/LikersListTrigger";
 import { buildProfilePath } from "@/lib/profile-path";
@@ -26,6 +27,7 @@ interface Author {
   slug?: string | null;
   name: string;
   avatarUrl?: string | null;
+  isPage?: boolean;
 }
 
 interface Community {
@@ -106,6 +108,7 @@ interface PostData {
   bookmarkedByCurrentUser: boolean;
   sharedByCurrentUser: boolean;
   notificationsSubscribedByCurrentUser: boolean;
+  authorIsFollowedByCurrentUser?: boolean;
   canDeleteByViewer?: boolean;
   community?: Community | null;
   _count: { comments: number; likes: number; sharedBy: number };
@@ -400,6 +403,9 @@ export default function PostCard({
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [shared, setShared] = useState(post.sharedByCurrentUser);
   const [shareCount, setShareCount] = useState(post._count.sharedBy);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean | undefined>(
+    post.authorIsFollowedByCurrentUser
+  );
   const [postNotificationsSubscribed, setPostNotificationsSubscribed] = useState(
     post.notificationsSubscribedByCurrentUser
   );
@@ -461,6 +467,8 @@ export default function PostCard({
       ? buildProfileTopicPath(topicBaseProfilePath, post.topic.slug)
       : buildGlobalTopicPath(post.topic.slug)
     : null;
+  const canShowFollowButton =
+    Boolean(currentUserId) && !post.author.isPage && post.author.id !== currentUserId && isFollowingAuthor === false;
 
   const openAuthDialog = () => {
     setAuthDialogOpen(true);
@@ -1894,66 +1902,78 @@ export default function PostCard({
               )}
             </div>
           </div>
-          {!needsAuthForInteractions && (
-            <details
-              ref={menuRef}
-              className="relative z-10 open:z-50"
-              onToggle={(event) => {
-                setIsMenuOpen(event.currentTarget.open);
-              }}
-            >
-            <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
-              {t(locale, "postCard.menu.more")}
-            </summary>
-            <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
-              {canEditPost && (
-                <button
-                  type="button"
-                  onClick={openEditComposer}
-                  className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  {t(locale, "postCard.menu.edit")}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleHide}
-                className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                {hidden ? t(locale, "postCard.menu.unhide") : t(locale, "postCard.menu.hide")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handlePostNotificationToggle();
+          <div className="flex items-center gap-2">
+            {canShowFollowButton && (
+              <FollowButton
+                targetUserId={post.author.id}
+                initialIsFollowing={false}
+                compact
+                onChange={(nextIsFollowing) => {
+                  setIsFollowingAuthor(nextIsFollowing);
                 }}
-                disabled={updatingPostNotifications}
-                className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:text-slate-400"
+              />
+            )}
+            {!needsAuthForInteractions && (
+              <details
+                ref={menuRef}
+                className="relative z-10 open:z-50"
+                onToggle={(event) => {
+                  setIsMenuOpen(event.currentTarget.open);
+                }}
               >
-                {updatingPostNotifications
-                  ? t(locale, "postCard.menu.updating")
-                  : postNotificationsSubscribed
-                    ? t(locale, "postCard.menu.unsubscribePostNotifications")
-                    : t(locale, "postCard.menu.subscribePostNotifications")}
-              </button>
-              <Link
-                href={reportHref}
-                className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                {t(locale, "postCard.menu.report")}
-              </Link>
-              {showDelete && (post.author.id === currentUserId || post.canDeleteByViewer) && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
-                >
-                  {t(locale, "postCard.menu.delete")}
-                </button>
-              )}
-            </div>
-            </details>
-          )}
+                <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
+                  {t(locale, "postCard.menu.more")}
+                </summary>
+                <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                  {canEditPost && (
+                    <button
+                      type="button"
+                      onClick={openEditComposer}
+                      className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      {t(locale, "postCard.menu.edit")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleHide}
+                    className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {hidden ? t(locale, "postCard.menu.unhide") : t(locale, "postCard.menu.hide")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handlePostNotificationToggle();
+                    }}
+                    disabled={updatingPostNotifications}
+                    className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:text-slate-400"
+                  >
+                    {updatingPostNotifications
+                      ? t(locale, "postCard.menu.updating")
+                      : postNotificationsSubscribed
+                        ? t(locale, "postCard.menu.unsubscribePostNotifications")
+                        : t(locale, "postCard.menu.subscribePostNotifications")}
+                  </button>
+                  <Link
+                    href={reportHref}
+                    className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {t(locale, "postCard.menu.report")}
+                  </Link>
+                  {showDelete && (post.author.id === currentUserId || post.canDeleteByViewer) && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-red-600 transition-colors hover:bg-red-50"
+                    >
+                      {t(locale, "postCard.menu.delete")}
+                    </button>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
         </div>
 
         {/* Post body */}

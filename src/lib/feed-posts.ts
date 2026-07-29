@@ -13,6 +13,7 @@ import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 export const FEED_PAGE_SIZE = 20;
 const OWN_POST_PENALTY = 18;
 const REPEATED_AUTHOR_PENALTY = 6;
+const FOLLOWED_AUTHOR_BONUS = 24;
 const RERANK_JITTER_RANGE = 8;
 
 export type FeedViewMode = "all" | "following" | "group";
@@ -69,7 +70,11 @@ function buildFeedOrderBy(sortMode: FeedSortMode): Prisma.PostOrderByWithRelatio
   }
 }
 
-function rerankFirstFeedPage(posts: FeedPostRecord[], viewerId: string) {
+function rerankFirstFeedPage(
+  posts: FeedPostRecord[],
+  viewerId: string,
+  followedAuthorIds: Set<string>
+) {
   const remaining = [...posts];
   const ordered: FeedPostRecord[] = [];
   const repeatedAuthorCounts = new Map<string, number>();
@@ -82,9 +87,13 @@ function rerankFirstFeedPage(posts: FeedPostRecord[], viewerId: string) {
       const repeatCount = repeatedAuthorCounts.get(post.authorId) ?? 0;
       const ownPenalty = post.authorId === viewerId ? OWN_POST_PENALTY : 0;
       const repeatPenalty = repeatCount * REPEATED_AUTHOR_PENALTY;
+      const followedBonus =
+        post.authorId !== viewerId && followedAuthorIds.has(post.authorId)
+          ? FOLLOWED_AUTHOR_BONUS
+          : 0;
       const jitter =
         (seededNormalizedValue(`${viewerId}:${post.id}`) * 2 - 1) * RERANK_JITTER_RANGE;
-      const adjustedScore = (post.score ?? 0) - ownPenalty - repeatPenalty + jitter;
+      const adjustedScore = (post.score ?? 0) - ownPenalty - repeatPenalty + followedBonus + jitter;
 
       if (adjustedScore > bestScore) {
         bestIndex = index;
@@ -143,27 +152,19 @@ export async function getFeedPage({
     return { posts: [], nextCursor: null };
   }
 
-  const following =
-    viewMode === "group"
-      ? []
-      : await prisma.connection.findMany({
-          where: {
-            followerId: viewerId,
-            ...(viewMode === "following" ? { following: { isPage: false } } : {}),
-          },
-          select: { followingId: true },
-        });
+  const following = await prisma.connection.findMany({
+    where: {
+      followerId: viewerId,
+    },
+    select: { followingId: true },
+  });
   const joinedCommunityMemberships = await prisma.communityMember.findMany({
     where: { userId: viewerId },
     select: { communityId: true },
   });
   const joinedCommunityIds = joinedCommunityMemberships.map((row) => row.communityId);
   const followingIds = following.map((connection) => connection.followingId);
-  const authorIds = viewMode === "following" ? followingIds : [viewerId, ...followingIds];
-
-  if (viewMode === "following" && followingIds.length === 0) {
-    return { posts: [], nextCursor: null };
-  }
+  const followedAuthorIds = new Set(followingIds);
 
   const queryWhere: Prisma.PostWhereInput | null = trimmedQuery
     ? {
@@ -186,7 +187,7 @@ export async function getFeedPage({
       }
     : null;
 
-  const followingWhere: Prisma.PostWhereInput = {
+  const visibleFeedWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
       ...(topicWhere ? [topicWhere] : []),
@@ -195,21 +196,12 @@ export async function getFeedPage({
         : { communityId: null },
       {
         OR: [
+          { AND: [{ authorId: viewerId }, { feedSourceId: null }] },
           {
-            authorId: { in: authorIds },
-            feedSourceId: null,
-            moderationStatus: "visible",
-          },
-          {
-            feedSourceId: { not: null },
-            isFeedVisible: true,
-            moderationStatus: "visible",
-            comments: {
-              some: {
-                authorId: { in: followingIds },
-                moderationStatus: "visible",
-              },
-            },
+            AND: [
+              { moderationStatus: "visible" },
+              { feedSourceId: null },
+            ],
           },
         ],
       },
@@ -253,33 +245,7 @@ export async function getFeedPage({
   while (collected.length < FEED_PAGE_SIZE + 1 && !exhausted) {
     const batch = (await prisma.post.findMany({
       where:
-        viewMode === "following"
-          ? followingWhere
-          : viewMode === "group"
-            ? groupedFeedWhere
-          : {
-              AND: [
-                ...(queryWhere ? [queryWhere] : []),
-                ...(topicWhere ? [topicWhere] : []),
-                { authorId: { in: authorIds } },
-                joinedCommunityIds.length > 0
-                  ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
-                  : { communityId: null },
-                {
-                  OR: [{ authorId: viewerId }, { moderationStatus: "visible" }],
-                },
-                {
-                  OR: [{ feedSourceId: null }, { isFeedVisible: true }],
-                },
-                {
-                  hiddenBy: {
-                    none: {
-                      userId: viewerId,
-                    },
-                  },
-                },
-              ],
-            },
+        viewMode === "group" ? groupedFeedWhere : visibleFeedWhere,
           orderBy,
       include: postInclude,
       take: chunkSize,
@@ -303,7 +269,7 @@ export async function getFeedPage({
   const orderedItems =
     cursor || viewMode === "group" || sortMode !== "current"
       ? items
-      : rerankFirstFeedPage(items, viewerId);
+      : rerankFirstFeedPage(items, viewerId, followedAuthorIds);
 
   const postIds = orderedItems.map((post) => post.id);
   const previewRows = postIds.length
@@ -316,7 +282,7 @@ export async function getFeedPage({
         orderBy: { createdAt: "desc" },
         take: FEED_PAGE_SIZE * 12,
         include: {
-          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+          author: { select: { id: true, slug: true, name: true, avatarUrl: true, isPage: true } },
         },
       })
     : [];
@@ -335,9 +301,11 @@ export async function getFeedPage({
   }
 
   const serializedPosts = orderedItems.map((post) => ({
-      ...serializePost(post),
-      commentPreviews: previewsByPostId.get(post.id) ?? [],
-    }));
+    ...serializePost(post),
+    authorIsFollowedByCurrentUser:
+      post.authorId === viewerId || (!post.author.isPage && followedAuthorIds.has(post.authorId)),
+    commentPreviews: previewsByPostId.get(post.id) ?? [],
+  }));
 
   return {
     posts: await applyAuthorTopicColors(serializedPosts),

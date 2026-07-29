@@ -122,7 +122,7 @@ export default async function ConnectionsPage(props: {
     <>
       <Navbar user={user} />
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <section className="max-w-2xl bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <div>
             <h1 className="text-lg font-bold text-slate-900">{t(locale, "connections.title")}</h1>
             <p className="text-sm text-slate-500 mt-1">
@@ -182,30 +182,45 @@ export default async function ConnectionsPage(props: {
                 {t(locale, "connections.suggestionsEmpty")}
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {suggestedPeople.map((person) => (
-                  <Link
-                    key={person.id}
-                    href={buildProfilePath(person)}
-                    className="group rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-center transition-colors hover:border-slate-300 hover:bg-white"
-                  >
-                    <Avatar
-                      name={person.name}
-                      avatarUrl={person.avatarUrl}
-                      sizeClassName="h-16 w-16"
-                      textClassName="text-lg font-semibold"
-                      className="mx-auto"
-                    />
-                    <p className="mt-3 line-clamp-2 text-sm font-medium text-slate-900 group-hover:text-blue-700">
-                      {person.name}
-                    </p>
-                    {person.followsViewer && (
-                      <p className="mt-1 text-[11px] font-medium text-emerald-700">
-                        {t(locale, "connections.followsYou")}
-                      </p>
-                    )}
-                  </Link>
-                ))}
+              <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain px-2 py-2">
+                  <ul className="flex w-max min-w-full gap-3 pr-2">
+                  {suggestedPeople.map((person) => (
+                    <li
+                      key={person.id}
+                      className="flex w-52 shrink-0 flex-col items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-4 text-center"
+                    >
+                      <div className="min-w-0 flex flex-col items-center gap-2">
+                        <Avatar
+                          name={person.name}
+                          avatarUrl={person.avatarUrl}
+                          sizeClassName="h-14 w-14"
+                          textClassName="text-base font-semibold"
+                        />
+                        <div className="min-w-0">
+                          <Link
+                            href={buildProfilePath(person)}
+                            className="block line-clamp-2 text-sm font-semibold text-slate-900 hover:text-blue-700 hover:underline"
+                          >
+                            {person.name}
+                          </Link>
+                          {person.followsViewer && (
+                            <p className="mt-0.5 text-[11px] font-medium text-emerald-700">
+                              {t(locale, "connections.followsYou")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <FollowButton
+                        targetUserId={person.id}
+                        initialIsFollowing={followingIds.has(person.id)}
+                        compact
+                        className="w-full justify-center px-3 py-2 text-sm"
+                      />
+                    </li>
+                  ))}
+                  </ul>
+                </div>
               </div>
             )}
           </div>

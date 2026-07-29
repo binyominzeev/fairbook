@@ -25,6 +25,7 @@ jobs:
             cd ${{ secrets.PROJECT_PATH }}
 
             git pull
+            npm install
             npx prisma migrate deploy
             npm run build
             pm2 restart fairbook
