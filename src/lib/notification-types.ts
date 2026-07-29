@@ -9,6 +9,7 @@ export const NOTIFICATION_TYPE_GROUP_JOIN_REQUEST = "group_join_requested";
 export const NOTIFICATION_TYPE_GROUP_JOIN_APPROVED = "group_join_approved";
 export const NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED = "group_invite_accepted";
 export const NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST = "followed_user_new_post";
+export const NOTIFICATION_TYPE_USER_FOLLOWED_YOU = "user_followed_you";
 
 export const NOTIFICATION_TYPES = [
   NOTIFICATION_TYPE_REPLY,
@@ -22,6 +23,7 @@ export const NOTIFICATION_TYPES = [
   NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
   NOTIFICATION_TYPE_GROUP_INVITE_ACCEPTED,
   NOTIFICATION_TYPE_FOLLOWED_USER_NEW_POST,
+  NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

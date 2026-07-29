@@ -12,7 +12,9 @@ import {
   NOTIFICATION_TYPE_POST_LIKE,
   NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT,
   NOTIFICATION_TYPE_REPLY,
+  NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
 } from "@/lib/notification-types";
+import { buildProfilePath } from "@/lib/profile-path";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 
 let vapidConfigured = false;
@@ -40,6 +42,8 @@ type NotificationRow = {
   recipientId: string;
   type: string;
   actor: {
+    id: string;
+    slug: string | null;
     name: string;
   };
   post: {
@@ -123,6 +127,10 @@ function toNotificationBody(item: NotificationRow): string {
     return `${actor} posted something new`;
   }
 
+  if (item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU) {
+    return `${actor} followed you`;
+  }
+
   return `${actor} sent an update`;
 }
 
@@ -158,6 +166,10 @@ function toNotificationContext(item: NotificationRow): string {
     return item.post?.sharedTitle?.trim() || item.post?.content?.trim() || "Open post";
   }
 
+  if (item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU) {
+    return "Open profile";
+  }
+
   return "Open notification";
 }
 
@@ -176,6 +188,10 @@ function resolveTargetPath(item: NotificationRow): string {
 
   if (item.community) {
     return `/groups/${item.community.permalinkSlug ?? item.community.id}`;
+  }
+
+  if (item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU) {
+    return buildProfilePath(item.actor);
   }
 
   return "/notifications";
@@ -204,7 +220,7 @@ export async function dispatchPushForNotificationIds(notificationIds: string[]) 
     const notifications = await prisma.notification.findMany({
       where: { id: { in: notificationIds } },
       include: {
-        actor: { select: { name: true } },
+        actor: { select: { id: true, slug: true, name: true } },
         post: {
           select: {
             id: true,

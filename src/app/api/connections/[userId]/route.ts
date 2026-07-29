@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createFollowNotification } from "@/lib/notifications";
 
 export async function POST(
   _req: Request,
@@ -29,6 +30,11 @@ export async function POST(
 
   await prisma.connection.create({
     data: { followerId: session.userId, followingId: userId },
+  });
+
+  await createFollowNotification({
+    actorId: session.userId,
+    recipientId: userId,
   });
 
   return Response.json({ success: true }, { status: 201 });

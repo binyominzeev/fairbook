@@ -3,6 +3,8 @@ import NotificationsPanel from "@/components/NotificationsPanel";
 import { getSession } from "@/lib/auth";
 import { partitionNotificationsByVisibility } from "@/lib/notification-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
+import { buildProfilePath } from "@/lib/profile-path";
+import { NOTIFICATION_TYPE_USER_FOLLOWED_YOU } from "@/lib/notification-types";
 import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/request-locale";
@@ -126,6 +128,7 @@ export default async function NotificationsPage() {
           targetPath: `/groups/${item.community.permalinkSlug ?? item.community.id}`,
         }
       : null,
+    profilePath: item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU ? buildProfilePath(item.actor) : null,
   }));
 
   const initialNextCursor = hasMoreVisible

@@ -11,6 +11,7 @@ import {
   NOTIFICATION_TYPE_POST_LIKE,
   NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT,
   NOTIFICATION_TYPE_REPLY,
+  NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
 } from "@/lib/notification-types";
 import { dispatchPushForNotificationIds } from "@/lib/push";
 
@@ -249,6 +250,42 @@ export async function createPostLikeNotification(input: {
     update: {
       actorId,
       postId,
+      commentId: null,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
+
+  await dispatchPushForNotificationIds([record.id]);
+}
+
+export async function createFollowNotification(input: {
+  actorId: string;
+  recipientId: string;
+}) {
+  const { actorId, recipientId } = input;
+  if (actorId === recipientId) return;
+
+  const record = await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type: NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
+        recipientId,
+        targetKey: actorId,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type: NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
+      targetKey: actorId,
+      postId: null,
+      commentId: null,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      postId: null,
       commentId: null,
       isRead: false,
       createdAt: new Date(),

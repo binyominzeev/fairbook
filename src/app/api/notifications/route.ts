@@ -1,6 +1,8 @@
 import { getSession } from "@/lib/auth";
 import { partitionNotificationsByVisibility } from "@/lib/notification-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
+import { buildProfilePath } from "@/lib/profile-path";
+import { NOTIFICATION_TYPE_USER_FOLLOWED_YOU } from "@/lib/notification-types";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
@@ -128,6 +130,7 @@ export async function GET(request: Request) {
             targetPath: `/groups/${item.community.permalinkSlug ?? item.community.id}`,
           }
         : null,
+      profilePath: item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU ? buildProfilePath(item.actor) : null,
     })),
     nextCursor,
   });

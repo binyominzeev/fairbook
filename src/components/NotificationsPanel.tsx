@@ -31,6 +31,7 @@ type NotificationItem = {
     name: string;
     avatarUrl?: string | null;
   };
+  profilePath?: string | null;
   post: {
     id: string;
     permalinkPath: string;
@@ -103,6 +104,10 @@ function buildLabel(item: NotificationItem, locale: "hu" | "en") {
     return tf(locale, "notifications.label.post_subscribed_commented", { actorName: item.actor.name });
   }
 
+  if (item.type === "user_followed_you") {
+    return tf(locale, "notifications.label.user_followed_you", { actorName: item.actor.name });
+  }
+
   return tf(locale, "notifications.label.default", { actorName: item.actor.name });
 }
 
@@ -153,6 +158,10 @@ function buildContext(item: NotificationItem, locale: "hu" | "en") {
 
   if (item.type === "post_subscribed_commented") {
     return item.comment?.content?.trim() || item.post?.previewText?.trim() || t(locale, "notifications.context.openPost");
+  }
+
+  if (item.type === "user_followed_you") {
+    return t(locale, "notifications.context.openProfile");
   }
 
   return item.post?.previewText?.trim() || item.comment?.content?.trim() || t(locale, "notifications.context.openGeneric");
@@ -550,7 +559,7 @@ export default function NotificationsPanel({
       }
     }
 
-    const targetPath = item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath;
+    const targetPath = item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath || item.profilePath;
     if (!targetPath) {
       setError(t(locale, "notifications.openFailed"));
       return;
@@ -609,7 +618,7 @@ export default function NotificationsPanel({
           return (
           <Link
             key={item.id}
-            href={item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath || "/notifications"}
+            href={item.community?.targetPath || item.post?.targetPath || item.post?.permalinkPath || item.profilePath || "/notifications"}
             onClick={(event) => {
               void openNotification(event, item);
             }}
