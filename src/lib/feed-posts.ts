@@ -11,15 +11,17 @@ import { prisma } from "@/lib/prisma";
 import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 export const FEED_PAGE_SIZE = 20;
-const OWN_POST_PENALTY = 18;
-const REPEATED_AUTHOR_PENALTY = 6;
-const FOLLOWED_AUTHOR_BONUS = 24;
-const RERANK_JITTER_RANGE = 8;
+const OWN_POST_PENALTY = 14;
+const REPEATED_AUTHOR_PENALTY = 7;
+const REPEATED_SOURCE_PENALTY = 6;
+const FOLLOWED_AUTHOR_BONUS = 22;
+const PAGE_AUTHOR_PENALTY = 4;
+const OVERREPRESENTED_RSS_PENALTY = 11;
+const OVERREPRESENTED_LOCAL_PENALTY = 8;
+const RERANK_JITTER_RANGE = 7;
+const RECENCY_MAX_HOURS = 72;
 
 export type FeedViewMode = "all" | "following" | "group";
-export type FeedSortMode = "current" | "weighted" | "likes" | "comments" | "time";
-
-const DEFAULT_FEED_SORT_MODE: FeedSortMode = "current";
 
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
@@ -31,69 +33,64 @@ function seededNormalizedValue(seed: string) {
   return value / 0xffffffff;
 }
 
-export function normalizeFeedSortMode(value: string | null | undefined): FeedSortMode {
-  if (
-    value === "weighted" ||
-    value === "likes" ||
-    value === "comments" ||
-    value === "time"
-  ) {
-    return value;
-  }
-
-  if (value === "normal") {
-    return "current";
-  }
-
-  return DEFAULT_FEED_SORT_MODE;
-}
-
-function buildFeedOrderBy(sortMode: FeedSortMode): Prisma.PostOrderByWithRelationInput[] {
-  switch (sortMode) {
-    case "weighted":
-      return [
-        { score: "desc" },
-        { engagementScore: "desc" },
-        { freshnessScore: "desc" },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ];
-    case "likes":
-      return [{ likes: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
-    case "comments":
-      return [{ comments: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
-    case "time":
-      return [{ createdAt: "desc" }, { id: "desc" }];
-    case "current":
-    default:
-      return [{ score: "desc" }, { createdAt: "desc" }, { id: "desc" }];
-  }
-}
-
-function rerankFirstFeedPage(
+function rerankMixedFeedPage(
   posts: FeedPostRecord[],
   viewerId: string,
   followedAuthorIds: Set<string>
 ) {
+  const now = Date.now();
   const remaining = [...posts];
   const ordered: FeedPostRecord[] = [];
   const repeatedAuthorCounts = new Map<string, number>();
+  const repeatedSourceCounts = new Map<string, number>();
+  let selectedRssCount = 0;
 
   while (remaining.length > 0) {
     let bestIndex = 0;
     let bestScore = Number.NEGATIVE_INFINITY;
 
     for (const [index, post] of remaining.entries()) {
-      const repeatCount = repeatedAuthorCounts.get(post.authorId) ?? 0;
+      const sourceKey = post.feedSourceId ? `rss:${post.feedSourceId}` : `local:${post.authorId}`;
+      const repeatAuthorCount = repeatedAuthorCounts.get(post.authorId) ?? 0;
+      const repeatSourceCount = repeatedSourceCounts.get(sourceKey) ?? 0;
       const ownPenalty = post.authorId === viewerId ? OWN_POST_PENALTY : 0;
-      const repeatPenalty = repeatCount * REPEATED_AUTHOR_PENALTY;
+      const authorRepeatPenalty = repeatAuthorCount * REPEATED_AUTHOR_PENALTY;
+      const sourceRepeatPenalty = repeatSourceCount * REPEATED_SOURCE_PENALTY;
       const followedBonus =
         post.authorId !== viewerId && followedAuthorIds.has(post.authorId)
           ? FOLLOWED_AUTHOR_BONUS
           : 0;
+      const pagePenalty = post.author.isPage ? PAGE_AUTHOR_PENALTY : 0;
+      const recencyAnchor = post.feedSourceId ? post.fetchedAt : post.createdAt;
+      const ageHours = Math.max(0, (now - recencyAnchor.getTime()) / 3_600_000);
+      const recencyBoost = Math.max(0, RECENCY_MAX_HOURS - ageHours) * 0.35;
+      const engagementBoost = Math.min(
+        22,
+        post._count.likes * 1.8 + post._count.comments * 2.4 + post._count.sharedBy * 2.0
+      );
+      const baseScore = (post.score ?? 0) * 0.5;
+      const selectedCount = ordered.length;
+      const rssShare = selectedCount > 0 ? selectedRssCount / selectedCount : 0;
+      const isRssPost = Boolean(post.feedSourceId);
+      const balancePenalty =
+        isRssPost && rssShare > 0.55
+          ? OVERREPRESENTED_RSS_PENALTY * (rssShare - 0.55)
+          : !isRssPost && rssShare < 0.35
+            ? OVERREPRESENTED_LOCAL_PENALTY * (0.35 - rssShare)
+            : 0;
       const jitter =
         (seededNormalizedValue(`${viewerId}:${post.id}`) * 2 - 1) * RERANK_JITTER_RANGE;
-      const adjustedScore = (post.score ?? 0) - ownPenalty - repeatPenalty + followedBonus + jitter;
+      const adjustedScore =
+        baseScore +
+        recencyBoost +
+        engagementBoost +
+        followedBonus +
+        jitter -
+        ownPenalty -
+        authorRepeatPenalty -
+        sourceRepeatPenalty -
+        pagePenalty -
+        balancePenalty;
 
       if (adjustedScore > bestScore) {
         bestIndex = index;
@@ -111,8 +108,14 @@ function rerankFirstFeedPage(
 
     const [selected] = remaining.splice(bestIndex, 1);
     ordered.push(selected);
-    const post = selected;
-    repeatedAuthorCounts.set(post.authorId, (repeatedAuthorCounts.get(post.authorId) ?? 0) + 1);
+    repeatedAuthorCounts.set(selected.authorId, (repeatedAuthorCounts.get(selected.authorId) ?? 0) + 1);
+    const selectedSourceKey = selected.feedSourceId
+      ? `rss:${selected.feedSourceId}`
+      : `local:${selected.authorId}`;
+    repeatedSourceCounts.set(selectedSourceKey, (repeatedSourceCounts.get(selectedSourceKey) ?? 0) + 1);
+    if (selected.feedSourceId) {
+      selectedRssCount += 1;
+    }
   }
 
   return ordered;
@@ -126,7 +129,6 @@ export async function getFeedPage({
   feedSourceIds,
   query,
   topicId,
-  sortMode = DEFAULT_FEED_SORT_MODE,
 }: {
   viewerId: string;
   hideViolentFeed: boolean;
@@ -135,14 +137,17 @@ export async function getFeedPage({
   feedSourceIds?: string[];
   query?: string;
   topicId?: string;
-  sortMode?: FeedSortMode;
 }): Promise<{ posts: SerializedPost[]; nextCursor: string | null }> {
   const trimmedQuery = query?.trim() ?? "";
   const groupFeedSourceIds = Array.from(
     new Set((feedSourceIds ?? []).filter((value) => typeof value === "string" && value.trim().length > 0))
   );
 
-  const orderBy = buildFeedOrderBy(sortMode);
+  const orderBy: Prisma.PostOrderByWithRelationInput[] = [
+    { score: "desc" },
+    { createdAt: "desc" },
+    { id: "desc" },
+  ];
   const topicWhere: Prisma.PostWhereInput | null = topicId
     ? {
         topicId,
@@ -156,7 +161,14 @@ export async function getFeedPage({
     where: {
       followerId: viewerId,
     },
-    select: { followingId: true },
+    select: {
+      followingId: true,
+      following: {
+        select: {
+          isPage: true,
+        },
+      },
+    },
   });
   const joinedCommunityMemberships = await prisma.communityMember.findMany({
     where: { userId: viewerId },
@@ -164,6 +176,9 @@ export async function getFeedPage({
   });
   const joinedCommunityIds = joinedCommunityMemberships.map((row) => row.communityId);
   const followingIds = following.map((connection) => connection.followingId);
+  const followingUserIds = following
+    .filter((connection) => !connection.following.isPage)
+    .map((connection) => connection.followingId);
   const followedAuthorIds = new Set(followingIds);
 
   const queryWhere: Prisma.PostWhereInput | null = trimmedQuery
@@ -187,7 +202,7 @@ export async function getFeedPage({
       }
     : null;
 
-  const visibleFeedWhere: Prisma.PostWhereInput = {
+  const allFeedWhere: Prisma.PostWhereInput = {
     AND: [
       ...(queryWhere ? [queryWhere] : []),
       ...(topicWhere ? [topicWhere] : []),
@@ -201,6 +216,41 @@ export async function getFeedPage({
             AND: [
               { moderationStatus: "visible" },
               { feedSourceId: null },
+            ],
+          },
+          {
+            AND: [
+              { moderationStatus: "visible" },
+              { feedSourceId: { not: null } },
+              { isFeedVisible: true },
+            ],
+          },
+        ],
+      },
+      {
+        hiddenBy: {
+          none: {
+            userId: viewerId,
+          },
+        },
+      },
+    ],
+  };
+  const followingFeedWhere: Prisma.PostWhereInput = {
+    AND: [
+      ...(queryWhere ? [queryWhere] : []),
+      ...(topicWhere ? [topicWhere] : []),
+      joinedCommunityIds.length > 0
+        ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
+        : { communityId: null },
+      {
+        OR: [
+          { AND: [{ authorId: viewerId }, { feedSourceId: null }] },
+          {
+            AND: [
+              { moderationStatus: "visible" },
+              { feedSourceId: null },
+              { authorId: { in: followingUserIds } },
             ],
           },
         ],
@@ -245,7 +295,11 @@ export async function getFeedPage({
   while (collected.length < FEED_PAGE_SIZE + 1 && !exhausted) {
     const batch = (await prisma.post.findMany({
       where:
-        viewMode === "group" ? groupedFeedWhere : visibleFeedWhere,
+        viewMode === "group"
+          ? groupedFeedWhere
+          : viewMode === "following"
+            ? followingFeedWhere
+            : allFeedWhere,
           orderBy,
       include: postInclude,
       take: chunkSize,
@@ -267,9 +321,11 @@ export async function getFeedPage({
   const hasMore = collected.length > FEED_PAGE_SIZE;
   const items = hasMore ? collected.slice(0, FEED_PAGE_SIZE) : collected;
   const orderedItems =
-    cursor || viewMode === "group" || sortMode !== "current"
+    viewMode === "all"
+      ? rerankMixedFeedPage(items, viewerId, followedAuthorIds)
+      : cursor || viewMode === "group"
       ? items
-      : rerankFirstFeedPage(items, viewerId, followedAuthorIds);
+      : rerankMixedFeedPage(items, viewerId, followedAuthorIds);
 
   const postIds = orderedItems.map((post) => post.id);
   const previewRows = postIds.length

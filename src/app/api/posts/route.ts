@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { getFeedGroupSourceIdsForUser } from "@/lib/feed-groups";
-import { getFeedPage, normalizeFeedSortMode } from "@/lib/feed-posts";
+import { getFeedPage } from "@/lib/feed-posts";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import {
   buildInitialPostSlug,
@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
   const groupId = searchParams.get("group");
   const query = (searchParams.get("q") ?? "").trim();
   const topicParam = (searchParams.get("topic") ?? "").trim();
-  const sortMode = normalizeFeedSortMode(searchParams.get("sort"));
 
   let viewMode: "all" | "following" | "group" =
     mode === "following" ? "following" : "all";
@@ -93,7 +92,6 @@ export async function GET(request: NextRequest) {
     feedSourceIds: groupSourceIds,
     query,
     topicId: topicParam || undefined,
-    sortMode,
   });
 
   return Response.json(page);

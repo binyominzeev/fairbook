@@ -7,10 +7,9 @@ import Navbar from "@/components/Navbar";
 import CreatePostForm from "@/components/CreatePostForm";
 import AdminChildSafetyInbox from "@/components/AdminChildSafetyInbox";
 import AdminDevSidebar from "@/components/AdminDevSidebar";
-import FeedSortSelect from "@/components/FeedSortSelect";
 import { isAdminEmail } from "@/lib/admin";
 import { getFeedGroupsForUser } from "@/lib/feed-groups";
-import { getFeedPage, normalizeFeedSortMode, type FeedSortMode } from "@/lib/feed-posts";
+import { getFeedPage } from "@/lib/feed-posts";
 import { getSuggestedPeople } from "@/lib/people-suggestions";
 import { buildProfilePath } from "@/lib/profile-path";
 import Link from "next/link";
@@ -29,13 +28,12 @@ export default async function FeedPage(props: {
     mode?: string;
     group?: string;
     q?: string;
-    sort?: string;
     topic?: string;
     topicSlug?: string;
   }>;
 }) {
   const locale = await getRequestLocale();
-  const { notice, noticeKind, mode, group, q, sort, topic, topicSlug } = await props.searchParams;
+  const { notice, noticeKind, mode, group, q, topic, topicSlug } = await props.searchParams;
   const requestedGroupId = typeof group === "string" ? group : null;
   const query = q?.trim() ?? "";
   const requestedTopicId = typeof topic === "string" && topic.trim() ? topic.trim() : null;
@@ -52,14 +50,9 @@ export default async function FeedPage(props: {
       email: true,
       avatarUrl: true,
       hideViolentFeed: true,
-      feedSortMode: true,
     },
   });
   if (!user) redirect("/login");
-
-  const activeSort: FeedSortMode = sort
-    ? normalizeFeedSortMode(sort)
-    : normalizeFeedSortMode(user.feedSortMode);
 
   const topics = await prisma.topic.findMany({
     include: {
@@ -101,7 +94,6 @@ export default async function FeedPage(props: {
     feedSourceIds: activeGroup?.feedSourceIds,
     query,
     topicId: topicId ?? undefined,
-    sortMode: activeSort,
   });
 
   function buildFeedHref(
@@ -121,10 +113,6 @@ export default async function FeedPage(props: {
 
     if (query) {
       params.set("q", query);
-    }
-
-    if (activeSort !== "current") {
-      params.set("sort", activeSort);
     }
 
     const search = params.toString();
@@ -219,14 +207,6 @@ export default async function FeedPage(props: {
                 <p className="text-xs text-slate-400">{t(locale, "feed.followingPeople")}</p>
                 <p className="text-sm font-semibold text-slate-900">{followingPeopleCount}</p>
               </div>
-              <FeedSortSelect
-                key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${topicId ?? "all"}`}
-                initialSort={activeSort}
-                mode={activeMode}
-                groupId={activeGroup?.id ?? null}
-                query={query}
-                topicSlug={activeTopic ? normalizeTopicKey(activeTopic.name) : null}
-              />
             </div>
           </div>
 
@@ -276,7 +256,6 @@ export default async function FeedPage(props: {
             {activeMode === "group" && activeGroup?.id && (
               <input type="hidden" name="group" value={activeGroup.id} />
             )}
-            <input type="hidden" name="sort" value={activeSort} />
             <QuerySyncSearchInput
               initialValue={query}
               placeholder={t(locale, "feed.searchPlaceholder")}
@@ -302,7 +281,7 @@ export default async function FeedPage(props: {
           <CreatePostForm />
 
           <FeedInfiniteList
-            key={`${activeMode}:${activeGroup?.id ?? "none"}:${activeSort}:${query}:${topicId ?? "all"}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
+            key={`${activeMode}:${activeGroup?.id ?? "none"}:${query}:${topicId ?? "all"}:${initialFeedPage.posts[0]?.id ?? "empty"}:${initialFeedPage.nextCursor ?? "end"}`}
             initialPosts={initialFeedPage.posts}
             initialNextCursor={initialFeedPage.nextCursor}
             currentUserId={user.id}
@@ -310,7 +289,6 @@ export default async function FeedPage(props: {
             groupId={activeGroup?.id ?? null}
             query={query}
             topicId={topicId}
-            sort={activeSort}
           />
         </div>
 

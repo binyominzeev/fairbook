@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import HighlightedText from "@/components/HighlightedText";
 import PostCard from "@/components/PostCard";
+import PostCardList from "@/components/PostCardList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import {
@@ -161,12 +162,14 @@ function InfinitePostActivityList({
         </p>
       )}
 
-      {items.map((post) => (
-        <TrackOnVisible
-          key={post.id}
-          onVisible={() => tracker.queue(post.id)}
-          disabled={!enableViewTracking}
-        >
+      <PostCardList
+        posts={items}
+        wrapPost={(post, content) => (
+          <TrackOnVisible onVisible={() => tracker.queue(post.id)} disabled={!enableViewTracking}>
+            {content}
+          </TrackOnVisible>
+        )}
+        renderPost={(post) => (
           <PostCard
             post={post}
             currentUserId={currentUserId}
@@ -177,8 +180,8 @@ function InfinitePostActivityList({
             showUniqueViewerCount={showUniqueViewerCount}
             topicBaseProfilePath={topicBaseProfilePath}
           />
-        </TrackOnVisible>
-      ))}
+        )}
+      />
 
       {items.length > 0 && (
         <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">

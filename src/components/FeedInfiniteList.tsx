@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import PostCard from "@/components/PostCard";
+import PostCardList from "@/components/PostCardList";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import {
   createAnonymousPostViewTracker,
   createRegisteredPostViewTracker,
 } from "@/components/post-view-tracking";
 import type { SerializedPost } from "@/lib/post-presentation";
-import type { FeedSortMode } from "@/lib/feed-posts";
 import { t } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
 
@@ -56,7 +56,6 @@ export default function FeedInfiniteList({
   groupId,
   query,
   topicId,
-  sort,
 }: {
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
@@ -65,7 +64,6 @@ export default function FeedInfiniteList({
   groupId: string | null;
   query: string;
   topicId: string | null;
-  sort: FeedSortMode;
 }) {
   const locale = useAppLocale();
   const tracker = useMemo(
@@ -86,7 +84,6 @@ export default function FeedInfiniteList({
         const searchParams = new URLSearchParams({
           cursor,
           mode,
-          sort,
         });
         if (groupId) {
           searchParams.set("group", groupId);
@@ -123,10 +120,6 @@ export default function FeedInfiniteList({
         return;
       }
 
-      if (sort === "likes" || sort === "comments") {
-        return;
-      }
-
       prependItem(post, (candidate) => candidate.id === post.id);
     };
 
@@ -134,7 +127,7 @@ export default function FeedInfiniteList({
     return () => {
       window.removeEventListener(NEW_VISIBLE_POST_EVENT, handleNewPost);
     };
-  }, [prependItem, sort]);
+  }, [prependItem]);
 
   if (items.length === 0) {
     return (
@@ -164,11 +157,12 @@ export default function FeedInfiniteList({
 
   return (
     <div key={`${initialPosts[0]?.id ?? "empty"}:${initialNextCursor ?? "end"}`}>
-      {items.map((post) => (
-        <TrackOnVisible
-          key={post.id}
-          onVisible={() => tracker.queue(post.id)}
-        >
+      <PostCardList
+        posts={items}
+        wrapPost={(post, content) => (
+          <TrackOnVisible onVisible={() => tracker.queue(post.id)}>{content}</TrackOnVisible>
+        )}
+        renderPost={(post) => (
           <PostCard
             post={post}
             currentUserId={currentUserId}
@@ -176,8 +170,8 @@ export default function FeedInfiniteList({
             highlightQuery={query}
             showUniqueViewerCount={false}
           />
-        </TrackOnVisible>
-      ))}
+        )}
+      />
 
       <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
         {isLoading

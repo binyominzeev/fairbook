@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import PostCard from "@/components/PostCard";
+import PostCardList from "@/components/PostCardList";
 import { useInfiniteCursorLoader } from "@/components/useInfiniteCursorLoader";
 import type { SerializedPost } from "@/lib/post-presentation";
 
@@ -90,18 +91,20 @@ export default function GroupPostsInfiniteList({
 
   return (
     <div>
-      {items.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          currentUserId={currentUserId}
-          showDelete
-          highlightQuery={query}
-          defaultShareCommunityId={groupId}
-          shareRedirectPath={groupPath}
-          showCommunityHeader={false}
-        />
-      ))}
+      <PostCardList
+        posts={items}
+        renderPost={(post) => (
+          <PostCard
+            post={post}
+            currentUserId={currentUserId}
+            showDelete
+            highlightQuery={query}
+            defaultShareCommunityId={groupId}
+            shareRedirectPath={groupPath}
+            showCommunityHeader={false}
+          />
+        )}
+      />
 
       <div ref={sentinelRef} className="py-4 text-center text-xs text-slate-400">
         {isLoading ? "Loading older posts..." : hasMore ? "Scroll for older posts" : "No more posts"}

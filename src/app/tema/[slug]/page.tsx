@@ -8,7 +8,6 @@ export default async function TopicFeedPage(props: {
     mode?: string;
     group?: string;
     q?: string;
-    sort?: string;
   }>;
 }) {
   const { slug } = await props.params;
