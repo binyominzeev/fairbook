@@ -41,6 +41,22 @@ type TextLayout = {
   lineHeightPx: number;
 };
 
+type UploadResponseData = {
+  error?: string;
+  urls?: string[];
+};
+
+type TextCardClientErrorPayload = {
+  referenceId: string;
+  step: string;
+  message: string;
+  stack?: string;
+  httpStatus?: number;
+  responseContentType?: string;
+  responseSnippet?: string;
+  details?: Record<string, unknown>;
+};
+
 const EXPORT_SIZE = 1080;
 const MIN_FONT_SIZE = 20;
 const MAX_FONT_SIZE = 240;
@@ -1311,6 +1327,58 @@ async function drawBackground(
   ctx.fillRect(0, 0, size, size);
 }
 
+async function parseUploadResponse(response: Response): Promise<{
+  data: UploadResponseData;
+  contentType: string;
+  rawText: string | null;
+}> {
+  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+
+  if (contentType.includes("application/json")) {
+    try {
+      const json = (await response.json()) as UploadResponseData;
+      return {
+        data: json,
+        contentType,
+        rawText: null,
+      };
+    } catch {
+      return {
+        data: {},
+        contentType,
+        rawText: null,
+      };
+    }
+  }
+
+  try {
+    const rawText = await response.text();
+    return {
+      data: {},
+      contentType,
+      rawText,
+    };
+  } catch {
+    return {
+      data: {},
+      contentType,
+      rawText: null,
+    };
+  }
+}
+
+async function reportTextCardClientError(payload: TextCardClientErrorPayload) {
+  try {
+    await fetch("/api/logs/text-card-client-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Ignore logging failures so we never block user flow on telemetry writes.
+  }
+}
+
 export default function TextCardCreator({
   initialText,
   isAdmin = false,
@@ -1720,27 +1788,67 @@ export default function TextCardCreator({
     setError("");
     setIsPosting(true);
 
+    const referenceId = `tc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const baseDetails = {
+      fontId: activeFont.id,
+      backgroundId: activeBackground.id,
+      effectiveBackgroundId: effectiveBackground.id,
+      textLength: text.trim().length,
+      includeCaptionInPost,
+      isPatternSolidMixEnabled,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+      viewport:
+        typeof window !== "undefined"
+          ? `${window.innerWidth}x${window.innerHeight}`
+          : "unknown",
+    };
+
     try {
+      let step = "render-card-blob";
       const blob = await renderCardBlob();
-      const file = new File([blob], `text-card-${Date.now()}.png`, {
-        type: "image/png",
-      });
 
+      step = "build-form-data";
       const uploadPayload = new FormData();
-      uploadPayload.append("files", file);
+      // Append Blob directly with filename to avoid mobile WebView/File constructor issues.
+      uploadPayload.append("files", blob, `text-card-${Date.now()}.png`);
 
+      step = "upload-image";
       const uploadRes = await fetch("/api/uploads/images", {
         method: "POST",
         body: uploadPayload,
       });
-      const uploadData = await uploadRes.json();
+
+      step = "parse-upload-response";
+      const { data: uploadData, contentType, rawText } = await parseUploadResponse(uploadRes);
+
       if (!uploadRes.ok) {
+        await reportTextCardClientError({
+          referenceId,
+          step,
+          message: "Image upload failed before composer dialog.",
+          httpStatus: uploadRes.status,
+          responseContentType: contentType,
+          responseSnippet: rawText?.slice(0, 600),
+          details: baseDetails,
+        });
         setError(uploadData.error ?? t(locale, "textCard.error.uploadImage"));
         return;
       }
 
       const imageUrls = Array.isArray(uploadData.urls) ? uploadData.urls : [];
       if (imageUrls.length === 0) {
+        await reportTextCardClientError({
+          referenceId,
+          step,
+          message: "Upload succeeded but returned empty urls array.",
+          httpStatus: uploadRes.status,
+          responseContentType: contentType,
+          responseSnippet: rawText?.slice(0, 600),
+          details: {
+            ...baseDetails,
+            uploadDataKeys: Object.keys(uploadData),
+          },
+        });
         setError(t(locale, "textCard.error.noUploadUrl"));
         return;
       }
@@ -1763,16 +1871,29 @@ export default function TextCardCreator({
       setPendingComposerContent(includeCaptionInPost ? text.trim() : "");
       setPendingComposerImageUrl(imageUrls[0] ?? null);
       setIsComposerOpen(true);
-    } catch {
-      setError(t(locale, "textCard.error.posting"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const stack = error instanceof Error ? error.stack : undefined;
+
+      await reportTextCardClientError({
+        referenceId,
+        step: "exception",
+        message,
+        stack,
+        details: baseDetails,
+      });
+
+      setError(`${t(locale, "textCard.error.posting")} (ref: ${referenceId})`);
     } finally {
       setIsPosting(false);
     }
   }, [
     activeBackground.id,
+    effectiveBackground.id,
     backgroundId,
     activeFont.id,
     includeCaptionInPost,
+    isPatternSolidMixEnabled,
     isPosting,
     locale,
     renderCardBlob,
