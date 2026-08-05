@@ -48,12 +48,18 @@ type UploadResponseData = {
 
 type TextCardClientErrorPayload = {
   referenceId: string;
+  event: string;
   step: string;
   message: string;
   stack?: string;
   httpStatus?: number;
   responseContentType?: string;
   responseSnippet?: string;
+  file?: {
+    name: string;
+    size: number;
+    type: string;
+  };
   details?: Record<string, unknown>;
 };
 
@@ -1379,6 +1385,14 @@ async function reportTextCardClientError(payload: TextCardClientErrorPayload) {
   }
 }
 
+function buildTextCardFileMeta(blob: Blob, referenceId: string, suffix = "png") {
+  return {
+    name: `text-card-${referenceId}.${suffix}`,
+    size: blob.size,
+    type: blob.type || "application/octet-stream",
+  };
+}
+
 export default function TextCardCreator({
   initialText,
   isAdmin = false,
@@ -1806,11 +1820,26 @@ export default function TextCardCreator({
     try {
       let step = "render-card-blob";
       const blob = await renderCardBlob();
+      const fileMeta = buildTextCardFileMeta(blob, referenceId, "png");
+
+      await reportTextCardClientError({
+        referenceId,
+        event: "attempt",
+        step,
+        message: "Text card export ready; starting upload.",
+        file: fileMeta,
+        details: {
+          ...baseDetails,
+          exportSize: EXPORT_SIZE,
+          blobBytes: blob.size,
+          blobType: blob.type || "application/octet-stream",
+        },
+      });
 
       step = "build-form-data";
       const uploadPayload = new FormData();
       // Append Blob directly with filename to avoid mobile WebView/File constructor issues.
-      uploadPayload.append("files", blob, `text-card-${Date.now()}.png`);
+      uploadPayload.append("files", blob, fileMeta.name);
 
       step = "upload-image";
       const uploadRes = await fetch("/api/uploads/images", {
@@ -1821,16 +1850,27 @@ export default function TextCardCreator({
       step = "parse-upload-response";
       const { data: uploadData, contentType, rawText } = await parseUploadResponse(uploadRes);
 
+      await reportTextCardClientError({
+        referenceId,
+        event: uploadRes.ok ? "upload-response-success" : "upload-response-failure",
+        step,
+        message: uploadRes.ok
+          ? "Upload response received successfully."
+          : "Image upload failed before composer dialog.",
+        httpStatus: uploadRes.status,
+        responseContentType: contentType,
+        responseSnippet: rawText?.slice(0, 600),
+        file: fileMeta,
+        details: {
+          ...baseDetails,
+          exportSize: EXPORT_SIZE,
+          blobBytes: blob.size,
+          blobType: blob.type || "application/octet-stream",
+          uploadUrlCount: Array.isArray(uploadData.urls) ? uploadData.urls.length : 0,
+        },
+      });
+
       if (!uploadRes.ok) {
-        await reportTextCardClientError({
-          referenceId,
-          step,
-          message: "Image upload failed before composer dialog.",
-          httpStatus: uploadRes.status,
-          responseContentType: contentType,
-          responseSnippet: rawText?.slice(0, 600),
-          details: baseDetails,
-        });
         setError(uploadData.error ?? t(locale, "textCard.error.uploadImage"));
         return;
       }
@@ -1839,13 +1879,18 @@ export default function TextCardCreator({
       if (imageUrls.length === 0) {
         await reportTextCardClientError({
           referenceId,
+          event: "upload-empty-result",
           step,
           message: "Upload succeeded but returned empty urls array.",
           httpStatus: uploadRes.status,
           responseContentType: contentType,
           responseSnippet: rawText?.slice(0, 600),
+          file: fileMeta,
           details: {
             ...baseDetails,
+            exportSize: EXPORT_SIZE,
+            blobBytes: blob.size,
+            blobType: blob.type || "application/octet-stream",
             uploadDataKeys: Object.keys(uploadData),
           },
         });
@@ -1877,9 +1922,11 @@ export default function TextCardCreator({
 
       await reportTextCardClientError({
         referenceId,
+        event: "exception",
         step: "exception",
         message,
         stack,
+        file: undefined,
         details: baseDetails,
       });
 

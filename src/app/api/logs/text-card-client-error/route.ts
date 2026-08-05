@@ -9,12 +9,14 @@ const MAX_FIELD_LENGTH = 2000;
 
 type Payload = {
   referenceId?: unknown;
+  event?: unknown;
   step?: unknown;
   message?: unknown;
   stack?: unknown;
   httpStatus?: unknown;
   responseContentType?: unknown;
   responseSnippet?: unknown;
+  file?: unknown;
   details?: unknown;
 };
 
@@ -29,30 +31,47 @@ function toSafeNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function toSafeDetails(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+function normalizeValue(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) {
     return null;
   }
 
-  const entries = Object.entries(value as Record<string, unknown>).slice(0, 30);
-  const normalized: Record<string, unknown> = {};
-
-  for (const [key, raw] of entries) {
-    const safeKey = key.slice(0, 64);
-    if (raw === null || typeof raw === "number" || typeof raw === "boolean") {
-      normalized[safeKey] = raw;
-      continue;
-    }
-
-    if (typeof raw === "string") {
-      normalized[safeKey] = raw.slice(0, MAX_FIELD_LENGTH);
-      continue;
-    }
-
-    normalized[safeKey] = String(raw).slice(0, MAX_FIELD_LENGTH);
+  if (typeof value === "string") {
+    return value.slice(0, MAX_FIELD_LENGTH);
   }
 
-  return normalized;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    if (depth >= 2) {
+      return `[array:${value.length}]`;
+    }
+
+    return value.slice(0, 20).map((item) => normalizeValue(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    if (depth >= 2) {
+      return "[object]";
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, 30);
+    const normalized: Record<string, unknown> = {};
+
+    for (const [key, raw] of entries) {
+      normalized[key.slice(0, 64)] = normalizeValue(raw, depth + 1);
+    }
+
+    return normalized;
+  }
+
+  return String(value).slice(0, MAX_FIELD_LENGTH);
 }
 
 export async function POST(request: Request) {
@@ -72,13 +91,15 @@ export async function POST(request: Request) {
     at: new Date().toISOString(),
     userId: session.userId,
     referenceId: toSafeString(payload.referenceId, "unknown"),
+    event: toSafeString(payload.event, "unknown"),
     step: toSafeString(payload.step, "unknown"),
     message: toSafeString(payload.message, "unknown"),
     stack: toSafeString(payload.stack, ""),
     httpStatus: toSafeNumber(payload.httpStatus),
     responseContentType: toSafeString(payload.responseContentType, ""),
     responseSnippet: toSafeString(payload.responseSnippet, ""),
-    details: toSafeDetails(payload.details),
+    file: normalizeValue(payload.file),
+    details: normalizeValue(payload.details),
   };
 
   const absoluteLogPath = path.join(process.cwd(), LOG_RELATIVE_PATH);
