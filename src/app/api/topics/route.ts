@@ -11,6 +11,8 @@ function isUniqueConstraintError(error: unknown) {
 }
 
 export async function GET() {
+  const session = await getSession();
+
   const topics = await prisma.topic.findMany({
     include: {
       _count: {
@@ -22,11 +24,30 @@ export async function GET() {
     orderBy: [{ posts: { _count: "desc" } }, { name: "asc" }],
   });
 
+  let preferredColorByTopicId = new Map<string, string | null>();
+  if (session?.userId && topics.length > 0) {
+    const preferences = await prisma.userTopicPreference.findMany({
+      where: {
+        userId: session.userId,
+        topicId: { in: topics.map((topic) => topic.id) },
+      },
+      select: {
+        topicId: true,
+        buttonColor: true,
+      },
+    });
+
+    preferredColorByTopicId = new Map(
+      preferences.map((preference) => [preference.topicId, preference.buttonColor])
+    );
+  }
+
   return Response.json({
     topics: topics.map((topic) => ({
       id: topic.id,
       name: topic.name,
       defaultColor: topic.defaultColor,
+      buttonColor: preferredColorByTopicId.get(topic.id) ?? null,
       postCount: topic._count.posts,
     })),
   });

@@ -66,6 +66,8 @@ type PostComposerDialogProps = {
 type ComposerTopic = {
   id: string;
   name: string;
+  defaultColor?: string | null;
+  buttonColor?: string | null;
   postCount?: number;
 };
 
@@ -199,7 +201,13 @@ export default function PostComposerDialog({
         if (!response.ok) return;
 
         const data = (await response.json()) as {
-          topics?: Array<{ id: string; name: string; postCount?: number }>;
+          topics?: Array<{
+            id: string;
+            name: string;
+            defaultColor?: string | null;
+            buttonColor?: string | null;
+            postCount?: number;
+          }>;
         };
         if (cancelled) return;
 
@@ -442,20 +450,53 @@ export default function PostComposerDialog({
         <div className="mt-3">
           <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <label className="mb-1 block text-xs font-medium text-slate-600">{t(locale, "composer.topicLabel")}</label>
-            <select
-              value={selectedTopicId}
-              onChange={(event) => setSelectedTopicId(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">{t(locale, "composer.topicNone")}</option>
-              {topics.map((topic) => (
-                <option key={topic.id} value={topic.id}>
-                  {topic.name}
-                  {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
-                </option>
-              ))}
-              <option value="__new__">{t(locale, "composer.topicCreateNew")}</option>
-            </select>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedTopicId("")}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  selectedTopicId === ""
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+              >
+                {t(locale, "composer.topicNone")}
+              </button>
+
+              {topics.map((topic) => {
+                const chipColor = topic.buttonColor ?? topic.defaultColor ?? "#64748B";
+                const isSelected = selectedTopicId === topic.id;
+
+                return (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    onClick={() => setSelectedTopicId(topic.id)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold text-white transition-opacity ${
+                      isSelected ? "border-slate-900" : "border-slate-200"
+                    }`}
+                    style={{
+                      backgroundColor: chipColor,
+                      opacity: isSelected ? 1 : 0.9,
+                    }}
+                  >
+                    {topic.name}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setSelectedTopicId("__new__")}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  selectedTopicId === "__new__"
+                    ? "border-blue-700 bg-blue-700 text-white"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300"
+                }`}
+              >
+                {t(locale, "composer.topicCreateNew")}
+              </button>
+            </div>
             {selectedTopicId === "__new__" ? (
               <input
                 type="text"
