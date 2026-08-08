@@ -202,13 +202,7 @@ export async function getFeedPage({
           orderBy: { createdAt: "desc" },
           take: FEED_PAGE_SIZE * 12,
           include: {
-            author: {
-              select: {
-                id: true,
-                name: true,
-                avatarUrl: true,
-              },
-            },
+            author: { select: { id: true, slug: true, name: true, avatarUrl: true, isPage: true } },
           },
         })
       : [];
@@ -220,11 +214,7 @@ export async function getFeedPage({
         id: row.id,
         content: row.content,
         createdAt: row.createdAt.toISOString(),
-        author: {
-          id: row.author.id,
-          name: row.author.name,
-          avatarUrl: row.author.avatarUrl,
-        },
+        author: row.author,
       });
       previewsByPostId.set(row.postId, current);
     }
