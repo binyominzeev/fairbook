@@ -62,10 +62,10 @@ export async function GET(request: NextRequest) {
   const query = (searchParams.get("q") ?? "").trim();
   const topicParam = (searchParams.get("topic") ?? "").trim();
 
-  let viewMode: "all" | "following" | "group" =
-    mode === "following" ? "following" : "all";
+  let viewMode: "all" | "following" | "group" | "bookmarks" =
+    mode === "bookmarks" ? "bookmarks" : mode === "following" ? "following" : "all";
   let groupSourceIds: string[] | undefined;
-  if (groupId) {
+  if (groupId && viewMode !== "bookmarks") {
     const resolvedGroupSourceIds = await getFeedGroupSourceIdsForUser(
       session.userId,
       groupId

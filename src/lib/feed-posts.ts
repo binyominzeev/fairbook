@@ -21,7 +21,7 @@ const OVERREPRESENTED_LOCAL_PENALTY = 8;
 const RERANK_JITTER_RANGE = 7;
 const RECENCY_MAX_HOURS = 72;
 
-export type FeedViewMode = "all" | "following" | "group";
+export type FeedViewMode = "all" | "following" | "group" | "bookmarks";
 
 type FeedPostRecord = Prisma.PostGetPayload<{
   include: ReturnType<typeof buildPostInclude>;
@@ -142,6 +142,101 @@ export async function getFeedPage({
   const groupFeedSourceIds = Array.from(
     new Set((feedSourceIds ?? []).filter((value) => typeof value === "string" && value.trim().length > 0))
   );
+
+  if (viewMode === "bookmarks") {
+    const batch = await prisma.bookmarkedPost.findMany({
+      where: {
+        userId: viewerId,
+        post: {
+          AND: [
+            ...(trimmedQuery
+              ? [
+                  {
+                    OR: [
+                      { content: { contains: trimmedQuery } },
+                      { sharedTitle: { contains: trimmedQuery } },
+                      { sharedDescription: { contains: trimmedQuery } },
+                      { sharedSource: { contains: trimmedQuery } },
+                      { author: { name: { contains: trimmedQuery } } },
+                      {
+                        postTags: {
+                          some: {
+                            tag: {
+                              name: { contains: trimmedQuery },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ]
+              : []),
+            ...(topicId ? [{ topicId }] : []),
+          ],
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: FEED_PAGE_SIZE + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        post: {
+          include: buildPostInclude(viewerId),
+        },
+      },
+    });
+
+    const hasMore = batch.length > FEED_PAGE_SIZE;
+    const items = hasMore ? batch.slice(0, FEED_PAGE_SIZE) : batch;
+    const serialized = items.map((bookmark) => serializePost(bookmark.post as FeedPostRecord));
+    const withTopicColors = await applyAuthorTopicColors(serialized);
+
+    const postIds = withTopicColors.map((post) => post.id);
+    const previewRows = postIds.length
+      ? await prisma.comment.findMany({
+          where: {
+            postId: { in: postIds },
+            moderationStatus: "visible",
+            parentId: null,
+          },
+          orderBy: { createdAt: "desc" },
+          take: FEED_PAGE_SIZE * 12,
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        })
+      : [];
+    const previewsByPostId = new Map<string, SerializedCommentPreview[]>();
+    for (const row of previewRows) {
+      const current = previewsByPostId.get(row.postId) ?? [];
+      if (current.length >= 3) continue;
+      current.push({
+        id: row.id,
+        content: row.content,
+        createdAt: row.createdAt.toISOString(),
+        author: {
+          id: row.author.id,
+          name: row.author.name,
+          avatarUrl: row.author.avatarUrl,
+        },
+      });
+      previewsByPostId.set(row.postId, current);
+    }
+
+    return {
+      posts: withTopicColors.map((post) => ({
+        ...post,
+        commentPreviews: previewsByPostId.get(post.id) ?? [],
+      })),
+      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+    };
+  }
 
   const orderBy: Prisma.PostOrderByWithRelationInput[] = [
     { score: "desc" },

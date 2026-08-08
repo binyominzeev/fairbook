@@ -60,7 +60,7 @@ export default function FeedInfiniteList({
   initialPosts: SerializedPost[];
   initialNextCursor: string | null;
   currentUserId: string;
-  mode: "all" | "following" | "group";
+  mode: "all" | "following" | "group" | "bookmarks";
   groupId: string | null;
   query: string;
   topicId: string | null;
@@ -138,6 +138,8 @@ export default function FeedInfiniteList({
             ? t(locale, "feed.list.empty.search")
             : mode === "following"
               ? t(locale, "feed.list.empty.following")
+              : mode === "bookmarks"
+                ? t(locale, "feed.list.empty.bookmarks")
               : mode === "group"
                 ? t(locale, "feed.list.empty.group")
                 : t(locale, "feed.list.empty.default")}
@@ -147,6 +149,8 @@ export default function FeedInfiniteList({
             ? t(locale, "feed.list.tip.search")
             : mode === "following"
               ? t(locale, "feed.list.tip.following")
+              : mode === "bookmarks"
+                ? t(locale, "feed.list.tip.bookmarks")
               : mode === "group"
                 ? t(locale, "feed.list.tip.group")
                 : t(locale, "feed.list.tip.default")}

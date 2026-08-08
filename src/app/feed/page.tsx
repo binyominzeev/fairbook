@@ -19,7 +19,7 @@ import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
 import { getRequestLocale } from "@/lib/request-locale";
 import { t } from "@/lib/i18n";
 
-type FeedMode = "all" | "following" | "group";
+type FeedMode = "all" | "following" | "group" | "bookmarks";
 
 export default async function FeedPage(props: {
   searchParams: Promise<{
@@ -83,6 +83,8 @@ export default async function FeedPage(props: {
     : null;
   const activeMode: FeedMode = activeGroup
     ? "group"
+    : mode === "bookmarks"
+      ? "bookmarks"
     : mode === "following"
       ? "following"
       : "all";
@@ -105,6 +107,10 @@ export default async function FeedPage(props: {
 
     if (nextMode === "following") {
       params.set("mode", "following");
+    }
+
+    if (nextMode === "bookmarks") {
+      params.set("mode", "bookmarks");
     }
 
     if (nextMode === "group" && nextGroupId) {
@@ -188,6 +194,16 @@ export default async function FeedPage(props: {
               >
                 {t(locale, "feed.tab.friends")}
               </Link>
+              <Link
+                href={buildFeedHref("bookmarks")}
+                className={`flex-1 rounded-md px-3 py-1.5 text-center transition-colors ${
+                  activeMode === "bookmarks"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {t(locale, "feed.tab.bookmarks")}
+              </Link>
               {feedGroups.map((feedGroup) => (
                 <Link
                   key={feedGroup.id}
@@ -253,6 +269,7 @@ export default async function FeedPage(props: {
             className="flex flex-col gap-2 sm:flex-row"
           >
             {activeMode === "following" && <input type="hidden" name="mode" value="following" />}
+            {activeMode === "bookmarks" && <input type="hidden" name="mode" value="bookmarks" />}
             {activeMode === "group" && activeGroup?.id && (
               <input type="hidden" name="group" value={activeGroup.id} />
             )}
@@ -292,7 +309,7 @@ export default async function FeedPage(props: {
           />
         </div>
 
-        {suggestedUsers.length > 0 && initialFeedPage.posts.length === 0 && activeMode !== "group" && (
+        {suggestedUsers.length > 0 && initialFeedPage.posts.length === 0 && activeMode !== "group" && activeMode !== "bookmarks" && (
           <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">
               People you might follow

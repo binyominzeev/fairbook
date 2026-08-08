@@ -13,7 +13,6 @@ import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import {
   getProfileActivityAccess,
   getProfileCommentsPage,
-  getProfileBookmarkedPostsPage,
   getProfileHiddenPostsPage,
   getProfileLikedPostsPage,
   getProfilePostsPage,
@@ -24,7 +23,7 @@ import { buildProfilePath } from "@/lib/profile-path";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
 import { isAdminEmail } from "@/lib/admin";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
-import { Bookmark, EyeOff, Grid2x2, Heart, MessageSquare } from "lucide-react";
+import { EyeOff, Grid2x2, Heart, MessageSquare } from "lucide-react";
 import ProfileTopicStrip from "@/components/ProfileTopicStrip";
 import { buildProfileTopicPath } from "@/lib/topic-path";
 import { getTopicSlugLookupCandidates, normalizeTopicKey } from "@/lib/topics";
@@ -46,7 +45,7 @@ export default async function ProfilePage(props: {
   const viewerId = session?.userId ?? "__guest__";
 
   const requestedTab =
-    tab === "likes" || tab === "bookmarks" || tab === "comments" || tab === "hidden"
+    tab === "likes" || tab === "comments" || tab === "hidden"
       ? tab
       : "posts";
   const showSettings = settings === "1";
@@ -137,6 +136,20 @@ export default async function ProfilePage(props: {
       profileId: profileUser.id,
       isPage: profileUser.isPage,
     });
+  if (isOwnProfile && tab === "bookmarks") {
+    const params = new URLSearchParams();
+    params.set("mode", "bookmarks");
+    if (query) {
+      params.set("q", query);
+    }
+    if (topicId) {
+      params.set("topic", topicId);
+    }
+
+    const queryString = params.toString();
+    redirect(queryString ? `/feed?${queryString}` : "/feed?mode=bookmarks");
+  }
+
   const visiblePostCount = isOwnProfile
     ? profileUser._count.posts
     : await prisma.post.count({
@@ -147,17 +160,15 @@ export default async function ProfilePage(props: {
         },
       });
   const canUseHiddenTab = isOwnProfile;
-  const canUseBookmarksTab = isOwnProfile;
   const activeTab =
     canViewActivity &&
     requestedTab !== "posts" &&
-    (requestedTab !== "hidden" || canUseHiddenTab) &&
-    (requestedTab !== "bookmarks" || canUseBookmarksTab)
+    (requestedTab !== "hidden" || canUseHiddenTab)
       ? requestedTab
       : "posts";
 
   function buildProfileHref(
-    nextTab?: "posts" | "likes" | "bookmarks" | "comments" | "hidden",
+    nextTab?: "posts" | "likes" | "comments" | "hidden",
     nextShowSettings = showSettings,
     nextTopicId: string | null = topicId
   ) {
@@ -166,8 +177,7 @@ export default async function ProfilePage(props: {
     const requestedNextTab = nextTab ?? activeTab;
     const resolvedTab =
       canViewActivity &&
-      (requestedNextTab !== "hidden" || canUseHiddenTab) &&
-      (requestedNextTab !== "bookmarks" || canUseBookmarksTab)
+      (requestedNextTab !== "hidden" || canUseHiddenTab)
         ? requestedNextTab
         : "posts";
 
@@ -207,14 +217,6 @@ export default async function ProfilePage(props: {
           query,
           topicId,
         })
-      : activeTab === "bookmarks"
-        ? await getProfileBookmarkedPostsPage({
-          viewerId,
-            profileId: profileUser.id,
-            isOwnProfile,
-            query,
-            topicId,
-          })
       : activeTab === "hidden"
         ? await getProfileHiddenPostsPage({
           viewerId,
@@ -463,14 +465,6 @@ export default async function ProfilePage(props: {
                 />
                 {isOwnProfile && (
                   <IconNavLink
-                    href={buildProfileHref("bookmarks")}
-                    label={t(locale, "profile.tab.bookmarks")}
-                    icon={Bookmark}
-                    active={activeTab === "bookmarks"}
-                  />
-                )}
-                {isOwnProfile && (
-                  <IconNavLink
                     href={buildProfileHref("hidden")}
                     label={t(locale, "profile.tab.hidden")}
                     icon={EyeOff}
@@ -506,26 +500,6 @@ export default async function ProfilePage(props: {
             {activeTab === "likes" && (
               <>
                 <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.likedPosts")}</h2>
-                <ProfileActivitySection
-                  profileId={profileUser.id}
-                  activeTab={activeTab}
-                  profileViewMode={profileActivityViewMode}
-                  initialPosts={initialPostsPage.posts}
-                  initialComments={initialCommentsPage.comments}
-                  initialNextCursor={initialNextCursor}
-                  currentUserId={currentUser?.id ?? ""}
-                  isOwnProfile={isOwnProfile}
-                  requireAuthForInteractions={!isLoggedIn}
-                  query={query}
-                  topicId={topicId}
-                  topicBaseProfilePath={canonicalProfilePath}
-                />
-              </>
-            )}
-
-            {activeTab === "bookmarks" && isOwnProfile && (
-              <>
-                <h2 className="px-1 text-sm font-semibold text-slate-700">{t(locale, "profile.heading.bookmarkedPosts")}</h2>
                 <ProfileActivitySection
                   profileId={profileUser.id}
                   activeTab={activeTab}
