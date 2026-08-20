@@ -126,7 +126,7 @@ export default function CommentCard({
   const canDeleteComment = isOwnComment || currentUserCanModerateGroup;
 
   const submitAppeal = useCallback(async () => {
-    if (!isOwnComment || currentUserIsAdmin) return;
+    if (!isOwnComment) return;
 
     setAppealing(true);
     setActionNotice(null);
@@ -155,7 +155,7 @@ export default function CommentCard({
     } finally {
       setAppealing(false);
     }
-  }, [appealText, currentUserIsAdmin, isOwnComment, localComment.id]);
+  }, [appealText, isOwnComment, localComment.id]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -440,33 +440,31 @@ export default function CommentCard({
               <p className="mt-1 text-amber-800">
                 {localComment.moderationExplanation ?? "Only you can see this comment."}
               </p>
-              {!currentUserIsAdmin && (
-                <div className="mt-2 space-y-2">
-                  {!hasOpenAppeal ? (
-                    <>
-                      <AutoResizeTextarea
-                        value={appealText}
-                        onChange={(event) => setAppealText(event.target.value)}
-                        minRows={2}
-                        placeholder="Optional note for admin (why this should be allowed)."
-                        className="w-full resize-y rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs leading-5 text-amber-900 placeholder:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void submitAppeal()}
-                        disabled={appealing}
-                        className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
-                      >
-                        {appealing ? "Submitting..." : "Appeal this decision"}
-                      </button>
-                    </>
-                  ) : (
-                    <p className="text-[11px] text-amber-800">
-                      Appeal is open. An admin will review it.
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="mt-2 space-y-2">
+                {!hasOpenAppeal ? (
+                  <>
+                    <AutoResizeTextarea
+                      value={appealText}
+                      onChange={(event) => setAppealText(event.target.value)}
+                      minRows={2}
+                      placeholder="Optional note for admin (why this should be allowed)."
+                      className="w-full resize-y rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs leading-5 text-amber-900 placeholder:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void submitAppeal()}
+                      disabled={appealing}
+                      className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                    >
+                      {appealing ? "Submitting..." : "Appeal this decision"}
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-amber-800">
+                    Appeal is open. An admin will review it.
+                  </p>
+                )}
+              </div>
             </div>
           )}
           {commentInsightsEnabled && <DiscourseIndicators analysis={analysis} />}

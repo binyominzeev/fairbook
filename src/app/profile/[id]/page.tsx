@@ -9,6 +9,7 @@ import FollowButton from "@/components/FollowButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
 import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
 import ProfileActivityViewModeSelect from "@/components/ProfileActivityViewModeSelect";
+import AdminDevSidebar from "@/components/AdminDevSidebar";
 import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
 import {
   getProfileActivityAccess,
@@ -579,6 +580,7 @@ export default async function ProfilePage(props: {
           </>
         )}
       </div>
+      {isAdmin && <AdminDevSidebar />}
     </>
   );
 }

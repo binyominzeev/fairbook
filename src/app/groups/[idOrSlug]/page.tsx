@@ -11,7 +11,9 @@ import GroupPostsInfiniteList from "@/components/GroupPostsInfiniteList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
 import Avatar from "@/components/Avatar";
+import AdminDevSidebar from "@/components/AdminDevSidebar";
 import { getSession } from "@/lib/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -27,6 +29,7 @@ export default async function GroupDetailPage(props: {
   if (!session) {
     redirect("/login");
   }
+  const isAdmin = isAdminEmail(session.email);
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -266,6 +269,7 @@ export default async function GroupDetailPage(props: {
           {isOwner && <GroupDeleteButton groupIdOrSlug={canonicalSlug} groupName={community.name} />}
         </aside>
       </div>
+      {isAdmin && <AdminDevSidebar />}
     </>
   );
 }

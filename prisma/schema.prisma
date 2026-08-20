@@ -55,6 +55,8 @@ model User {
   childSafetyReports ChildSafetyReport[] @relation("ChildSafetyReporter")
   commentAppealsSubmitted CommentAppeal[] @relation("CommentAppealRequester")
   commentAppealsReviewed  CommentAppeal[] @relation("CommentAppealReviewer")
+  postAppealsSubmitted    PostAppeal[]    @relation("PostAppealRequester")
+  postAppealsReviewed     PostAppeal[]    @relation("PostAppealReviewer")
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
   communityNotificationPreferences CommunityNotificationPreference[]
@@ -135,6 +137,7 @@ model Post {
   notificationPreferences PostNotificationPreference[]
   trafficEvents TrafficEvent[]
   uniqueViews PostUniqueView[]
+  appeals    PostAppeal[]
 
   @@unique([feedSourceId, externalId])
   @@unique([authorId, sharedPostId])
@@ -409,6 +412,26 @@ model CommentAppeal {
   reviewedBy User?   @relation("CommentAppealReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([commentId, status])
+  @@index([requesterId, status])
+}
+
+model PostAppeal {
+  id           String   @id @default(cuid())
+  postId       String
+  requesterId  String
+  status       String   @default("open") // open | resolved_visible | resolved_rejected
+  requestText  String?
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  post       Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  requester  User @relation("PostAppealRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("PostAppealReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([postId, status])
   @@index([requesterId, status])
 }
 

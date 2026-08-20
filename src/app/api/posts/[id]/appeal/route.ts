@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   request: Request,
-  ctx: RouteContext<"/api/comments/[id]/appeal">
+  ctx: RouteContext<"/api/posts/[id]/appeal">
 ) {
   const session = await getSession();
   if (!session) {
@@ -15,24 +15,24 @@ export async function POST(
   const requestText =
     typeof body?.requestText === "string" ? body.requestText.trim().slice(0, 2000) : "";
 
-  const comment = await prisma.comment.findUnique({
+  const post = await prisma.post.findUnique({
     where: { id },
     select: { id: true, authorId: true, moderationStatus: true },
   });
 
-  if (!comment) {
-    return Response.json({ error: "Comment not found." }, { status: 404 });
+  if (!post) {
+    return Response.json({ error: "Post not found." }, { status: 404 });
   }
-  if (comment.authorId !== session.userId) {
+  if (post.authorId !== session.userId) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
-  if (comment.moderationStatus !== "author_only") {
-    return Response.json({ error: "Only filtered comments can be appealed." }, { status: 400 });
+  if (post.moderationStatus !== "author_only") {
+    return Response.json({ error: "Only filtered posts can be appealed." }, { status: 400 });
   }
 
-  const existingOpenAppeal = await prisma.commentAppeal.findFirst({
+  const existingOpenAppeal = await prisma.postAppeal.findFirst({
     where: {
-      commentId: id,
+      postId: id,
       requesterId: session.userId,
       status: "open",
     },
@@ -40,12 +40,12 @@ export async function POST(
   });
 
   if (existingOpenAppeal) {
-    return Response.json({ error: "An open appeal already exists for this comment." }, { status: 409 });
+    return Response.json({ error: "An open appeal already exists for this post." }, { status: 409 });
   }
 
-  const appeal = await prisma.commentAppeal.create({
+  const appeal = await prisma.postAppeal.create({
     data: {
-      commentId: id,
+      postId: id,
       requesterId: session.userId,
       requestText: requestText || null,
     },

@@ -13,6 +13,7 @@ type PromptItem = {
 };
 
 type AppealItem = {
+  kind: "comment" | "post";
   id: string;
   status: string;
   requestText: string | null;
@@ -22,22 +23,13 @@ type AppealItem = {
     name: string;
     email: string;
   };
-  comment: {
+  content: string | null;
+  moderationReason: string | null;
+  moderationExplanation: string | null;
+  author: {
     id: string;
-    content: string;
-    moderationReason: string | null;
-    moderationExplanation: string | null;
-    moderationStatus: string;
-    createdAt: string;
-    author: {
-      id: string;
-      name: string;
-      email: string;
-    };
-    post: {
-      id: string;
-      content: string | null;
-    };
+    name: string;
+    email: string;
   };
   context: {
     postContent?: string;
@@ -46,16 +38,13 @@ type AppealItem = {
   } | null;
 };
 
-type OwnBlockedComment = {
+type OwnBlockedItem = {
+  kind: "comment" | "post";
   id: string;
-  content: string;
+  content: string | null;
   moderationReason: string | null;
   moderationExplanation: string | null;
   createdAt: string;
-  post: {
-    id: string;
-    content: string | null;
-  };
   hasOpenAppeal: boolean;
 };
 
@@ -78,8 +67,8 @@ export default function AdminDevSidebar() {
   const [promptTestPending, setPromptTestPending] = useState(false);
 
   const [appeals, setAppeals] = useState<AppealItem[]>([]);
-  const [selectedAppealId, setSelectedAppealId] = useState<string>("");
-  const [ownBlockedComments, setOwnBlockedComments] = useState<OwnBlockedComment[]>([]);
+  const [selectedAppealKey, setSelectedAppealKey] = useState<string>("");
+  const [ownBlockedItems, setOwnBlockedItems] = useState<OwnBlockedItem[]>([]);
   const [adminNote, setAdminNote] = useState("");
   const [rerunPending, setRerunPending] = useState(false);
 
@@ -93,27 +82,32 @@ export default function AdminDevSidebar() {
   );
 
   const selectedAppeal = useMemo(
-    () => appeals.find((appeal) => appeal.id === selectedAppealId) ?? null,
-    [appeals, selectedAppealId]
+    () => appeals.find((appeal) => `${appeal.kind}:${appeal.id}` === selectedAppealKey) ?? null,
+    [appeals, selectedAppealKey]
   );
 
   const refreshData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [promptRes, appealRes] = await Promise.all([
+      const [promptRes, commentAppealRes, postAppealRes] = await Promise.all([
         fetch("/api/admin/ai-prompts"),
         fetch("/api/admin/comment-appeals"),
+        fetch("/api/admin/post-appeals"),
       ]);
 
       const promptData = await promptRes.json();
-      const appealData = await appealRes.json();
+      const commentAppealData = await commentAppealRes.json();
+      const postAppealData = await postAppealRes.json();
 
       if (!promptRes.ok) {
         throw new Error(promptData.error ?? "Failed to load prompt list.");
       }
-      if (!appealRes.ok) {
-        throw new Error(appealData.error ?? "Failed to load appeals.");
+      if (!commentAppealRes.ok) {
+        throw new Error(commentAppealData.error ?? "Failed to load comment appeals.");
+      }
+      if (!postAppealRes.ok) {
+        throw new Error(postAppealData.error ?? "Failed to load post appeals.");
       }
 
       const nextPrompts: PromptItem[] = Array.isArray(promptData.prompts) ? promptData.prompts : [];
@@ -128,18 +122,115 @@ export default function AdminDevSidebar() {
       const preferredPrompt = nextPrompts.find((item) => item.key === preferredKey);
       setPromptDraft(preferredPrompt?.content ?? "");
 
-      const nextAppeals: AppealItem[] = Array.isArray(appealData.openAppeals)
-        ? appealData.openAppeals
-        : [];
-      setAppeals(nextAppeals);
-      setOwnBlockedComments(
-        Array.isArray(appealData.ownBlockedComments) ? appealData.ownBlockedComments : []
-      );
+      type RawCommentAppeal = {
+        id: string;
+        status: string;
+        requestText: string | null;
+        createdAt: string;
+        requester: { id: string; name: string; email: string };
+        comment: {
+          content: string;
+          moderationReason: string | null;
+          moderationExplanation: string | null;
+          author: { id: string; name: string; email: string };
+        };
+        context: { postContent?: string; sharedContent?: string; parentComment?: string } | null;
+      };
+      type RawPostAppeal = {
+        id: string;
+        status: string;
+        requestText: string | null;
+        createdAt: string;
+        requester: { id: string; name: string; email: string };
+        post: {
+          content: string | null;
+          moderationReason: string | null;
+          moderationExplanation: string | null;
+          author: { id: string; name: string; email: string };
+        };
+        context: { postContent?: string; sharedContent?: string } | null;
+      };
 
-      const selectedStillExists = nextAppeals.some((item) => item.id === selectedAppealId);
+      const rawCommentAppeals: RawCommentAppeal[] = Array.isArray(commentAppealData.openAppeals)
+        ? commentAppealData.openAppeals
+        : [];
+      const rawPostAppeals: RawPostAppeal[] = Array.isArray(postAppealData.openAppeals)
+        ? postAppealData.openAppeals
+        : [];
+
+      const nextAppeals: AppealItem[] = [
+        ...rawCommentAppeals.map((appeal): AppealItem => ({
+          kind: "comment",
+          id: appeal.id,
+          status: appeal.status,
+          requestText: appeal.requestText,
+          createdAt: appeal.createdAt,
+          requester: appeal.requester,
+          content: appeal.comment.content,
+          moderationReason: appeal.comment.moderationReason,
+          moderationExplanation: appeal.comment.moderationExplanation,
+          author: appeal.comment.author,
+          context: appeal.context,
+        })),
+        ...rawPostAppeals.map((appeal): AppealItem => ({
+          kind: "post",
+          id: appeal.id,
+          status: appeal.status,
+          requestText: appeal.requestText,
+          createdAt: appeal.createdAt,
+          requester: appeal.requester,
+          content: appeal.post.content,
+          moderationReason: appeal.post.moderationReason,
+          moderationExplanation: appeal.post.moderationExplanation,
+          author: appeal.post.author,
+          context: appeal.context,
+        })),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setAppeals(nextAppeals);
+
+      const rawOwnBlockedComments: Array<{
+        id: string;
+        content: string;
+        moderationReason: string | null;
+        moderationExplanation: string | null;
+        createdAt: string;
+        hasOpenAppeal: boolean;
+      }> = Array.isArray(commentAppealData.ownBlockedComments) ? commentAppealData.ownBlockedComments : [];
+      const rawOwnBlockedPosts: Array<{
+        id: string;
+        content: string | null;
+        createdAt: string;
+        hasOpenAppeal: boolean;
+      }> = Array.isArray(postAppealData.ownBlockedPosts) ? postAppealData.ownBlockedPosts : [];
+
+      const nextOwnBlockedItems: OwnBlockedItem[] = [
+        ...rawOwnBlockedComments.map((comment): OwnBlockedItem => ({
+          kind: "comment",
+          id: comment.id,
+          content: comment.content,
+          moderationReason: comment.moderationReason,
+          moderationExplanation: comment.moderationExplanation,
+          createdAt: comment.createdAt,
+          hasOpenAppeal: comment.hasOpenAppeal,
+        })),
+        ...rawOwnBlockedPosts.map((post): OwnBlockedItem => ({
+          kind: "post",
+          id: post.id,
+          content: post.content,
+          moderationReason: null,
+          moderationExplanation: null,
+          createdAt: post.createdAt,
+          hasOpenAppeal: post.hasOpenAppeal,
+        })),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOwnBlockedItems(nextOwnBlockedItems);
+
+      const selectedStillExists = nextAppeals.some(
+        (item) => `${item.kind}:${item.id}` === selectedAppealKey
+      );
       if (!selectedStillExists) {
-        const nextSelectedId = nextAppeals[0]?.id ?? "";
-        setSelectedAppealId(nextSelectedId);
+        const first = nextAppeals[0];
+        setSelectedAppealKey(first ? `${first.kind}:${first.id}` : "");
         setChatHistory([]);
         setChatInput("");
         setAdminNote("");
@@ -268,7 +359,11 @@ export default function AdminDevSidebar() {
     setRerunPending(true);
     setError("");
     try {
-      const res = await fetch(`/api/admin/comment-appeals/${selectedAppeal.id}/rerun`, {
+      const endpoint =
+        selectedAppeal.kind === "post"
+          ? `/api/admin/post-appeals/${selectedAppeal.id}/rerun`
+          : `/api/admin/comment-appeals/${selectedAppeal.id}/rerun`;
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminNote }),
@@ -287,13 +382,16 @@ export default function AdminDevSidebar() {
     }
   };
 
-  const openSelfReviewCase = async (commentId: string) => {
+  const openSelfReviewCase = async (item: OwnBlockedItem) => {
     setError("");
     try {
-      const response = await fetch("/api/admin/comment-appeals/open", {
+      const endpoint =
+        item.kind === "post" ? "/api/admin/post-appeals/open" : "/api/admin/comment-appeals/open";
+      const body = item.kind === "post" ? { postId: item.id } : { commentId: item.id };
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -302,7 +400,7 @@ export default function AdminDevSidebar() {
 
       await refreshData();
       if (data.appeal?.id) {
-        setSelectedAppealId(String(data.appeal.id));
+        setSelectedAppealKey(`${item.kind}:${data.appeal.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to open self-review case.");
@@ -321,7 +419,11 @@ export default function AdminDevSidebar() {
     setError("");
 
     try {
-      const res = await fetch(`/api/admin/comment-appeals/${selectedAppeal.id}/assistant`, {
+      const endpoint =
+        selectedAppeal.kind === "post"
+          ? `/api/admin/post-appeals/${selectedAppeal.id}/assistant`
+          : `/api/admin/comment-appeals/${selectedAppeal.id}/assistant`;
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -484,24 +586,27 @@ export default function AdminDevSidebar() {
               ) : (
                 <ul className="space-y-2">
                   {appeals.map((appeal) => (
-                    <li key={appeal.id}>
+                    <li key={`${appeal.kind}:${appeal.id}`}>
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedAppealId(appeal.id);
+                          setSelectedAppealKey(`${appeal.kind}:${appeal.id}`);
                           setChatHistory([]);
                           setChatInput("");
                         }}
                         className={`w-full rounded-md border px-2 py-2 text-left text-xs transition-colors ${
-                          selectedAppealId === appeal.id
+                          selectedAppealKey === `${appeal.kind}:${appeal.id}`
                             ? "border-blue-300 bg-blue-50"
                             : "border-slate-200 bg-white hover:bg-slate-50"
                         }`}
                       >
                         <p className="font-medium text-slate-800">
+                          <span className="mr-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] uppercase tracking-wide text-slate-600">
+                            {appeal.kind}
+                          </span>
                           {appeal.requester.name} ({appeal.requester.email})
                         </p>
-                        <p className="mt-1 line-clamp-2 text-slate-600">{appeal.comment.content}</p>
+                        <p className="mt-1 line-clamp-2 text-slate-600">{appeal.content}</p>
                       </button>
                     </li>
                   ))}
@@ -512,10 +617,10 @@ export default function AdminDevSidebar() {
                 <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-2">
                   <p className="text-xs font-medium text-slate-700">Selected appeal context</p>
                   <p className="text-[11px] text-slate-700">
-                    Reason: {selectedAppeal.comment.moderationReason ?? "n/a"}
+                    Reason: {selectedAppeal.moderationReason ?? "n/a"}
                   </p>
                   <p className="text-[11px] text-slate-700 whitespace-pre-wrap">
-                    Explanation: {selectedAppeal.comment.moderationExplanation ?? "n/a"}
+                    Explanation: {selectedAppeal.moderationExplanation ?? "n/a"}
                   </p>
                   {selectedAppeal.requestText && (
                     <p className="text-[11px] text-slate-700 whitespace-pre-wrap">
@@ -597,22 +702,23 @@ export default function AdminDevSidebar() {
 
             <section className="space-y-2 rounded-lg border border-slate-200 p-3">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Your filtered comments
+                Your filtered comments &amp; posts
               </h3>
-              {ownBlockedComments.length === 0 ? (
-                <p className="text-xs text-slate-500">No filtered comments.</p>
+              {ownBlockedItems.length === 0 ? (
+                <p className="text-xs text-slate-500">No filtered comments or posts.</p>
               ) : (
                 <ul className="space-y-2">
-                  {ownBlockedComments.map((comment) => (
-                    <li key={comment.id} className="rounded-md border border-slate-200 p-2 text-xs">
-                      <p className="line-clamp-2 text-slate-800">{comment.content}</p>
+                  {ownBlockedItems.map((item) => (
+                    <li key={`${item.kind}:${item.id}`} className="rounded-md border border-slate-200 p-2 text-xs">
+                      <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">{item.kind}</p>
+                      <p className="line-clamp-2 text-slate-800">{item.content}</p>
                       <p className="mt-1 text-[11px] text-slate-500">
-                        {comment.hasOpenAppeal ? "Open appeal" : "No open appeal"}
+                        {item.hasOpenAppeal ? "Open appeal" : "No open appeal"}
                       </p>
-                      {!comment.hasOpenAppeal && (
+                      {!item.hasOpenAppeal && (
                         <button
                           type="button"
-                          onClick={() => void openSelfReviewCase(comment.id)}
+                          onClick={() => void openSelfReviewCase(item)}
                           className="mt-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
                         >
                           Open as review case

@@ -425,6 +425,9 @@ export default function PostCard({
     kind: "success" | "warning" | "error";
     message: string;
   } | null>(null);
+  const [appealing, setAppealing] = useState(false);
+  const [appealText, setAppealText] = useState("");
+  const [hasOpenAppeal, setHasOpenAppeal] = useState(false);
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const [permalinkDraft, setPermalinkDraft] = useState(post.permalinkSlug ?? "");
   const [permalinkSaving, setPermalinkSaving] = useState(false);
@@ -641,6 +644,38 @@ export default function PostCard({
       setActionError(t(locale, "postCard.error.bookmark"));
     } finally {
       setPendingAction(null);
+    }
+  };
+
+  const submitAppeal = async () => {
+    if (post.author.id !== currentUserId) return;
+
+    setAppealing(true);
+    setActionNotice(null);
+    try {
+      const response = await fetch(`/api/posts/${post.id}/appeal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestText: appealText }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActionNotice({
+          kind: "error",
+          message: data.error ?? t(locale, "postCard.moderation.appealError"),
+        });
+        return;
+      }
+
+      setHasOpenAppeal(true);
+      setAppealText("");
+      setActionNotice({
+        kind: "success",
+        message: t(locale, "postCard.moderation.appealSubmitted"),
+      });
+    } finally {
+      setAppealing(false);
     }
   };
 
@@ -2011,6 +2046,31 @@ export default function PostCard({
             <p className="mt-1 text-amber-800">
               {post.moderationExplanation ?? t(locale, "postCard.moderation.authorOnly")}
             </p>
+            <div className="mt-2 space-y-2">
+              {!hasOpenAppeal ? (
+                <>
+                  <AutoResizeTextarea
+                    value={appealText}
+                    onChange={(event) => setAppealText(event.target.value)}
+                    minRows={2}
+                    placeholder={t(locale, "postCard.moderation.appealPlaceholder")}
+                    className="w-full resize-y rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs leading-5 text-amber-900 placeholder:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void submitAppeal()}
+                    disabled={appealing}
+                    className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    {appealing ? t(locale, "postCard.moderation.appealSubmitting") : t(locale, "postCard.moderation.appealAction")}
+                  </button>
+                </>
+              ) : (
+                <p className="text-[11px] text-amber-800">
+                  {t(locale, "postCard.moderation.appealOpen")}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
