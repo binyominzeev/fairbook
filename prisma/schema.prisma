@@ -68,6 +68,10 @@ model User {
   trafficEvents               TrafficEvent[]
   postUniqueViews            PostUniqueView[]
   topicPreferences           UserTopicPreference[]
+  conversationParticipations ConversationParticipant[]
+  messagesSent               Message[]
+  blocksMade                  UserBlock[] @relation("UserBlockBlocker")
+  blocksReceived               UserBlock[] @relation("UserBlockBlocked")
 }
 
 model AuthEmailToken {
@@ -711,4 +715,57 @@ model PostUniqueView {
   @@unique([postId, viewerId])
   @@index([postId])
   @@index([viewerId])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  isGroup   Boolean  @default(false)
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  isCreator      Boolean   @default(false)
+  isAdmin        Boolean   @default(false)
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("UserBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
 }
