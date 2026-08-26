@@ -5,22 +5,25 @@ let _client: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (_client) return _client;
+
   const apiKey = process.env.OPENAI_API_KEY;
+
   if (!apiKey) {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
         "OPENAI_API_KEY environment variable is required in production."
       );
     }
-    // Development without a key: API calls will fail gracefully;
-    // all AI functions have try/catch that return empty results.
+
     console.warn(
       "[fairbook] OPENAI_API_KEY is not set. AI features will return empty results."
     );
+
     _client = new OpenAI({ apiKey: "sk-placeholder" });
   } else {
     _client = new OpenAI({ apiKey });
   }
+
   return _client;
 }
 
@@ -84,12 +87,12 @@ export interface DiscourseAnalysis {
 
 export type CommentModerationCategory =
   | "allowed"
-  | "hate_speech"
-  | "contemptuous"
+  | "personal_attack"
   | "verbal_abuse"
-  | "misinformation"
+  | "hate_speech"
+  | "group_degradation"
+  | "threat"
   | "factual_error"
-  | "inciting_narrative"
   | "moderation_unavailable";
 
 export type CommentModerationStatus = "visible" | "author_only";
@@ -107,19 +110,28 @@ const MODERATION_REASON_LABELS: Record<
   Exclude<CommentModerationCategory, "allowed">,
   string
 > = {
-  hate_speech: "Hate speech",
-  contemptuous: "Contempt",
+  personal_attack: "Personal attack",
   verbal_abuse: "Verbal abuse",
-  misinformation: "Misinformation",
+  hate_speech: "Hate speech",
+  group_degradation: "Group degradation",
+  threat: "Threat",
   factual_error: "False claim",
-  inciting_narrative: "Biased narrative",
   moderation_unavailable: "AI issue",
 };
 
+/**
+ * These are deliberately narrow.
+ *
+ * The rule-based layer is only a safety net for obvious cases.
+ * It should NOT attempt to determine whether an opinion is offensive,
+ * controversial, politically incorrect, religiously controversial, etc.
+ *
+ * Substantive disagreement is handled by the AI moderation prompt.
+ */
 const RULE_BASED_MODERATION: Array<{
   category: Exclude<
     CommentModerationCategory,
-    "allowed" | "misinformation" | "factual_error" | "inciting_narrative" | "moderation_unavailable"
+    "allowed" | "factual_error" | "moderation_unavailable"
   >;
   reasonShort: string;
   explanation: string;
@@ -129,33 +141,66 @@ const RULE_BASED_MODERATION: Array<{
     category: "hate_speech",
     reasonShort: "Hate speech",
     explanation:
-      "The comment contains dehumanizing or group-targeted hostile language, so it is held back automatically.",
+      "The comment contains clearly dehumanizing or group-targeted hostile language.",
     patterns: [
-      /\b(rohad[ée]k\s+(?:zsid[oó]|cig[aá]ny|buzi|buzik|n[eé]ger|migr[aá]ns))/iu,
-      /\b(?:ki\s+kell\s+irtani|meg\s+kell\s+tiszt[ií]tani)\b.{0,40}\b(?:zsid[oó]k?|cig[aá]nyok?|buzik?|melegek?|migr[aá]nsok?)\b/iu,
-      /\b(?:all|every)\s+(?:gays?|jews?|muslims?|immigrants?|romani)\s+(?:are|should)\b/iu,
+      // Explicitly dehumanizing a group
+      /\b(?:zsid[oó]k?|cig[aá]nyok?|migr[aá]nsok?|muszlimok?|kereszt[eé]nyek?|melegek?|transz(?:nem[uű]ek)?|palesztinok?|arabok?)\b.{0,30}\b(?:patk[aá]nyok?|férgek?|férgeknek|állatok?|szem[eé]t|szem[eé]tek|alával[oó]k|undor[ií]t[oó]k)\b/iu,
+
+      // Explicit calls for extermination / removal
+      /\b(?:ki\s+kell\s+irtani|meg\s+kell\s+tiszt[ií]tani|el\s+kell\s+takar[ií]tani|puszt[ií]tani\s+kell)\b.{0,50}\b(?:zsid[oó]k?|cig[aá]nyok?|migr[aá]nsok?|buzik?|melegek?|muszlimok?|palesztinok?|arabok?)\b/iu,
+
+      // Clear English group-directed dehumanization
+      /\b(?:all|every)\s+(?:gays?|jews?|muslims?|immigrants?|romani|palestinians?)\b.{0,30}\b(?:are|should\s+be)\b.{0,20}\b(?:vermin|animals?|subhuman|worms?|filth|scum)\b/iu,
     ],
   },
+
   {
     category: "verbal_abuse",
     reasonShort: "Verbal abuse",
     explanation:
-      "The comment contains direct abusive language aimed at a person or group, so it is held back automatically.",
+      "The comment contains a direct abusive insult aimed at a person.",
     patterns: [
-      /\b(?:te|ti|you|they)\b.{0,20}\b(?:kurva|fasz|h[üu]lye|id[ií]ota|barom|nyomor[eé]k|szarh[aá]zi|retard[aá]lt)\b/iu,
-      /\b(?:d[oö]gj(?:e|etek)?\s+meg|rohadj(?:atok)?\s+meg|fuck\s+you|piece\s+of\s+shit)\b/iu,
+      // Direct second-person insults
+      /\b(?:te|ti|you)\b.{0,25}\b(?:kurva|fasz|h[üu]lye|id[ií]ota|barom|nyomor[eé]k|szarh[aá]zi|retard[aá]lt)\b/iu,
+
+      // Explicit abusive imperatives
+      /\b(?:d[oö]gj(?:e|etek)?\s+meg|rohadj(?:atok)?\s+meg|fuck\s+you)\b/iu,
+
+      // Common direct Hungarian insults
       /\b(?:semmirekell[oő]|szaralak|h[üu]lye\s+picsa|h[üu]lye\s+fasz)\b/iu,
+
+      // Direct English personal insults
+      /\b(?:you\s+are|you're)\s+(?:an?\s+)?(?:idiot|moron|stupid|retard|piece\s+of\s+shit)\b/iu,
     ],
   },
+
   {
-    category: "contemptuous",
-    reasonShort: "Contempt",
+    category: "personal_attack",
+    reasonShort: "Personal attack",
     explanation:
-      "The comment uses degrading or humiliating wording toward others, so it is held back automatically.",
+      "The comment directly attacks or humiliates a person instead of addressing the person's argument or claim.",
     patterns: [
-      /\b(?:undor[ií]t[oó]|sz[ná]nalmas|gusztustalan|patk[aá]ny|cs[uú]sztok-m[aá]sztok)\b/iu,
-      /\b(?:you\s+are\s+disgusting|subhuman|vermin|trash)\b/iu,
-      /\b(?:embernek\s+sem\s+nevezhet[oő]|nem\s+is\s+vagytok\s+emberek)\b/iu,
+      // "te/you + negative personal characterization"
+      /\b(?:te|you)\b.{0,20}\b(?:hazug|ostoba|hülye|idióta|tudatlan|alkalmatlan|fogalmad\s+sincs|fogalma\s+sincs)\b/iu,
+      /\b(?:ennek\s+a\s+)?(?:rabbinak|embernek|szerz[oő]nek|ír[oó]nak)\b.{0,30}\b(?:fogalma\s+sincs|semmit\s+sem\s+tud|hülye|ostoba|idióta)\b/iu,
+      /\b(?:you\s+have\s+no\s+idea|you\s+know\s+nothing|you\s+are\s+ignorant)\b/iu,
+    ],
+  },
+
+  {
+    category: "group_degradation",
+    reasonShort: "Group degradation",
+    explanation:
+      "The comment uses degrading language or a degrading comparison to ridicule people based on their group identity.",
+    patterns: [
+      // Explicit identity-based degradation
+      /\b(?:zsid[oó]k?|cig[aá]nyok?|migr[aá]nsok?|muszlimok?|kereszt[eé]nyek?|palesztinok?|arabok?|melegek?|transz(?:nem[uű]ek)?)\b.{0,30}\b(?:nevets[eé]ges|szánalmas|undor[ií]t[oó]|gusztustalan|férgek?|patk[aá]nyok?)\b/iu,
+
+      // "X olyan mint..." style degrading identity comparisons
+      /\b(?:olyan\s+mint|ugyanolyan\s+mint|mintha)\b.{0,80}\b(?:transz|meleg|zsid[oó]|palesztin|cig[aá]ny|migr[aá]ns|muszlim)\w*\b.{0,80}\b(?:nevets[eé]ges|nem\s+l[eé]tezik|nem\s+ember|állat|patk[aá]ny|féreg)\w*\b/iu,
+
+      // Generic explicit identity ridicule
+      /\b(?:az\s+ilyen|ezek\s+az)\s+(?:emberek|embereknek)\b.{0,30}\b(?:nevets[eé]gesek|férgek|patk[aá]nyok|szánalmasak|nem\s+emberek)\b/iu,
     ],
   },
 ];
@@ -195,30 +240,54 @@ function runRuleBasedModeration(
   return null;
 }
 
+/**
+ * Normalizes the AI result and, critically, enforces the invariant:
+ *
+ *   allowed             -> visible
+ *   everything else     -> author_only
+ *
+ * The AI is allowed to determine the category.
+ * The application determines what that category means for visibility.
+ */
 function normalizeModerationResult(
   parsed: Partial<CommentModerationResult> | null | undefined
 ): CommentModerationResult {
-  const category = parsed?.category;
+  const rawCategory = parsed?.category;
+
   const allowedCategories: CommentModerationCategory[] = [
     "allowed",
-    "hate_speech",
-    "contemptuous",
+    "personal_attack",
     "verbal_abuse",
-    "misinformation",
+    "hate_speech",
+    "group_degradation",
+    "threat",
     "factual_error",
-    "inciting_narrative",
     "moderation_unavailable",
   ];
 
-  const safeCategory = allowedCategories.includes(
-    category as CommentModerationCategory
-  )
-    ? (category as CommentModerationCategory)
-    : "allowed";
-  const safeStatus =
-    parsed?.status === "author_only" && safeCategory !== "allowed"
-      ? "author_only"
-      : "visible";
+  const isValidCategory = allowedCategories.includes(
+    rawCategory as CommentModerationCategory
+  );
+
+  // Never silently turn an invalid AI response into "allowed".
+  if (!isValidCategory) {
+    return {
+      status: "author_only",
+      category: "moderation_unavailable",
+      reasonShort: "AI issue",
+      explanation:
+        "The moderation result could not be interpreted safely, so the comment is temporarily held back.",
+      source: "ai",
+      diagnostic: `Invalid moderation category returned by AI: ${String(rawCategory)}`,
+    };
+  }
+
+  const safeCategory = rawCategory as CommentModerationCategory;
+
+  // This is intentionally deterministic.
+  // The AI cannot accidentally return "visible" for a prohibited category.
+  const safeStatus: CommentModerationStatus =
+    safeCategory === "allowed" ? "visible" : "author_only";
 
   const fallbackReason =
     safeCategory === "allowed"
@@ -235,10 +304,13 @@ function normalizeModerationResult(
     explanation:
       typeof parsed?.explanation === "string" && parsed.explanation.trim()
         ? parsed.explanation.trim()
-        : safeStatus === "visible"
+        : safeCategory === "allowed"
           ? "Comment accepted."
           : "Comment is visible only to its author because it matched a moderation rule.",
-    source: parsed?.source === "rules" || parsed?.source === "fallback" ? parsed.source : "ai",
+    source:
+      parsed?.source === "rules" || parsed?.source === "fallback"
+        ? parsed.source
+        : "ai",
     diagnostic:
       typeof parsed?.diagnostic === "string" && parsed.diagnostic.trim()
         ? parsed.diagnostic.trim()
@@ -256,6 +328,7 @@ export async function analyzeComment(
 
   try {
     const systemPrompt = await getPromptContent("discourse_analysis");
+
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -268,6 +341,7 @@ export async function analyzeComment(
 
     const raw = response.choices[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(raw);
+
     return {
       positiveSignals: (parsed.positiveSignals ?? []) as DiscourseSignal[],
       negativeSignals: (parsed.negativeSignals ?? []) as DiscourseSignal[],
@@ -332,11 +406,13 @@ export async function moderateComment({
     parentComment,
     commentContent,
   });
+
   if (ruleMatch) {
     return ruleMatch;
   }
 
   const apiKey = getApiKey();
+
   if (!apiKey) {
     return createFallbackModerationResult(
       "AI unavailable",
@@ -346,30 +422,62 @@ export async function moderateComment({
   }
 
   const contextParts = [
-    postContent?.trim() ? `Original post:\n${postContent.trim()}` : null,
-    sharedContent?.trim() ? `Shared article or RSS content:\n${sharedContent.trim()}` : null,
-    parentComment?.trim() ? `Parent comment:\n${parentComment.trim()}` : null,
+    postContent?.trim()
+      ? `Original post:\n${postContent.trim()}`
+      : null,
+
+    sharedContent?.trim()
+      ? `Shared article or RSS content:\n${sharedContent.trim()}`
+      : null,
+
+    parentComment?.trim()
+      ? `Parent comment:\n${parentComment.trim()}`
+      : null,
+
     `Comment to moderate:\n${commentContent.trim()}`,
   ].filter(Boolean);
 
   try {
     const moderationPrompt = await getPromptContent("comment_moderation");
+
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: moderationPrompt },
-        { role: "user", content: contextParts.join("\n\n") },
+        {
+          role: "user",
+          content: contextParts.join("\n\n"),
+        },
       ],
       response_format: { type: "json_object" },
       temperature: 0,
     });
 
     const raw = response.choices[0]?.message?.content ?? "{}";
+
     const parsed = JSON.parse(raw) as Partial<CommentModerationResult>;
-    return normalizeModerationResult({ ...parsed, source: "ai" });
+
+    /*
+     * IMPORTANT:
+     *
+     * We deliberately do NOT trust parsed.status.
+     *
+     * The model determines the category, but visibility is derived
+     * deterministically from that category by normalizeModerationResult().
+     */
+    return normalizeModerationResult({
+      ...parsed,
+      source: "ai",
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
-    console.error("[fairbook] Comment moderation failed:", message);
+    const message =
+      error instanceof Error ? error.message : "Unknown OpenAI error";
+
+    console.error(
+      "[fairbook] Comment moderation failed:",
+      message
+    );
+
     return createFallbackModerationResult(
       "AI error",
       "The comment is visible only to you until the moderation error is fixed.",
@@ -398,6 +506,7 @@ export async function classifyFeedArticlesForViolence(
   }
 
   const apiKey = getApiKey();
+
   if (!apiKey) {
     return articles.map((article) => ({
       id: article.id,
@@ -409,6 +518,7 @@ export async function classifyFeedArticlesForViolence(
 
   try {
     const feedViolencePrompt = await getPromptContent("feed_violence");
+
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -431,26 +541,44 @@ export async function classifyFeedArticlesForViolence(
     });
 
     const raw = response.choices[0]?.message?.content ?? "{}";
+
     const parsed = JSON.parse(raw) as {
-      articles?: Array<{ id?: string; mayContainViolence?: boolean }>;
+      articles?: Array<{
+        id?: string;
+        mayContainViolence?: boolean;
+      }>;
     };
 
     const results = new Map<string, boolean>();
+
     for (const item of parsed.articles ?? []) {
-      if (typeof item.id !== "string" || !articleIds.has(item.id)) {
+      if (
+        typeof item.id !== "string" ||
+        !articleIds.has(item.id)
+      ) {
         continue;
       }
 
-      results.set(item.id, item.mayContainViolence === true);
+      results.set(
+        item.id,
+        item.mayContainViolence === true
+      );
     }
 
     return articles.map((article) => ({
       id: article.id,
-      mayContainViolence: results.get(article.id) === true,
+      mayContainViolence:
+        results.get(article.id) === true,
     }));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
-    console.error("[fairbook] RSS violence classification failed:", message);
+    const message =
+      error instanceof Error ? error.message : "Unknown OpenAI error";
+
+    console.error(
+      "[fairbook] RSS violence classification failed:",
+      message
+    );
+
     return articles.map((article) => ({
       id: article.id,
       mayContainViolence: false,
@@ -459,10 +587,16 @@ export async function classifyFeedArticlesForViolence(
 }
 
 export async function classifyFeedArticlesByTags(
-  tagsWithDescriptions: Array<{ name: string; description?: string | null }>,
+  tagsWithDescriptions: Array<{
+    name: string;
+    description?: string | null;
+  }>,
   articles: FeedArticleTaggingInput[]
 ): Promise<FeedArticleTaggingResult[]> {
-  if (tagsWithDescriptions.length === 0 || articles.length === 0) {
+  if (
+    tagsWithDescriptions.length === 0 ||
+    articles.length === 0
+  ) {
     return articles.map((article) => ({
       id: article.id,
       title: article.title,
@@ -471,6 +605,7 @@ export async function classifyFeedArticlesByTags(
   }
 
   const apiKey = getApiKey();
+
   if (!apiKey) {
     return articles.map((article) => ({
       id: article.id,
@@ -479,11 +614,18 @@ export async function classifyFeedArticlesByTags(
     }));
   }
 
-  const allowedTagNames = new Set(tagsWithDescriptions.map((t) => t.name));
-  const articleIds = new Set(articles.map((article) => article.id));
+  const allowedTagNames = new Set(
+    tagsWithDescriptions.map((t) => t.name)
+  );
+
+  const articleIds = new Set(
+    articles.map((article) => article.id)
+  );
 
   try {
-    const feedTaggingPrompt = await getPromptContent("feed_tagging");
+    const feedTaggingPrompt =
+      await getPromptContent("feed_tagging");
+
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -493,7 +635,8 @@ export async function classifyFeedArticlesByTags(
           content: JSON.stringify({
             tags: tagsWithDescriptions.map((t) => ({
               name: t.name,
-              description: t.description || "no description provided",
+              description:
+                t.description || "no description provided",
             })),
             articles: articles.map((article) => ({
               id: article.id,
@@ -506,40 +649,75 @@ export async function classifyFeedArticlesByTags(
       temperature: 0,
     });
 
-    const raw = response.choices[0]?.message?.content ?? "{}";
+    const raw =
+      response.choices[0]?.message?.content ?? "{}";
+
     const parsed = JSON.parse(raw) as {
-      results?: Array<{ id?: string; title?: string; tags?: unknown }>;
+      results?: Array<{
+        id?: string;
+        title?: string;
+        tags?: unknown;
+      }>;
     };
 
-    const byId = new Map<string, FeedArticleTaggingResult>();
+    const byId = new Map<
+      string,
+      FeedArticleTaggingResult
+    >();
+
     for (const item of parsed.results ?? []) {
-      if (typeof item.id !== "string" || !articleIds.has(item.id)) {
+      if (
+        typeof item.id !== "string" ||
+        !articleIds.has(item.id)
+      ) {
         continue;
       }
 
       const normalizedTags = Array.isArray(item.tags)
-        ? item.tags.filter((tag): tag is string => typeof tag === "string" && allowedTagNames.has(tag))
+        ? item.tags.filter(
+            (
+              tag
+            ): tag is string =>
+              typeof tag === "string" &&
+              allowedTagNames.has(tag)
+          )
         : [];
 
       byId.set(item.id, {
         id: item.id,
-        title: typeof item.title === "string" && item.title.trim()
-          ? item.title.trim()
-          : articles.find((article) => article.id === item.id)?.title ?? "",
-        tags: Array.from(new Set(normalizedTags)),
+        title:
+          typeof item.title === "string" &&
+          item.title.trim()
+            ? item.title.trim()
+            : articles.find(
+                (article) =>
+                  article.id === item.id
+              )?.title ?? "",
+        tags: Array.from(
+          new Set(normalizedTags)
+        ),
       });
     }
 
-    return articles.map((article) =>
-      byId.get(article.id) ?? {
-        id: article.id,
-        title: article.title,
-        tags: [],
-      }
+    return articles.map(
+      (article) =>
+        byId.get(article.id) ?? {
+          id: article.id,
+          title: article.title,
+          tags: [],
+        }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI error";
-    console.error("[fairbook] RSS tag classification failed:", message);
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown OpenAI error";
+
+    console.error(
+      "[fairbook] RSS tag classification failed:",
+      message
+    );
+
     return articles.map((article) => ({
       id: article.id,
       title: article.title,
@@ -559,23 +737,39 @@ export async function generateReflection(
   thread: string
 ): Promise<ThreadReflectionData> {
   try {
-    const reflectionPrompt = await getPromptContent("thread_reflection");
+    const reflectionPrompt =
+      await getPromptContent("thread_reflection");
+
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: reflectionPrompt },
-        { role: "user", content: `Analyze this discussion thread:\n\n${thread}` },
+        {
+          role: "system",
+          content: reflectionPrompt,
+        },
+        {
+          role: "user",
+          content:
+            `Analyze this discussion thread:\n\n${thread}`,
+        },
       ],
       response_format: { type: "json_object" },
       temperature: 0.3,
     });
-    const raw = response.choices[0]?.message?.content ?? "{}";
+
+    const raw =
+      response.choices[0]?.message?.content ?? "{}";
+
     const parsed = JSON.parse(raw);
+
     return {
       agreementAreas: parsed.agreementAreas ?? [],
-      disagreementAreas: parsed.disagreementAreas ?? [],
-      unresolvedQuestions: parsed.unresolvedQuestions ?? [],
-      qualityObservations: parsed.qualityObservations ?? [],
+      disagreementAreas:
+        parsed.disagreementAreas ?? [],
+      unresolvedQuestions:
+        parsed.unresolvedQuestions ?? [],
+      qualityObservations:
+        parsed.qualityObservations ?? [],
     };
   } catch {
     return {
