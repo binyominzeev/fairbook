@@ -20,6 +20,7 @@ export default function LoginPage() {
   useEffect(() => {
     const requestedMode = new URLSearchParams(window.location.search).get("mode");
     if (requestedMode === "register") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMode("register");
     }
   }, []);

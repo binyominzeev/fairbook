@@ -138,6 +138,7 @@ export const buildPostInclude = (viewerId: string) =>
         id: true,
         permalinkSlug: true,
         name: true,
+        isPrivate: true,
         members: {
           where: { userId: viewerId },
           select: { role: true },
@@ -172,6 +173,7 @@ type PostForPresentation = {
     id: string;
     permalinkSlug: string | null;
     name: string;
+    isPrivate: boolean;
     members: { role: string }[];
   } | null;
   sharedPost: {

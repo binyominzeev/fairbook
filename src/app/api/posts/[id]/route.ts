@@ -197,46 +197,7 @@ export async function GET(
 
   const post = await prisma.post.findUnique({
     where: { id },
-    include: {
-      author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-      sharedPost: {
-        select: {
-          id: true,
-          permalinkSlug: true,
-          content: true,
-          feedSourceId: true,
-          sharedUrl: true,
-          sharedTitle: true,
-          sharedDescription: true,
-          sharedSource: true,
-          sharedImageUrl: true,
-          imageUrls: true,
-          createdAt: true,
-          author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-        },
-      },
-      likes: { where: { userId: session.userId }, select: { id: true }, take: 1 },
-      sharedBy: {
-        where: { authorId: session.userId },
-        select: { id: true },
-        take: 1,
-      },
-      _count: { select: { comments: true, likes: true, sharedBy: true } },
-      reflections: { orderBy: { createdAt: "desc" }, take: 1 },
-      community: {
-        select: {
-          id: true,
-          name: true,
-          permalinkSlug: true,
-          isPrivate: true,
-          members: {
-            where: { userId: session.userId },
-            select: { id: true },
-            take: 1,
-          },
-        },
-      },
-    },
+    include: buildPostInclude(session.userId),
   });
 
   if (!post) {
@@ -251,7 +212,9 @@ export async function GET(
     return Response.json({ error: "Post not found." }, { status: 404 });
   }
 
-  return Response.json({ post });
+  const [serializedPost] = await applyAuthorTopicColors([serializePost(post)]);
+
+  return Response.json({ post: serializedPost });
 }
 
 export async function PATCH(

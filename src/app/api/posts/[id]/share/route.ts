@@ -2,6 +2,7 @@ import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { createGroupPostNotifications } from "@/lib/notifications";
+import { normalizeTopicKey, normalizeTopicName } from "@/lib/topics";
 import {
   buildInitialPostSlug,
   buildPostPermalinkScopeId,
@@ -123,6 +124,43 @@ export async function POST(
     );
   }
 
+  const requestedTopicId =
+    typeof payload?.topicId === "string" ? payload.topicId.trim() : "";
+  const requestedNewTopicName = normalizeTopicName(payload?.newTopicName);
+
+  if (requestedTopicId && requestedNewTopicName) {
+    return Response.json(
+      { error: "Choose an existing topic or create a new one, not both." },
+      { status: 400 }
+    );
+  }
+
+  let resolvedTopicId: string | null = null;
+  if (requestedTopicId) {
+    const existingTopic = await prisma.topic.findUnique({
+      where: { id: requestedTopicId },
+      select: { id: true },
+    });
+    if (!existingTopic) {
+      return Response.json({ error: "Topic not found." }, { status: 404 });
+    }
+    resolvedTopicId = existingTopic.id;
+  }
+
+  if (requestedNewTopicName) {
+    const normalizedName = normalizeTopicKey(requestedNewTopicName);
+    const createdOrExistingTopic = await prisma.topic.upsert({
+      where: { normalizedName },
+      update: {},
+      create: {
+        name: requestedNewTopicName,
+        normalizedName,
+      },
+      select: { id: true },
+    });
+    resolvedTopicId = createdOrExistingTopic.id;
+  }
+
   const sharedContent = [
     sourcePost.content,
     sourcePost.sharedTitle,
@@ -204,6 +242,7 @@ export async function POST(
       permalinkSlug: initialPermalinkSlug,
       content: shareContent || null,
       sharedPostId: id,
+      topicId: resolvedTopicId,
       moderationStatus: finalModerationStatus,
       moderationReason: finalModerationReason,
       moderationExplanation: finalModerationExplanation,

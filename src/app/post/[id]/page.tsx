@@ -15,6 +15,8 @@ import { isAdminEmail } from "@/lib/admin";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { getPostUniqueViewBreakdown } from "@/lib/post-views";
+import { serializePost } from "@/lib/post-presentation";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 export default async function PostPage(props: {
   params: Promise<{ id: string }>;
@@ -35,6 +37,15 @@ export default async function PostPage(props: {
     where: { id },
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+      topic: {
+        select: {
+          id: true,
+          name: true,
+          normalizedName: true,
+          defaultColor: true,
+        },
+      },
+      postTags: { include: { tag: true } },
       sharedPost: {
         select: {
           id: true,
@@ -190,37 +201,28 @@ export default async function PostPage(props: {
     }
   };
 
+  const serializedBasePost = serializePost(post as Parameters<typeof serializePost>[0]);
+  const [postWithTopicColors] = await applyAuthorTopicColors([
+    {
+      ...serializedBasePost,
+      permalinkPath: buildPostPermalinkPath({
+        author: post.author,
+        community: post.community,
+        createdAt: post.createdAt,
+        slug: post.permalinkSlug,
+        postId: post.id,
+      }),
+    },
+  ]);
+
   const postForCard = {
-    ...post,
-    permalinkPath: buildPostPermalinkPath({
-      author: post.author,
-      community: post.community,
-      createdAt: post.createdAt,
-      slug: post.permalinkSlug,
-      postId: post.id,
-    }),
-    imageUrls: parseImageUrls(post.imageUrls),
+    ...postWithTopicColors,
     feedSourceId: post.feedSourceId,
-    createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
     bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     notificationsSubscribedByCurrentUser:
       post.notificationPreferences[0]?.isSubscribed !== false,
-    sharedPost: post.sharedPost
-      ? {
-          ...post.sharedPost,
-          permalinkPath: buildPostPermalinkPath({
-            author: post.sharedPost.author,
-            community: post.sharedPost.community,
-            createdAt: post.sharedPost.createdAt,
-            slug: post.sharedPost.permalinkSlug,
-            postId: post.sharedPost.id,
-          }),
-          imageUrls: parseImageUrls(post.sharedPost.imageUrls),
-          createdAt: post.sharedPost.createdAt.toISOString(),
-        }
-      : null,
   };
 
   const showUniqueViewerCount = post.author.id === user.id;

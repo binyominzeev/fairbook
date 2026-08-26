@@ -17,6 +17,8 @@ import { canViewerAccessCommunity } from "@/lib/community-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { buildPostPermalinkMetadata } from "@/lib/post-metadata";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
+import { serializePost } from "@/lib/post-presentation";
+import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 
 async function resolveMetadataPost(params: {
   idOrSlug: string;
@@ -218,6 +220,15 @@ export default async function GroupPostPermalinkPage(props: {
     },
     include: {
       author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
+      topic: {
+        select: {
+          id: true,
+          name: true,
+          normalizedName: true,
+          defaultColor: true,
+        },
+      },
+      postTags: { include: { tag: true } },
       sharedPost: {
         select: {
           id: true,
@@ -385,31 +396,22 @@ export default async function GroupPostPermalinkPage(props: {
     }
   };
 
+  const serializedBasePost = serializePost(post as Parameters<typeof serializePost>[0]);
+  const [postWithTopicColors] = await applyAuthorTopicColors([
+    {
+      ...serializedBasePost,
+      permalinkPath: canonicalPath,
+    },
+  ]);
+
   const postForCard = {
-    ...post,
-    permalinkPath: canonicalPath,
-    imageUrls: parseImageUrls(post.imageUrls),
+    ...postWithTopicColors,
     feedSourceId: post.feedSourceId,
-    createdAt: post.createdAt.toISOString(),
     likedByCurrentUser: post.likes.length > 0,
     bookmarkedByCurrentUser: post.bookmarkedBy.length > 0,
     sharedByCurrentUser: post.sharedBy.length > 0,
     notificationsSubscribedByCurrentUser:
       post.notificationPreferences[0]?.isSubscribed !== false,
-    sharedPost: post.sharedPost
-      ? {
-          ...post.sharedPost,
-          permalinkPath: buildPostPermalinkPath({
-            author: post.sharedPost.author,
-            community: post.sharedPost.community,
-            createdAt: post.sharedPost.createdAt,
-            slug: post.sharedPost.permalinkSlug,
-            postId: post.sharedPost.id,
-          }),
-          imageUrls: parseImageUrls(post.sharedPost.imageUrls),
-          createdAt: post.sharedPost.createdAt.toISOString(),
-        }
-      : null,
   };
 
   const commentCount = isLoggedIn ? rawComments.length : post._count.comments;

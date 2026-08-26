@@ -5,6 +5,7 @@ import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import FollowButton from "@/components/FollowButton";
 import HighlightedText from "@/components/HighlightedText";
 import LikersListTrigger from "@/components/LikersListTrigger";
+import TopicPicker from "@/components/TopicPicker";
 import { buildProfilePath } from "@/lib/profile-path";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -412,6 +413,8 @@ export default function PostCard({
   const [updatingPostNotifications, setUpdatingPostNotifications] = useState(false);
   const [shareContent, setShareContent] = useState("");
   const [shareComposerOpen, setShareComposerOpen] = useState(false);
+  const [shareSelectedTopicId, setShareSelectedTopicId] = useState<string>("");
+  const [shareNewTopicName, setShareNewTopicName] = useState("");
   const [shareDestinations, setShareDestinations] = useState<ShareDestination[]>([]);
   const [loadingShareDestinations, setLoadingShareDestinations] = useState(false);
   const [shareCommunityId, setShareCommunityId] = useState<string>(defaultShareCommunityId ?? "");
@@ -726,6 +729,13 @@ export default function PostCard({
       if (shareCommunityId) {
         body.communityId = shareCommunityId;
       }
+      if (shareSelectedTopicId === "__new__") {
+        if (shareNewTopicName.trim()) {
+          body.newTopicName = shareNewTopicName.trim();
+        }
+      } else if (shareSelectedTopicId) {
+        body.topicId = shareSelectedTopicId;
+      }
       if (lastShareTestContent === shareContent && lastShareTestResult) {
         body.preModeration = {
           content: lastShareTestContent,
@@ -774,6 +784,8 @@ export default function PostCard({
     setActionError("");
     setShareComposerOpen(true);
     setShareVisibility("public");
+    setShareSelectedTopicId("");
+    setShareNewTopicName("");
     setLoadingShareDestinations(true);
 
     try {
@@ -1439,6 +1451,14 @@ export default function PostCard({
                 </select>
               </div>
 
+              <TopicPicker
+                selectedTopicId={shareSelectedTopicId}
+                onSelectTopicId={setShareSelectedTopicId}
+                newTopicName={shareNewTopicName}
+                onChangeNewTopicName={setShareNewTopicName}
+                label={t(locale, "composer.topicLabel")}
+              />
+
               {post.feedSourceId && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <p>
@@ -1629,38 +1649,16 @@ export default function PostCard({
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="mb-1 text-sm font-medium text-slate-800">{t(locale, "postCard.editComposer.topicTitle")}</p>
-                <p className="mb-2 text-xs text-slate-500">
-                  {t(locale, "postCard.editComposer.topicHelp")}
-                </p>
-                <select
-                  value={editSelectedTopicId}
-                  onChange={(event) => setEditSelectedTopicId(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">{t(locale, "postCard.editComposer.noTopic")}</option>
-                  {editTopics.map((topic) => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.name}
-                      {typeof topic.postCount === "number" ? ` (${topic.postCount})` : ""}
-                    </option>
-                  ))}
-                  <option value="__new__">{t(locale, "postCard.editComposer.createTopic")}</option>
-                </select>
-                {editSelectedTopicId === "__new__" ? (
-                  <input
-                    value={editNewTopicName}
-                    onChange={(event) => setEditNewTopicName(event.target.value)}
-                    placeholder={t(locale, "postCard.editComposer.topicPlaceholder")}
-                    maxLength={40}
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                ) : null}
-                {loadingEditTopics ? (
-                  <p className="mt-2 text-xs text-slate-500">{t(locale, "postCard.editComposer.loadingTopics")}</p>
-                ) : null}
-              </div>
+              <TopicPicker
+                selectedTopicId={editSelectedTopicId}
+                onSelectTopicId={setEditSelectedTopicId}
+                newTopicName={editNewTopicName}
+                onChangeNewTopicName={setEditNewTopicName}
+                topics={editTopics}
+                loading={loadingEditTopics}
+                label={t(locale, "postCard.editComposer.topicTitle")}
+                helpText={t(locale, "postCard.editComposer.topicHelp")}
+              />
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">

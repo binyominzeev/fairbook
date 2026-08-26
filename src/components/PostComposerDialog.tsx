@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
+import TopicPicker from "@/components/TopicPicker";
 import type { SerializedPost } from "@/lib/post-presentation";
 import { t, tf } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
@@ -448,67 +449,15 @@ export default function PostComposerDialog({
         />
 
         <div className="mt-3">
-          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t(locale, "composer.topicLabel")}</label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedTopicId("")}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  selectedTopicId === ""
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
-              >
-                {t(locale, "composer.topicNone")}
-              </button>
-
-              {topics.map((topic) => {
-                const chipColor = topic.buttonColor ?? topic.defaultColor ?? "#64748B";
-                const isSelected = selectedTopicId === topic.id;
-
-                return (
-                  <button
-                    key={topic.id}
-                    type="button"
-                    onClick={() => setSelectedTopicId(topic.id)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold text-white transition-opacity ${
-                      isSelected ? "border-slate-900" : "border-slate-200"
-                    }`}
-                    style={{
-                      backgroundColor: chipColor,
-                      opacity: isSelected ? 1 : 0.9,
-                    }}
-                  >
-                    {topic.name}
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => setSelectedTopicId("__new__")}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  selectedTopicId === "__new__"
-                    ? "border-blue-700 bg-blue-700 text-white"
-                    : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300"
-                }`}
-              >
-                {t(locale, "composer.topicCreateNew")}
-              </button>
-            </div>
-            {selectedTopicId === "__new__" ? (
-              <input
-                type="text"
-                value={newTopicName}
-                onChange={(event) => setNewTopicName(event.target.value)}
-                maxLength={40}
-                placeholder={t(locale, "composer.topicNamePlaceholder")}
-                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : null}
-            {loadingTopics ? <p className="mt-2 text-xs text-slate-500">{t(locale, "composer.topicsLoading")}</p> : null}
-          </div>
+          <TopicPicker
+            selectedTopicId={selectedTopicId}
+            onSelectTopicId={setSelectedTopicId}
+            newTopicName={newTopicName}
+            onChangeNewTopicName={setNewTopicName}
+            topics={topics}
+            loading={loadingTopics}
+            className="mb-3"
+          />
 
           <input
             ref={fileInputRef}
