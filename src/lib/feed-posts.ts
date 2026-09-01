@@ -144,6 +144,11 @@ export async function getFeedPage({
   );
 
   if (viewMode === "bookmarks") {
+    const joinedCommunityMemberships = await prisma.communityMember.findMany({
+      where: { userId: viewerId },
+      select: { communityId: true },
+    });
+    const joinedCommunityIds = joinedCommunityMemberships.map((row) => row.communityId);
     const batch = await prisma.bookmarkedPost.findMany({
       where: {
         userId: viewerId,
@@ -172,6 +177,9 @@ export async function getFeedPage({
                 ]
               : []),
             ...(topicId ? [{ topicId }] : []),
+            joinedCommunityIds.length > 0
+              ? { OR: [{ communityId: null }, { communityId: { in: joinedCommunityIds } }] }
+              : { communityId: null },
           ],
         },
       },

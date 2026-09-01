@@ -20,7 +20,6 @@ export function buildVisibleCommunityPostWhere(viewerId: string): Prisma.PostWhe
   return {
     OR: [
       { communityId: null },
-      { community: { is: { isPrivate: false } } },
       {
         community: {
           is: {
