@@ -1,9 +1,11 @@
 import { getSession } from "@/lib/auth";
 import { normalizeAndOptimizeAvatarUrl } from "@/lib/avatar-image";
 import {
+  ensureUniqueCommunitySlug,
   isCommunityModeratorRole,
   normalizeCommunityDescription,
   normalizeCommunityName,
+  slugifyCommunityPermalink,
 } from "@/lib/communities";
 import { prisma } from "@/lib/prisma";
 
@@ -153,6 +155,28 @@ export async function PATCH(
     }
   }
 
+  const shouldUpdateSlug =
+    typeof body === "object" && body !== null && "slug" in body;
+  let permalinkSlug: string | null | undefined;
+
+  if (shouldUpdateSlug) {
+    const rawSlug = (body as { slug?: unknown }).slug;
+    if (typeof rawSlug === "string" && rawSlug.trim() !== "") {
+      const requestedSlug = slugifyCommunityPermalink(rawSlug);
+      if (!requestedSlug) {
+        return Response.json(
+          { error: "Permalink slug must contain letters or numbers." },
+          { status: 400 }
+        );
+      }
+      permalinkSlug = await ensureUniqueCommunitySlug(requestedSlug, {
+        excludeCommunityId: community.id,
+      });
+    } else {
+      permalinkSlug = null;
+    }
+  }
+
   if (!nextName) {
     return Response.json({ error: "Group name is required." }, { status: 400 });
   }
@@ -167,6 +191,7 @@ export async function PATCH(
       name: nextName,
       description: nextDescription,
       ...(shouldUpdateAvatar ? { avatarUrl } : {}),
+      ...(shouldUpdateSlug ? { permalinkSlug } : {}),
       isPrivate: visibility === "closed",
     },
     select: {
@@ -179,7 +204,10 @@ export async function PATCH(
     },
   });
 
-  return Response.json({ community: updated });
+  return Response.json({
+    community: updated,
+    permalinkPath: `/groups/${encodeURIComponent(updated.permalinkSlug ?? updated.id)}`,
+  });
 }
 
 export async function DELETE(

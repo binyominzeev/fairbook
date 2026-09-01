@@ -1,3 +1,4 @@
+import GroupSettingsEditor from "@/components/GroupSettingsEditor";
 import CreatePostForm from "@/components/CreatePostForm";
 import GroupDeleteButton from "@/components/GroupDeleteButton";
 import GroupAvatarEditor from "@/components/GroupAvatarEditor";
@@ -6,7 +7,6 @@ import GroupJoinRequestsPanel from "@/components/GroupJoinRequestsPanel";
 import GroupJoinButton from "@/components/GroupJoinButton";
 import GroupNotificationToggle from "@/components/GroupNotificationToggle";
 import GroupMembersPanel from "@/components/GroupMembersPanel";
-import GroupPermalinkEditor from "@/components/GroupPermalinkEditor";
 import GroupPostsInfiniteList from "@/components/GroupPostsInfiniteList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
@@ -16,14 +16,27 @@ import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { prisma } from "@/lib/prisma";
+import { normalizeAppLocale, t } from "@/lib/i18n";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 const PAGE_SIZE = 20;
 
+function buildGroupHref(idOrSlug: string, showSettings: boolean, query?: string) {
+  const params = new URLSearchParams();
+  if (query) {
+    params.set("q", query);
+  }
+  if (showSettings) {
+    params.set("settings", "1");
+  }
+  const queryString = params.toString();
+  return `/groups/${encodeURIComponent(idOrSlug)}${queryString ? `?${queryString}` : ""}`;
+}
+
 export default async function GroupDetailPage(props: {
   params: Promise<{ idOrSlug: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; settings?: string }>;
 }) {
   const session = await getSession();
   if (!session) {
@@ -33,15 +46,17 @@ export default async function GroupDetailPage(props: {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, slug: true, name: true, avatarUrl: true },
+    select: { id: true, slug: true, name: true, avatarUrl: true, locale: true },
   });
   if (!user) {
     redirect("/login");
   }
+  const locale = normalizeAppLocale(user.locale);
 
   const { idOrSlug } = await props.params;
-  const { q } = await props.searchParams;
+  const { q, settings } = await props.searchParams;
   const query = (q ?? "").trim();
+  const showSettings = settings === "1";
 
   const community = await prisma.community.findFirst({
     where: {
@@ -170,7 +185,7 @@ export default async function GroupDetailPage(props: {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
                 <GroupJoinButton
                   groupIdOrSlug={canonicalSlug}
                   initiallyMember={isMember}
@@ -182,6 +197,38 @@ export default async function GroupDetailPage(props: {
                     groupIdOrSlug={canonicalSlug}
                     initiallySubscribed={notificationsSubscribed}
                   />
+                )}
+                {isModerator && (
+                  <Link
+                    href={buildGroupHref(canonicalSlug, !showSettings, query)}
+                    aria-label={showSettings ? t(locale, "profile.settingsClose") : t(locale, "profile.settingsOpen")}
+                    title={showSettings ? t(locale, "profile.settingsClose") : t(locale, "profile.settingsOpen")}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+                      showSettings
+                        ? "border-slate-300 bg-slate-100 text-slate-900"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className="h-5 w-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M10.325 4.317a1.724 1.724 0 0 1 3.35 0 1.724 1.724 0 0 0 2.573 1.066 1.724 1.724 0 0 1 2.898 1.676 1.724 1.724 0 0 0 .824 2.43 1.724 1.724 0 0 1 0 3.022 1.724 1.724 0 0 0-.824 2.43 1.724 1.724 0 0 1-2.898 1.676 1.724 1.724 0 0 0-2.573 1.066 1.724 1.724 0 0 1-3.35 0 1.724 1.724 0 0 0-2.573-1.066 1.724 1.724 0 0 1-2.898-1.676 1.724 1.724 0 0 0-.824-2.43 1.724 1.724 0 0 1 0-3.022 1.724 1.724 0 0 0 .824-2.43 1.724 1.724 0 0 1 2.898-1.676 1.724 1.724 0 0 0 2.573-1.066Z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                      />
+                    </svg>
+                  </Link>
                 )}
               </div>
             </div>
@@ -212,6 +259,28 @@ export default async function GroupDetailPage(props: {
               </p>
             )}
           </section>
+
+          {isModerator && showSettings && (
+            <>
+              <GroupAvatarEditor
+                groupIdOrSlug={canonicalSlug}
+                groupName={community.name}
+                avatarUrl={community.avatarUrl}
+              />
+              <GroupSettingsEditor
+                groupIdOrSlug={canonicalSlug}
+                initialSlug={community.permalinkSlug}
+                initialDescription={community.description}
+                initialIsPrivate={community.isPrivate}
+              />
+              {isOwner && (
+                <GroupDeleteButton
+                  groupIdOrSlug={canonicalSlug}
+                  groupName={community.name}
+                />
+              )}
+            </>
+          )}
 
           {isMember && (
             <CreatePostForm
@@ -257,16 +326,7 @@ export default async function GroupDetailPage(props: {
             />
           )}
           {isModerator && <GroupJoinRequestsPanel groupIdOrSlug={canonicalSlug} />}
-          {isModerator && (
-            <GroupAvatarEditor
-              groupIdOrSlug={canonicalSlug}
-              groupName={community.name}
-              avatarUrl={community.avatarUrl}
-            />
-          )}
-          {isModerator && <GroupPermalinkEditor groupIdOrSlug={canonicalSlug} initialSlug={community.permalinkSlug} />}
           {isModerator && <GroupInvitePanel groupIdOrSlug={canonicalSlug} />}
-          {isOwner && <GroupDeleteButton groupIdOrSlug={canonicalSlug} groupName={community.name} />}
         </aside>
       </div>
       {isAdmin && <AdminDevSidebar />}
