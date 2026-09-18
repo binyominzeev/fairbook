@@ -47,6 +47,34 @@ function timeAgo(dateIso: string, locale: "hu" | "en") {
   return tf(locale, "notifications.time.daysAgo", { count: Math.floor(hours / 24) });
 }
 
+const MESSAGE_LINK_PATTERN = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+const TRAILING_LINK_PUNCTUATION = /[),.!?:;]+$/;
+
+function renderMessageBody(body: string) {
+  return body.split(MESSAGE_LINK_PATTERN).map((part, index) => {
+    if (!/^(?:https?:\/\/|www\.)/i.test(part)) return part;
+
+    const match = part.match(TRAILING_LINK_PUNCTUATION);
+    const trailing = match?.[0] ?? "";
+    const href = part.slice(0, part.length - trailing.length);
+    const normalizedHref = /^www\./i.test(href) ? `https://${href}` : href;
+
+    return (
+      <span key={`${part}-${index}`}>
+        <a
+          href={normalizedHref}
+          target="_blank"
+          rel="noreferrer"
+          className="break-all text-blue-600 underline underline-offset-2 hover:text-blue-800"
+        >
+          {href}
+        </a>
+        {trailing}
+      </span>
+    );
+  });
+}
+
 export default function ConversationThread({
   conversationId,
   isGroup,
@@ -291,7 +319,7 @@ export default function ConversationThread({
                 {isGroup && !isOwn && (
                   <p className="mb-0.5 text-[11px] font-semibold text-slate-400">{message.sender.name}</p>
                 )}
-                <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                <p className="whitespace-pre-wrap break-words">{renderMessageBody(message.body)}</p>
                 <p className={`mt-1 text-[10px] ${isOwn ? "text-slate-300" : "text-slate-400"}`}>
                   {timeAgo(message.createdAt, locale)}
                 </p>
