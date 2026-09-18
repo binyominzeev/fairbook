@@ -65,7 +65,7 @@ function renderMessageBody(body: string) {
           href={normalizedHref}
           target="_blank"
           rel="noreferrer"
-          className="break-all text-blue-600 underline underline-offset-2 hover:text-blue-800"
+          className="break-all underline underline-offset-2"
         >
           {href}
         </a>
