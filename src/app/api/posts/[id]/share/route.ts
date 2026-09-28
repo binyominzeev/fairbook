@@ -177,7 +177,11 @@ export async function POST(
     .join("\n");
 
   const moderation = await moderatePost({
-    postContent: shareContent || undefined,
+    postContent:
+      shareContent ||
+      sourcePost.content?.trim() ||
+      sourcePost.sharedPost?.content?.trim() ||
+      undefined,
     sharedContent: sharedContent || undefined,
   });
   const finalModerationStatus = forcedPrivate ? "author_only" : moderation.status;
