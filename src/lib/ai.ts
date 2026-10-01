@@ -240,6 +240,18 @@ function runRuleBasedModeration(
   return null;
 }
 
+function isLinkOnlyComment(content: string): boolean {
+  const urls = content.match(/https?:\/\/[^\s]+/gi);
+  if (!urls?.length) {
+    return false;
+  }
+
+  return content
+    .replace(/https?:\/\/[^\s]+/gi, "")
+    .replace(/[\s<>()\[\]{}.,!?;:'"`]/g, "")
+    .length === 0;
+}
+
 /**
  * Normalizes the AI result and, critically, enforces the invariant:
  *
@@ -400,6 +412,16 @@ export async function moderateComment({
   parentComment,
   commentContent,
 }: CommentModerationInput): Promise<CommentModerationResult> {
+  if (isLinkOnlyComment(commentContent)) {
+    return {
+      status: "visible",
+      category: "allowed",
+      reasonShort: "Accepted",
+      explanation: "A link by itself is not a factual claim.",
+      source: "rules",
+    };
+  }
+
   const ruleMatch = runRuleBasedModeration({
     postContent,
     sharedContent,
@@ -435,6 +457,9 @@ export async function moderateComment({
       : null,
 
     `Comment to moderate:\n${commentContent.trim()}`,
+    /https?:\/\/\S+/i.test(commentContent)
+      ? "The comment contains a URL. Do not treat the URL itself, or a claim merely linked to it, as a factual error. Assess only factual claims explicitly written in the comment, and use factual_error only when the supplied context makes the error genuinely obvious."
+      : null,
   ].filter(Boolean);
 
   try {
