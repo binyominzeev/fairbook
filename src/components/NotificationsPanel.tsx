@@ -204,8 +204,8 @@ export default function NotificationsPanel({
   const [phonePushEnabled, setPhonePushEnabled] = useState(false);
   const [togglingPhonePush, setTogglingPhonePush] = useState(false);
   const [activeMenuItemId, setActiveMenuItemId] = useState<string | null>(null);
-  const [updatingType, setUpdatingType] = useState<string | null>(null);
-  const [unsubscribedTypes, setUnsubscribedTypes] = useState<Record<string, boolean>>({});
+  const [updatingActorId, setUpdatingActorId] = useState<string | null>(null);
+  const [mutedActorIds, setMutedActorIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
@@ -294,32 +294,28 @@ export default function NotificationsPanel({
 
     void (async () => {
       try {
-        const response = await fetch("/api/notifications/push-preferences");
+        const response = await fetch("/api/notifications/mutes");
         const data = await response.json();
         if (!response.ok || cancelled) {
           return;
         }
 
         const nextState: Record<string, boolean> = {};
-        const preferences = Array.isArray(data.preferences) ? data.preferences : [];
-        for (const preference of preferences) {
-          if (
-            preference &&
-            typeof preference.type === "string" &&
-            preference.enabled === false
-          ) {
-            nextState[preference.type] = true;
+        const mutedUserIds = Array.isArray(data.mutedUserIds) ? data.mutedUserIds : [];
+        for (const userId of mutedUserIds) {
+          if (typeof userId === "string") {
+            nextState[userId] = true;
           }
         }
 
         if (!cancelled) {
-          setUnsubscribedTypes((current) => ({
+          setMutedActorIds((current) => ({
             ...nextState,
             ...current,
           }));
         }
       } catch {
-        // Non-blocking: menu actions still work without initial preference fetch.
+        // Non-blocking: the menu toggle still works without the initial fetch.
       }
     })();
 
@@ -510,14 +506,15 @@ export default function NotificationsPanel({
     }
   };
 
-  const updateTypePreference = async (type: string, enabled: boolean) => {
-    setUpdatingType(type);
+  const updateActorMute = async (actor: NotificationItem["actor"], muted: boolean) => {
+    setUpdatingActorId(actor.id);
     setError("");
+    setInfo("");
     try {
-      const response = await fetch("/api/notifications/push-preferences", {
+      const response = await fetch(`/api/users/${actor.id}/notification-mute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, enabled }),
+        body: JSON.stringify({ muted }),
       });
       const data = await response.json();
 
@@ -526,15 +523,21 @@ export default function NotificationsPanel({
         return;
       }
 
-      setUnsubscribedTypes((current) => ({
+      const nextMuted = Boolean(data.muted);
+      setMutedActorIds((current) => ({
         ...current,
-        [type]: !Boolean(data.enabled),
+        [actor.id]: nextMuted,
       }));
+      setInfo(
+        tf(locale, nextMuted ? "notifications.muteDone" : "notifications.unmuteDone", {
+          name: actor.name,
+        })
+      );
       setActiveMenuItemId(null);
     } catch {
       setError(t(locale, "notifications.preferenceUpdateFailed"));
     } finally {
-      setUpdatingType(null);
+      setUpdatingActorId(null);
     }
   };
 
@@ -613,7 +616,7 @@ export default function NotificationsPanel({
 
       <div className="space-y-2">
         {items.map((item) => {
-          const pushMutedForType = unsubscribedTypes[item.type] === true;
+          const actorMuted = mutedActorIds[item.actor.id] === true;
 
           return (
           <Link
@@ -649,19 +652,21 @@ export default function NotificationsPanel({
                 >
                   <button
                     type="button"
-                    disabled={updatingType === item.type}
+                    disabled={updatingActorId === item.actor.id}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      void updateTypePreference(item.type, pushMutedForType);
+                      void updateActorMute(item.actor, !actorMuted);
                     }}
                     className="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 disabled:text-slate-400"
                   >
-                    {updatingType === item.type
+                    {updatingActorId === item.actor.id
                       ? t(locale, "notifications.menuWorking")
-                      : pushMutedForType
-                        ? t(locale, "notifications.menuSubscribeType")
-                        : t(locale, "notifications.menuUnsubscribeType")}
+                      : tf(
+                          locale,
+                          actorMuted ? "notifications.unmutePerson" : "notifications.mutePerson",
+                          { name: item.actor.name }
+                        )}
                   </button>
                 </div>
               )}
@@ -672,8 +677,10 @@ export default function NotificationsPanel({
               <span className="text-xs text-slate-400">{timeAgo(item.createdAt, locale)}</span>
             </div>
             <p className="mt-1 line-clamp-2 text-xs text-slate-600">{buildContext(item, locale)}</p>
-            {pushMutedForType && (
-              <p className="mt-2 text-[11px] font-medium text-amber-700">{t(locale, "notifications.typeMuted")}</p>
+            {actorMuted && (
+              <p className="mt-2 text-[11px] font-medium text-amber-700">
+                {tf(locale, "notifications.personMuted", { name: item.actor.name })}
+              </p>
             )}
           </Link>
           );

@@ -14,6 +14,7 @@ import {
   NOTIFICATION_TYPE_USER_FOLLOWED_YOU,
 } from "@/lib/notification-types";
 import { dispatchPushForNotificationIds } from "@/lib/push";
+import { getRecipientsMutingActor, hasMutedActor } from "@/lib/notification-mutes";
 
 export async function createCommentNotifications(input: {
   actorId: string;
@@ -113,8 +114,11 @@ export async function createCommentNotifications(input: {
     select: { userId: true },
   });
   const unsubscribedIds = new Set(unsubscribedRows.map((row) => row.userId));
+  const mutingIds = await getRecipientsMutingActor(actorId, candidateRecipientIds);
 
-  const recipientIds = candidateRecipientIds.filter((id) => !unsubscribedIds.has(id));
+  const recipientIds = candidateRecipientIds.filter(
+    (id) => !unsubscribedIds.has(id) && !mutingIds.has(id)
+  );
   if (recipientIds.length === 0) {
     return;
   }
@@ -182,8 +186,9 @@ export async function createGroupPostNotifications(input: {
     select: { userId: true },
   });
   const unsubscribedIds = new Set(unsubscribedRows.map((row) => row.userId));
+  const mutingIds = await getRecipientsMutingActor(actorId, memberIds);
 
-  const recipientIds = memberIds.filter((id) => !unsubscribedIds.has(id));
+  const recipientIds = memberIds.filter((id) => !unsubscribedIds.has(id) && !mutingIds.has(id));
   if (recipientIds.length === 0) {
     return;
   }
@@ -229,6 +234,7 @@ export async function createPostLikeNotification(input: {
 }) {
   const { actorId, recipientId, postId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -265,6 +271,7 @@ export async function createFollowNotification(input: {
 }) {
   const { actorId, recipientId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -303,6 +310,7 @@ export async function createCommentLikeNotification(input: {
 }) {
   const { actorId, recipientId, postId, commentId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -340,6 +348,7 @@ export async function createGroupInviteNotification(input: {
 }) {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -383,6 +392,7 @@ export async function createGroupJoinRequestNotifications(input: {
       communityId,
       role: "admin",
       userId: { not: actorId },
+      user: { notificationMutesMade: { none: { mutedUserId: actorId } } },
     },
     select: { userId: true },
   });
@@ -432,6 +442,7 @@ export async function createGroupJoinApprovedNotification(input: {
 }) {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -471,6 +482,7 @@ export async function createGroupInviteAcceptedNotification(input: {
 }) {
   const { actorId, recipientId, communityId } = input;
   if (actorId === recipientId) return;
+  if (await hasMutedActor(recipientId, actorId)) return;
 
   const record = await prisma.notification.upsert({
     where: {
@@ -510,7 +522,10 @@ export async function createFollowedUserPostNotifications(input: {
   const { actorId, postId } = input;
 
   const followerRows = await prisma.connection.findMany({
-    where: { followingId: actorId },
+    where: {
+      followingId: actorId,
+      follower: { notificationMutesMade: { none: { mutedUserId: actorId } } },
+    },
     select: { followerId: true },
   });
 

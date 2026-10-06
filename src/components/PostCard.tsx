@@ -411,6 +411,8 @@ export default function PostCard({
     post.notificationsSubscribedByCurrentUser
   );
   const [updatingPostNotifications, setUpdatingPostNotifications] = useState(false);
+  const [authorMuted, setAuthorMuted] = useState<boolean | null>(null);
+  const [updatingAuthorMute, setUpdatingAuthorMute] = useState(false);
   const [shareContent, setShareContent] = useState("");
   const [shareComposerOpen, setShareComposerOpen] = useState(false);
   const [shareSelectedTopicId, setShareSelectedTopicId] = useState<string>("");
@@ -463,6 +465,7 @@ export default function PostCard({
 
   const canEditPermalink = Boolean(showPermalinkEditor && post.author.id === currentUserId);
   const canEditPost = post.author.id === currentUserId;
+  const canMuteAuthor = Boolean(currentUserId) && post.author.id !== currentUserId;
   const needsAuthForInteractions = requireAuthForInteractions || !currentUserId;
   const reportHref = `/child-safety/report?postId=${encodeURIComponent(post.id)}&targetUrl=${encodeURIComponent(post.permalinkPath)}`;
   const communityHref = post.community
@@ -715,6 +718,54 @@ export default function PostCard({
       setActionError(t(locale, "postCard.error.postNotifications"));
     } finally {
       setUpdatingPostNotifications(false);
+    }
+  };
+
+  const loadAuthorMuteState = async () => {
+    try {
+      const res = await fetch(`/api/users/${post.author.id}/notification-mute`);
+      const data = await res.json();
+      if (res.ok) {
+        setAuthorMuted(Boolean(data.muted));
+      }
+    } catch {
+      // Item stays disabled; the next menu open retries.
+    }
+  };
+
+  const handleAuthorMuteToggle = async () => {
+    if (updatingAuthorMute || authorMuted === null) return;
+
+    const nextMuted = !authorMuted;
+    setUpdatingAuthorMute(true);
+    setActionError("");
+    setActionNotice(null);
+
+    try {
+      const res = await fetch(`/api/users/${post.author.id}/notification-mute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ muted: nextMuted }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error ?? t(locale, "notifications.preferenceUpdateFailed"));
+        return;
+      }
+
+      const muted = Boolean(data.muted);
+      setAuthorMuted(muted);
+      setActionNotice({
+        kind: "success",
+        message: tf(locale, muted ? "notifications.muteDone" : "notifications.unmuteDone", {
+          name: post.author.name,
+        }),
+      });
+    } catch {
+      setActionError(t(locale, "notifications.preferenceUpdateFailed"));
+    } finally {
+      setUpdatingAuthorMute(false);
     }
   };
 
@@ -1952,6 +2003,9 @@ export default function PostCard({
                 className="relative z-10 open:z-50"
                 onToggle={(event) => {
                   setIsMenuOpen(event.currentTarget.open);
+                  if (event.currentTarget.open && canMuteAuthor && authorMuted === null) {
+                    void loadAuthorMuteState();
+                  }
                 }}
               >
                 <summary className="cursor-pointer list-none rounded-lg px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700">
@@ -1988,6 +2042,24 @@ export default function PostCard({
                         ? t(locale, "postCard.menu.unsubscribePostNotifications")
                         : t(locale, "postCard.menu.subscribePostNotifications")}
                   </button>
+                  {canMuteAuthor && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleAuthorMuteToggle();
+                      }}
+                      disabled={updatingAuthorMute || authorMuted === null}
+                      className="block w-full rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:text-slate-400"
+                    >
+                      {updatingAuthorMute || authorMuted === null
+                        ? t(locale, "notifications.menuWorking")
+                        : tf(
+                            locale,
+                            authorMuted ? "notifications.unmutePerson" : "notifications.mutePerson",
+                            { name: post.author.name }
+                          )}
+                    </button>
+                  )}
                   <Link
                     href={reportHref}
                     className="block rounded-md px-2.5 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"

@@ -88,3 +88,11 @@ Open [http://localhost:3000](http://localhost:3000).
 - `GET /api/cron/feed-sync` processes a round-robin batch of 2-4 active feeds per run, using `ETag` and `Last-Modified` request headers.
 - `GET /api/cron/feed-cleanup` rescoring all posts and trims imported feed visibility back to the top ranked ~100-150 items.
 - Authenticate cron calls with the `x-cron-secret` header or `?secret=` query parameter matching `CRON_SECRET`.
+
+## Push notification troubleshooting
+
+- To stop notifications from one person, use "Mute notifications from <name>" in a post's More menu, on their profile, or in a notification's menu. It applies to the in-app list and to phone push; notifications created before muting stay visible.
+- Push delivery is decided on the server (`src/lib/notifications.ts`, `src/lib/push.ts`); the service worker (`public/sw.js`) only displays what it receives.
+- If a device behaves oddly (stale or missing push), toggle phone notifications off and on in `/notifications` to re-register the device.
+- If that does not help, unregister the service worker and delete the `fairbook-*` caches in the browser's site data, then reload.
+- After changing `public/sw.js`, bump `SW_VERSION` so old caches are removed on activation.

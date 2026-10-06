@@ -6,6 +6,7 @@ import IconNavLink from "@/components/IconNavLink";
 import Navbar from "@/components/Navbar";
 import PublicNavbar from "@/components/PublicNavbar";
 import FollowButton from "@/components/FollowButton";
+import MuteNotificationsButton from "@/components/MuteNotificationsButton";
 import ProfileActivitySection from "@/components/ProfileActivitySection";
 import ProfileAvatarEditor from "@/components/ProfileAvatarEditor";
 import ProfileActivityViewModeSelect from "@/components/ProfileActivityViewModeSelect";
@@ -150,6 +151,16 @@ export default async function ProfilePage(props: {
     const queryString = params.toString();
     redirect(queryString ? `/feed?${queryString}` : "/feed?mode=bookmarks");
   }
+
+  const isNotificationMuted =
+    currentUser && !isOwnProfile
+      ? (await prisma.userNotificationMute.findUnique({
+          where: {
+            userId_mutedUserId: { userId: currentUser.id, mutedUserId: profileUser.id },
+          },
+          select: { id: true },
+        })) !== null
+      : false;
 
   const visiblePostCount = isOwnProfile
     ? profileUser._count.posts
@@ -399,10 +410,17 @@ export default async function ProfilePage(props: {
             ) : (
               <>
                 {currentUser ? (
-                  <FollowButton
-                    targetUserId={profileUser.id}
-                    initialIsFollowing={isFollowing}
-                  />
+                  <>
+                    <FollowButton
+                      targetUserId={profileUser.id}
+                      initialIsFollowing={isFollowing}
+                    />
+                    <MuteNotificationsButton
+                      targetUserId={profileUser.id}
+                      targetName={profileUser.name}
+                      initialMuted={isNotificationMuted}
+                    />
+                  </>
                 ) : (
                   <Link
                     href="/login?mode=register"

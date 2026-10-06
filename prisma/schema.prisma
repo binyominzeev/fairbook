@@ -72,6 +72,8 @@ model User {
   messagesSent               Message[]
   blocksMade                  UserBlock[] @relation("UserBlockBlocker")
   blocksReceived               UserBlock[] @relation("UserBlockBlocked")
+  notificationMutesMade        UserNotificationMute[] @relation("NotificationMuteOwner")
+  notificationMutesReceived    UserNotificationMute[] @relation("NotificationMuteTarget")
 }
 
 model AuthEmailToken {
@@ -768,4 +770,17 @@ model UserBlock {
 
   @@unique([blockerId, blockedId])
   @@index([blockedId])
+}
+
+model UserNotificationMute {
+  id          String   @id @default(cuid())
+  userId      String
+  mutedUserId String
+  createdAt   DateTime @default(now())
+
+  user      User @relation("NotificationMuteOwner", fields: [userId], references: [id], onDelete: Cascade)
+  mutedUser User @relation("NotificationMuteTarget", fields: [mutedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mutedUserId])
+  @@index([mutedUserId])
 }
