@@ -14,6 +14,7 @@ type BackgroundPreset = {
   id: string;
   name: string;
   preview: string;
+  category?: BackgroundCategory;
   render: {
     kind: "solid" | "linear" | "radial" | "pattern" | "image";
     angle?: number;
@@ -119,6 +120,19 @@ const PATTERN_BACKGROUNDS: BackgroundPreset[] = HERO_PATTERN_TILES.map((tile, in
     },
   };
 });
+
+const PAGE_TURNER_BACKGROUND: BackgroundPreset = {
+  id: "pattern-page-turner",
+  name: "Page Turner",
+  category: "patterns",
+  preview: `url("/text-card-backgrounds/svgbackgrounds-free/page-turner.svg") center/cover no-repeat`,
+  render: {
+    kind: "image",
+    stops: [{ offset: 0, color: "#c9c9c9" }],
+    imageUrl: "/text-card-backgrounds/svgbackgrounds-free/page-turner.svg",
+    overlayColor: "rgba(255,255,255,0.2)",
+  },
+};
 
 // A flat overlay keeps text readable on busy photographic textures.
 const TEXTURE_BACKGROUNDS: BackgroundPreset[] = TEXT_CARD_TEXTURES.map((texture) => {
@@ -494,6 +508,7 @@ const BACKGROUNDS: BackgroundPreset[] = [
   },
   ...WEBGRADIENTS,
   ...PATTERN_BACKGROUNDS,
+  PAGE_TURNER_BACKGROUND,
   ...TEXTURE_BACKGROUNDS,
   {
     id: "solid-cloud",
@@ -809,6 +824,9 @@ const BACKGROUND_CATEGORY_LABELS: Record<BackgroundCategory, string> = {
 };
 
 function getBackgroundCategory(preset: BackgroundPreset): BackgroundCategory {
+  if (preset.category) {
+    return preset.category;
+  }
   if (preset.render.kind === "solid") {
     return "solids";
   }
