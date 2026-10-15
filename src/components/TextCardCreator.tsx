@@ -69,6 +69,9 @@ type TextCardClientErrorPayload = {
 };
 
 const EXPORT_SIZE = 1080;
+// Stays under nginx's default 1 MB client_max_body_size, with room for multipart overhead.
+const UPLOAD_TARGET_BYTES = 900 * 1024;
+const UPLOAD_WEBP_QUALITY_STEPS = [0.92, 0.85, 0.78, 0.7, 0.6, 0.5, 0.4];
 const MIN_FONT_SIZE = 20;
 const MAX_FONT_SIZE = 240;
 const HORIZONTAL_PADDING = 0.1;
@@ -1687,7 +1690,7 @@ export default function TextCardCreator({
     scrollContainer.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
   }, []);
 
-  const renderCardBlob = useCallback(async () => {
+  const renderCardBlob = useCallback(async (maxBytes?: number) => {
     const canvas = document.createElement("canvas");
     canvas.width = EXPORT_SIZE;
     canvas.height = EXPORT_SIZE;
@@ -1727,7 +1730,28 @@ export default function TextCardCreator({
       throw new Error("Failed to create PNG file.");
     }
 
-    return blob;
+    if (!maxBytes || blob.size <= maxBytes) {
+      return blob;
+    }
+
+    // Photographic textures make PNGs several MB; re-encode lossy until it fits.
+    let smallest = blob;
+    for (const quality of UPLOAD_WEBP_QUALITY_STEPS) {
+      const lossy = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/webp", quality);
+      });
+      if (!lossy || lossy.type !== "image/webp") {
+        continue;
+      }
+      if (lossy.size < smallest.size) {
+        smallest = lossy;
+      }
+      if (lossy.size <= maxBytes) {
+        return lossy;
+      }
+    }
+
+    return smallest;
   }, [activeFont, displayText, effectiveBackground, textColor]);
 
   const handleDownloadPng = useCallback(async () => {
@@ -1773,8 +1797,12 @@ export default function TextCardCreator({
 
     try {
       let step = "render-card-blob";
-      const blob = await renderCardBlob();
-      const fileMeta = buildTextCardFileMeta(blob, referenceId, "png");
+      const blob = await renderCardBlob(UPLOAD_TARGET_BYTES);
+      const fileMeta = buildTextCardFileMeta(
+        blob,
+        referenceId,
+        blob.type === "image/webp" ? "webp" : "png"
+      );
 
       await reportTextCardClientError({
         referenceId,
@@ -1825,7 +1853,11 @@ export default function TextCardCreator({
       });
 
       if (!uploadRes.ok) {
-        setError(uploadData.error ?? t(locale, "textCard.error.uploadImage"));
+        setError(
+          uploadRes.status === 413
+            ? t(locale, "textCard.error.tooLarge")
+            : (uploadData.error ?? t(locale, "textCard.error.uploadImage"))
+        );
         return;
       }
 
