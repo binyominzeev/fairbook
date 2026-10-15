@@ -3,26 +3,31 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PostComposerDialog, { type PostComposerSuccessResult } from "./PostComposerDialog";
+import EmojiPickerButton from "./EmojiPickerButton";
 import { t, tf } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
+import { WEBGRADIENTS } from "@/lib/text-card-gradients";
+import { HERO_PATTERN_TILES, type HeroPatternTile } from "@/lib/text-card-hero-patterns";
+import { TEXT_CARD_TEXTURES } from "@/lib/text-card-textures";
 
 type BackgroundPreset = {
   id: string;
   name: string;
   preview: string;
   render: {
-    kind: "solid" | "linear" | "radial" | "pattern";
+    kind: "solid" | "linear" | "radial" | "pattern" | "image";
     angle?: number;
     stops: Array<{ offset: number; color: string }>;
-    patternPath?: string;
-    patternBaseColor?: string;
-    patternTintColor?: string;
-    patternContrastBoost?: number;
+    tileSvg?: string;
+    tileWidth?: number;
+    tileHeight?: number;
+    imageUrl?: string;
+    overlayColor?: string;
     textColor?: string;
   };
 };
 
-type BackgroundCategory = "gradients" | "solids" | "patterns";
+type BackgroundCategory = "gradients" | "solids" | "patterns" | "textures";
 
 type FontPreset = {
   id: string;
@@ -69,114 +74,66 @@ const MAX_FONT_SIZE = 240;
 const HORIZONTAL_PADDING = 0.1;
 const VERTICAL_PADDING = 0.1;
 
-const SVG_BACKGROUNDS_BASE_PATH = "/text-card-backgrounds/svgbackgrounds-free";
+// Every tile is rendered about this wide in the 1080px export, whatever its source size.
+const PATTERN_TILE_EXPORT_WIDTH = 180;
 
-function createPatternPreset(params: {
-  id: string;
-  name: string;
-  fileName: string;
-  baseColor: string;
-  stops: Array<{ offset: number; color: string }>;
-  contrastBoost?: number;
-}): BackgroundPreset {
-  const imagePath = `${SVG_BACKGROUNDS_BASE_PATH}/${params.fileName}`;
-  return {
-    id: params.id,
-    name: params.name,
-    preview: `url("${imagePath}") center/cover no-repeat, ${params.baseColor}`,
-    render: {
-      kind: "pattern",
-      stops: params.stops,
-      patternPath: imagePath,
-      patternBaseColor: params.baseColor,
-      patternContrastBoost: params.contrastBoost,
-    },
-  };
+const PATTERN_PALETTES: Array<{ bg: string; fg: string; opacity: number }> = [
+  { bg: "#0f172a", fg: "#94a3b8", opacity: 0.35 },
+  { bg: "#fde68a", fg: "#b45309", opacity: 0.25 },
+  { bg: "#bfdbfe", fg: "#1d4ed8", opacity: 0.25 },
+  { bg: "#fbcfe8", fg: "#9d174d", opacity: 0.25 },
+  { bg: "#134e4a", fg: "#5eead4", opacity: 0.3 },
+  { bg: "#f5f5f4", fg: "#57534e", opacity: 0.2 },
+  { bg: "#312e81", fg: "#a5b4fc", opacity: 0.35 },
+  { bg: "#fecaca", fg: "#b91c1c", opacity: 0.22 },
+  { bg: "#14532d", fg: "#86efac", opacity: 0.3 },
+  { bg: "#fed7aa", fg: "#c2410c", opacity: 0.25 },
+];
+
+function fillTileSvg(tile: HeroPatternTile, fg: string, opacity: number) {
+  return tile.svgTemplate.replaceAll("__FILL__", fg).replaceAll("__OPACITY__", String(opacity));
 }
 
-const PATTERN_BACKGROUNDS: BackgroundPreset[] = [
-  createPatternPreset({
-    id: "pattern-liquid-cheese",
-    name: "Liquid Cheese",
-    fileName: "liquid-cheese.svg",
-    baseColor: "#f97316",
-    stops: [
-      { offset: 0, color: "#f59e0b" },
-      { offset: 1, color: "#f43f5e" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-wintery-sunburst",
-    name: "Wintery Sunburst",
-    fileName: "wintery-sunburst.svg",
-    baseColor: "#38bdf8",
-    stops: [
-      { offset: 0, color: "#0ea5e9" },
-      { offset: 1, color: "#e0f2fe" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-zig-zag",
-    name: "Zig Zag",
-    fileName: "zig-zag.svg",
-    baseColor: "#f59e0b",
-    stops: [
-      { offset: 0, color: "#fcd34d" },
-      { offset: 1, color: "#fb7185" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-endless-constellation",
-    name: "Endless Constellation",
-    fileName: "endless-constellation.svg",
-    baseColor: "#0f172a",
-    contrastBoost: 2.2,
-    stops: [
-      { offset: 0, color: "#0f172a" },
-      { offset: 1, color: "#334155" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-rose-petals",
-    name: "Rose Petals",
-    fileName: "rose-petals.svg",
-    baseColor: "#fb7185",
-    stops: [
-      { offset: 0, color: "#fda4af" },
-      { offset: 1, color: "#be123c" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-varying-stripes",
-    name: "Varying Stripes",
-    fileName: "varying-stripes.svg",
-    baseColor: "#f59e0b",
-    stops: [
-      { offset: 0, color: "#fbbf24" },
-      { offset: 1, color: "#7c2d12" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-page-turner",
-    name: "Page Turner",
-    fileName: "page-turner.svg",
-    baseColor: "#94a3b8",
-    stops: [
-      { offset: 0, color: "#f8fafc" },
-      { offset: 1, color: "#475569" },
-    ],
-  }),
-  createPatternPreset({
-    id: "pattern-rainbow-vortex",
-    name: "Rainbow Vortex",
-    fileName: "rainbow-vortex.svg",
-    baseColor: "#111827",
-    stops: [
-      { offset: 0, color: "#1e293b" },
-      { offset: 1, color: "#f472b6" },
-    ],
-  }),
-];
+function buildTilePreview(tileSvg: string, bgColor: string) {
+  const widthPercent = ((PATTERN_TILE_EXPORT_WIDTH / EXPORT_SIZE) * 100).toFixed(3);
+  const dataUrl = `data:image/svg+xml,${encodeURIComponent(tileSvg)}`;
+  return `url("${dataUrl}") 0 0/${widthPercent}% auto repeat, ${bgColor}`;
+}
+
+const PATTERN_BACKGROUNDS: BackgroundPreset[] = HERO_PATTERN_TILES.map((tile, index) => {
+  const palette = PATTERN_PALETTES[index % PATTERN_PALETTES.length];
+  const tileSvg = fillTileSvg(tile, palette.fg, palette.opacity);
+  return {
+    id: tile.id,
+    name: tile.name,
+    preview: buildTilePreview(tileSvg, palette.bg),
+    render: {
+      kind: "pattern",
+      stops: [{ offset: 0, color: palette.bg }],
+      tileSvg,
+      tileWidth: tile.width,
+      tileHeight: tile.height,
+    },
+  };
+});
+
+// A flat overlay keeps text readable on busy photographic textures.
+const TEXTURE_BACKGROUNDS: BackgroundPreset[] = TEXT_CARD_TEXTURES.map((texture) => {
+  const imageUrl = `/text-card-backgrounds/textures/${texture.file}`;
+  const base: BackgroundPreset = {
+    id: texture.id,
+    name: texture.name,
+    preview: `url("${imageUrl}") center/cover no-repeat`,
+    render: { kind: "image", stops: [{ offset: 0, color: texture.avgColor }], imageUrl },
+  };
+  const overlayColor =
+    pickReadableColor(base) === "#f8fafc" ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.25)";
+  return {
+    ...base,
+    preview: `linear-gradient(${overlayColor}, ${overlayColor}), ${base.preview}`,
+    render: { ...base.render, overlayColor },
+  };
+});
 
 const BACKGROUNDS: BackgroundPreset[] = [
   {
@@ -532,7 +489,9 @@ const BACKGROUNDS: BackgroundPreset[] = [
       ],
     },
   },
+  ...WEBGRADIENTS,
   ...PATTERN_BACKGROUNDS,
+  ...TEXTURE_BACKGROUNDS,
   {
     id: "solid-cloud",
     name: "Cloud",
@@ -679,7 +638,9 @@ const BACKGROUNDS: BackgroundPreset[] = [
   },
 ];
 
-const FONTS: FontPreset[] = [
+const EMOJI_FONT_FALLBACK = "'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'";
+
+const BASE_FONTS: FontPreset[] = [
   {
     id: "roboto",
     name: "Roboto",
@@ -802,6 +763,11 @@ const FONTS: FontPreset[] = [
   },
 ];
 
+const FONTS: FontPreset[] = BASE_FONTS.map((font) => ({
+  ...font,
+  family: `${font.family}, ${EMOJI_FONT_FALLBACK}`,
+}));
+
 const DEFAULT_FONT_PICK_IDS = [
   "roboto",
   "poppins",
@@ -836,6 +802,7 @@ const BACKGROUND_CATEGORY_LABELS: Record<BackgroundCategory, string> = {
   gradients: "Gradients",
   solids: "Solid Colors",
   patterns: "Background Patterns",
+  textures: "Textures",
 };
 
 function getBackgroundCategory(preset: BackgroundPreset): BackgroundCategory {
@@ -844,6 +811,9 @@ function getBackgroundCategory(preset: BackgroundPreset): BackgroundCategory {
   }
   if (preset.render.kind === "pattern") {
     return "patterns";
+  }
+  if (preset.render.kind === "image") {
+    return "textures";
   }
   return "gradients";
 }
@@ -884,35 +854,6 @@ function relativeLuminance(color: string) {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-function rgbToHex(rgb: { r: number; g: number; b: number }) {
-  const toHex = (value: number) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0");
-  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
-}
-
-function shiftColorTowardTarget(color: string, fromBase: string, toBase: string) {
-  const source = hexToRgb(color);
-  const sourceBase = hexToRgb(fromBase);
-  const targetBase = hexToRgb(toBase);
-  const delta = {
-    r: targetBase.r - sourceBase.r,
-    g: targetBase.g - sourceBase.g,
-    b: targetBase.b - sourceBase.b,
-  };
-
-  return rgbToHex({
-    r: source.r + delta.r,
-    g: source.g + delta.g,
-    b: source.b + delta.b,
-  });
-}
-
-function recolorStopsWithBaseShift(stops: Array<{ offset: number; color: string }>, fromBase: string, toBase: string) {
-  return stops.map((stop) => ({
-    offset: stop.offset,
-    color: shiftColorTowardTarget(stop.color, fromBase, toBase),
-  }));
-}
-
 function getBackgroundLuminance(background: BackgroundPreset) {
   if (background.render.stops.length === 0) {
     return 0.5;
@@ -928,21 +869,7 @@ function getBackgroundLuminance(background: BackgroundPreset) {
     totalWeight += weight;
   }
 
-  const weightedLuminance = weighted / totalWeight;
-  if (background.render.kind !== "pattern") {
-    return weightedLuminance;
-  }
-
-  const patternBase =
-    background.render.patternTintColor ?? background.render.patternBaseColor ?? null;
-  if (!patternBase) {
-    return weightedLuminance;
-  }
-
-  const baseLuminance = relativeLuminance(patternBase);
-  // Patterned surfaces are visually busier; bias luminance toward the darker side
-  // to avoid accidentally choosing dark text on dark-ish mixed presets.
-  return Math.min(weightedLuminance, baseLuminance);
+  return weighted / totalWeight;
 }
 
 function contrastRatio(luminanceA: number, luminanceB: number) {
@@ -973,14 +900,135 @@ function pickReadableColor(background: BackgroundPreset) {
   return darkContrast >= lightContrast ? darkText : lightText;
 }
 
+const graphemeSegmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    : null;
+
+// Grapheme clusters keep ZWJ emoji, skin tones and flags intact.
+function splitGraphemes(text: string): string[] {
+  if (!graphemeSegmenter) return Array.from(text);
+  return Array.from(graphemeSegmenter.segment(text), (part) => part.segment);
+}
+
+// Emoji are drawn as Twemoji images so the preview and the PNG look the same on every device.
+const TWEMOJI_BASE_URL = "https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg";
+const EMOJI_ADVANCE = 1.1;
+const EMOJI_SIZE = 1;
+
+function isEmojiGrapheme(grapheme: string) {
+  return (
+    /\p{Emoji_Presentation}/u.test(grapheme) ||
+    grapheme.includes("\uFE0F") ||
+    grapheme.includes("\u20E3")
+  );
+}
+
+function twemojiUrl(emoji: string) {
+  const codePoints = Array.from(emoji, (char) => char.codePointAt(0)!.toString(16));
+  // Twemoji file names drop VS16 unless the emoji is a ZWJ sequence.
+  const normalized = emoji.includes("\u200D")
+    ? codePoints
+    : codePoints.filter((code) => code !== "fe0f");
+  return `${TWEMOJI_BASE_URL}/${normalized.join("-")}.svg`;
+}
+
+type LineSegment = { text: string; emoji: boolean };
+
+function segmentLine(line: string): LineSegment[] {
+  const segments: LineSegment[] = [];
+  for (const grapheme of splitGraphemes(line)) {
+    if (isEmojiGrapheme(grapheme)) {
+      segments.push({ text: grapheme, emoji: true });
+      continue;
+    }
+    const last = segments[segments.length - 1];
+    if (last && !last.emoji) {
+      last.text += grapheme;
+    } else {
+      segments.push({ text: grapheme, emoji: false });
+    }
+  }
+  return segments;
+}
+
+function getContextFontSize(ctx: CanvasRenderingContext2D) {
+  const match = /(\d+(?:\.\d+)?)px/.exec(ctx.font);
+  return match ? Number(match[1]) : MIN_FONT_SIZE;
+}
+
+// null marks an emoji whose image failed to load; it falls back to the system glyph.
+const emojiImageCache = new Map<string, HTMLImageElement | null>();
+
+async function preloadEmojis(text: string) {
+  const emojis = new Set(
+    splitGraphemes(text).filter((grapheme) => isEmojiGrapheme(grapheme))
+  );
+  await Promise.all(
+    Array.from(emojis, (emoji) => {
+      if (emojiImageCache.has(emoji)) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.onload = () => {
+          emojiImageCache.set(emoji, image);
+          resolve();
+        };
+        image.onerror = () => {
+          emojiImageCache.set(emoji, null);
+          resolve();
+        };
+        image.src = twemojiUrl(emoji);
+      });
+    })
+  );
+}
+
+function PreviewLine({ line }: { line: string }) {
+  if (line.length === 0) {
+    return <>{"\u00A0"}</>;
+  }
+
+  return (
+    <>
+      {segmentLine(line).map((segment, index) =>
+        segment.emoji ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={index}
+            src={twemojiUrl(segment.text)}
+            alt={segment.text}
+            draggable={false}
+            style={{
+              display: "inline-block",
+              width: `${EMOJI_SIZE}em`,
+              height: `${EMOJI_SIZE}em`,
+              margin: `0 ${((EMOJI_ADVANCE - EMOJI_SIZE) / 2).toFixed(3)}em`,
+              verticalAlign: "-0.12em",
+            }}
+          />
+        ) : (
+          <span key={index}>{segment.text}</span>
+        )
+      )}
+    </>
+  );
+}
+
 function measureTextWidth(
   ctx: CanvasRenderingContext2D,
   text: string,
   letterSpacing: number
 ) {
   if (text.length === 0) return 0;
-  const base = ctx.measureText(text).width;
-  const spacing = Math.max(0, text.length - 1) * Math.max(0, letterSpacing);
+  const fontSize = getContextFontSize(ctx);
+  let base = 0;
+  for (const segment of segmentLine(text)) {
+    base += segment.emoji
+      ? fontSize * EMOJI_ADVANCE
+      : ctx.measureText(segment.text).width;
+  }
+  const spacing = Math.max(0, splitGraphemes(text).length - 1) * Math.max(0, letterSpacing);
   return base + spacing;
 }
 
@@ -1020,7 +1068,7 @@ function wrapLinesForWidth(
       }
 
       let segment = "";
-      for (const char of word) {
+      for (const char of splitGraphemes(word)) {
         const charTrial = `${segment}${char}`;
         if (measureTextWidth(ctx, charTrial, letterSpacing) <= maxWidth) {
           segment = charTrial;
@@ -1051,13 +1099,13 @@ function trimLineToWidth(
     return line;
   }
 
-  let current = line;
-  while (current.length > 0) {
-    const candidate = `${current}${suffix}`;
+  const graphemes = splitGraphemes(line);
+  while (graphemes.length > 0) {
+    const candidate = `${graphemes.join("")}${suffix}`;
     if (measureTextWidth(ctx, candidate, letterSpacing) <= maxWidth) {
       return candidate;
     }
-    current = current.slice(0, -1);
+    graphemes.pop();
   }
 
   return suffix;
@@ -1074,17 +1122,33 @@ function drawCenteredLine(
     return;
   }
 
-  if (letterSpacing <= 0) {
-    const x = centerX - ctx.measureText(line).width / 2;
-    ctx.fillText(line, x, y);
-    return;
-  }
+  const fontSize = getContextFontSize(ctx);
+  const spacing = Math.max(0, letterSpacing);
+  let x = centerX - measureTextWidth(ctx, line, letterSpacing) / 2;
 
-  const totalWidth = measureTextWidth(ctx, line, letterSpacing);
-  let x = centerX - totalWidth / 2;
-  for (const char of line) {
-    ctx.fillText(char, x, y);
-    x += ctx.measureText(char).width + letterSpacing;
+  for (const segment of segmentLine(line)) {
+    if (segment.emoji) {
+      const image = emojiImageCache.get(segment.text);
+      if (image) {
+        const inset = (EMOJI_ADVANCE - EMOJI_SIZE) / 2;
+        ctx.drawImage(image, x + fontSize * inset, y + fontSize * 0.05, fontSize * EMOJI_SIZE, fontSize * EMOJI_SIZE);
+      } else {
+        ctx.fillText(segment.text, x, y);
+      }
+      x += fontSize * EMOJI_ADVANCE + spacing;
+      continue;
+    }
+
+    if (spacing === 0) {
+      ctx.fillText(segment.text, x, y);
+      x += ctx.measureText(segment.text).width;
+      continue;
+    }
+
+    for (const char of splitGraphemes(segment.text)) {
+      ctx.fillText(char, x, y);
+      x += ctx.measureText(char).width + spacing;
+    }
   }
 }
 
@@ -1152,11 +1216,10 @@ function buildLayout(
 }
 
 const patternImageCache = new Map<string, Promise<HTMLImageElement>>();
-const tintedPatternDataUrlCache = new Map<string, Promise<string>>();
 
-function loadPatternImage(path: string) {
-  if (patternImageCache.has(path)) {
-    return patternImageCache.get(path)!;
+function loadPatternImage(svg: string) {
+  if (patternImageCache.has(svg)) {
+    return patternImageCache.get(svg)!;
   }
 
   const promise = new Promise<HTMLImageElement>((resolve, reject) => {
@@ -1164,103 +1227,27 @@ function loadPatternImage(path: string) {
     image.decoding = "async";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error("Failed to decode pattern background."));
-    image.src = path;
+    image.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
   });
 
-  patternImageCache.set(path, promise);
+  patternImageCache.set(svg, promise);
   return promise;
 }
 
-async function getTintedPatternDataUrl(
-  patternPath: string,
-  sourceBaseColor: string,
-  targetBaseColor: string,
-  contrastBoost = 1
-) {
-  if (sourceBaseColor === targetBaseColor) {
-    return patternPath;
+function loadBackgroundImage(url: string) {
+  if (patternImageCache.has(url)) {
+    return patternImageCache.get(url)!;
   }
 
-  const cacheKey = `${patternPath}|${sourceBaseColor}|${targetBaseColor}|${contrastBoost}`;
-  if (tintedPatternDataUrlCache.has(cacheKey)) {
-    return tintedPatternDataUrlCache.get(cacheKey)!;
-  }
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load texture background."));
+    image.src = url;
+  });
 
-  const promise = (async () => {
-    const image = await loadPatternImage(patternPath);
-    const canvas = document.createElement("canvas");
-    const width = Math.max(1, image.naturalWidth || image.width || EXPORT_SIZE);
-    const height = Math.max(1, image.naturalHeight || image.height || EXPORT_SIZE);
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return patternPath;
-    }
-
-    ctx.drawImage(image, 0, 0, width, height);
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-    const configuredSourceBase = hexToRgb(sourceBaseColor);
-    const targetBase = hexToRgb(targetBaseColor);
-    const boost = Math.max(1, contrastBoost);
-
-    // Estimate the real base color from the source pixels so tinting works even
-    // when preset metadata baseColor does not match the SVG's dominant tone.
-    let sumR = 0;
-    let sumG = 0;
-    let sumB = 0;
-    let opaqueCount = 0;
-    for (let index = 0; index < pixels.length; index += 16) {
-      // Sampling every 4th pixel is enough and keeps this cheap.
-      if (pixels[index + 3] < 16) {
-        continue;
-      }
-      sumR += pixels[index];
-      sumG += pixels[index + 1];
-      sumB += pixels[index + 2];
-      opaqueCount += 1;
-    }
-
-    const sampledSourceBase =
-      opaqueCount > 0
-        ? {
-            r: sumR / opaqueCount,
-            g: sumG / opaqueCount,
-            b: sumB / opaqueCount,
-          }
-        : configuredSourceBase;
-
-    const sourceDelta =
-      Math.abs(sampledSourceBase.r - configuredSourceBase.r) +
-      Math.abs(sampledSourceBase.g - configuredSourceBase.g) +
-      Math.abs(sampledSourceBase.b - configuredSourceBase.b);
-    const blendWeight = clamp((sourceDelta - 24) / 120, 0, 1);
-    const sourceBase = {
-      r: configuredSourceBase.r + (sampledSourceBase.r - configuredSourceBase.r) * blendWeight,
-      g: configuredSourceBase.g + (sampledSourceBase.g - configuredSourceBase.g) * blendWeight,
-      b: configuredSourceBase.b + (sampledSourceBase.b - configuredSourceBase.b) * blendWeight,
-    };
-
-    for (let index = 0; index < pixels.length; index += 4) {
-      if (pixels[index + 3] === 0) {
-        continue;
-      }
-      const offsetR = pixels[index] - sourceBase.r;
-      const offsetG = pixels[index + 1] - sourceBase.g;
-      const offsetB = pixels[index + 2] - sourceBase.b;
-
-      pixels[index] = clamp(targetBase.r + offsetR * boost, 0, 255);
-      pixels[index + 1] = clamp(targetBase.g + offsetG * boost, 0, 255);
-      pixels[index + 2] = clamp(targetBase.b + offsetB * boost, 0, 255);
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL("image/png");
-  })();
-
-  tintedPatternDataUrlCache.set(cacheKey, promise);
+  patternImageCache.set(url, promise);
   return promise;
 }
 
@@ -1269,6 +1256,21 @@ async function drawBackground(
   background: BackgroundPreset,
   size: number
 ) {
+  if (background.render.kind === "image") {
+    const { imageUrl, overlayColor } = background.render;
+    ctx.fillStyle = background.render.stops[0]?.color ?? "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    if (imageUrl) {
+      const image = await loadBackgroundImage(imageUrl);
+      ctx.drawImage(image, 0, 0, size, size);
+    }
+    if (overlayColor) {
+      ctx.fillStyle = overlayColor;
+      ctx.fillRect(0, 0, size, size);
+    }
+    return;
+  }
+
   if (background.render.kind === "solid") {
     ctx.fillStyle = background.render.stops[0]?.color ?? "#ffffff";
     ctx.fillRect(0, 0, size, size);
@@ -1276,29 +1278,26 @@ async function drawBackground(
   }
 
   if (background.render.kind === "pattern") {
-    const baseColor =
-      background.render.patternTintColor ?? background.render.patternBaseColor ?? "#ffffff";
-    ctx.fillStyle = baseColor;
+    ctx.fillStyle = background.render.stops[0]?.color ?? "#ffffff";
     ctx.fillRect(0, 0, size, size);
 
-    const patternPath = background.render.patternPath;
-    if (!patternPath) {
+    const { tileSvg, tileWidth } = background.render;
+    if (!tileSvg || !tileWidth) {
       return;
     }
 
-    const sourceBaseColor = background.render.patternBaseColor ?? baseColor;
-    const targetBaseColor = background.render.patternTintColor;
-    const contrastBoost = background.render.patternContrastBoost ?? 1;
-    const resolvedPath = targetBaseColor
-      ? await getTintedPatternDataUrl(
-          patternPath,
-          sourceBaseColor,
-          targetBaseColor,
-          contrastBoost
-        )
-      : patternPath;
-    const image = await loadPatternImage(resolvedPath);
-    ctx.drawImage(image, 0, 0, size, size);
+    const image = await loadPatternImage(tileSvg);
+    const pattern = ctx.createPattern(image, "repeat");
+    if (!pattern) {
+      return;
+    }
+
+    const scale = (PATTERN_TILE_EXPORT_WIDTH / tileWidth) * (size / EXPORT_SIZE);
+    ctx.save();
+    ctx.scale(scale, scale);
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, size / scale, size / scale);
+    ctx.restore();
     return;
   } else if (background.render.kind === "radial") {
     const radial = ctx.createRadialGradient(
@@ -1428,7 +1427,6 @@ export default function TextCardCreator({
     const firstSolid = BACKGROUNDS.find((preset) => preset.render.kind === "solid");
     return firstSolid?.id ?? BACKGROUNDS[0].id;
   });
-  const [mixedPatternPreviewUrl, setMixedPatternPreviewUrl] = useState<string | null>(null);
   const [hiddenFontIds, setHiddenFontIds] = useState<string[]>(() =>
     Array.from(new Set(initialHiddenFontIds))
   );
@@ -1440,6 +1438,7 @@ export default function TextCardCreator({
   const [mobilePreviewSpacerHeight, setMobilePreviewSpacerHeight] = useState(0);
 
   const textFrameRef = useRef<HTMLDivElement | null>(null);
+  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const mobilePreviewAnchorRef = useRef<HTMLDivElement | null>(null);
   const mobilePreviewCardRef = useRef<HTMLDivElement | null>(null);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1448,6 +1447,7 @@ export default function TextCardCreator({
   const gradientSectionRef = useRef<HTMLDivElement | null>(null);
   const solidSectionRef = useRef<HTMLDivElement | null>(null);
   const patternSectionRef = useRef<HTMLDivElement | null>(null);
+  const textureSectionRef = useRef<HTMLDivElement | null>(null);
 
   const availableBackgrounds = useMemo(() => {
     return BACKGROUNDS;
@@ -1486,6 +1486,7 @@ export default function TextCardCreator({
   const shouldApplyPatternSolidMix =
     isPatternSolidMixEnabled &&
     getBackgroundCategory(activeBackground) !== "gradients" &&
+    getBackgroundCategory(activeBackground) !== "textures" &&
     Boolean(selectedPatternBackground) &&
     Boolean(selectedSolidBackground);
   const effectiveBackground = useMemo(() => {
@@ -1493,28 +1494,16 @@ export default function TextCardCreator({
       return activeBackground;
     }
 
-    const patternBaseColor =
-      selectedPatternBackground.render.patternBaseColor ??
-      selectedPatternBackground.render.stops[0]?.color ??
-      "#ffffff";
-    const solidColor = selectedSolidBackground.render.stops[0]?.color ?? patternBaseColor;
-    const shiftedStops = recolorStopsWithBaseShift(
-      selectedPatternBackground.render.stops,
-      patternBaseColor,
-      solidColor
-    );
+    const solidColor = selectedSolidBackground.render.stops[0]?.color ?? "#ffffff";
 
     return {
       ...selectedPatternBackground,
       id: `${selectedPatternBackground.id}__mix__${selectedSolidBackground.id}`,
       name: `${selectedPatternBackground.name} + ${selectedSolidBackground.name}`,
-      preview: `url("${selectedPatternBackground.render.patternPath ?? ""}") center/cover no-repeat, ${solidColor}`,
+      preview: buildTilePreview(selectedPatternBackground.render.tileSvg ?? "", solidColor),
       render: {
         ...selectedPatternBackground.render,
-        stops: shiftedStops,
-        patternTintColor: solidColor,
-        patternBaseColor,
-        patternContrastBoost: selectedPatternBackground.render.patternContrastBoost,
+        stops: [{ offset: 0, color: solidColor }],
       },
     } satisfies BackgroundPreset;
   }, [
@@ -1533,6 +1522,7 @@ export default function TextCardCreator({
       gradients: [],
       solids: [],
       patterns: [],
+      textures: [],
     };
 
     for (const preset of source) {
@@ -1556,26 +1546,10 @@ export default function TextCardCreator({
       .filter((preset): preset is FontPreset => Boolean(preset));
   }, [availableFonts, isAdmin, recentFontIds]);
   const textColor = useMemo(() => pickReadableColor(effectiveBackground), [effectiveBackground]);
-  const previewBackgroundStyle = useMemo(() => {
-    if (effectiveBackground.render.kind !== "pattern") {
-      return { background: effectiveBackground.preview };
-    }
-
-    const tintColor = effectiveBackground.render.patternTintColor;
-    if (!tintColor) {
-      return { background: effectiveBackground.preview };
-    }
-
-    const fallbackPath = effectiveBackground.render.patternPath;
-    const resolvedPath = mixedPatternPreviewUrl ?? fallbackPath;
-    if (!resolvedPath) {
-      return { background: tintColor };
-    }
-
-    return {
-      background: `url("${resolvedPath}") center/cover no-repeat, ${tintColor}`,
-    };
-  }, [effectiveBackground, mixedPatternPreviewUrl]);
+  const previewBackgroundStyle = useMemo(
+    () => ({ background: effectiveBackground.preview }),
+    [effectiveBackground]
+  );
   const displayText = useMemo(
     () => (activeFont.transform === "uppercase" ? text.toUpperCase() : text),
     [activeFont.transform, text]
@@ -1587,47 +1561,6 @@ export default function TextCardCreator({
     }
     return flattened.slice(0, 72);
   }, [locale, text]);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const updateMixedPreview = async () => {
-      if (effectiveBackground.render.kind !== "pattern" || !effectiveBackground.render.patternTintColor) {
-        setMixedPatternPreviewUrl(null);
-        return;
-      }
-
-      const patternPath = effectiveBackground.render.patternPath;
-      const sourceBaseColor = effectiveBackground.render.patternBaseColor;
-      const targetBaseColor = effectiveBackground.render.patternTintColor;
-      const contrastBoost = effectiveBackground.render.patternContrastBoost ?? 1;
-      if (!patternPath || !sourceBaseColor || !targetBaseColor) {
-        setMixedPatternPreviewUrl(null);
-        return;
-      }
-
-      try {
-        const dataUrl = await getTintedPatternDataUrl(
-          patternPath,
-          sourceBaseColor,
-          targetBaseColor,
-          contrastBoost
-        );
-        if (!isCancelled) {
-          setMixedPatternPreviewUrl(dataUrl);
-        }
-      } catch {
-        if (!isCancelled) {
-          setMixedPatternPreviewUrl(null);
-        }
-      }
-    };
-
-    void updateMixedPreview();
-    return () => {
-      isCancelled = true;
-    };
-  }, [effectiveBackground]);
 
   useEffect(() => {
     const existing = document.querySelector(`link[href=\"${GOOGLE_FONTS_STYLESHEET}\"]`);
@@ -1693,6 +1626,24 @@ export default function TextCardCreator({
     };
   }, [isDesktopPreviewLayout]);
 
+  const handleInsertEmoji = useCallback((emoji: string) => {
+    const input = textInputRef.current;
+    const start = input?.selectionStart ?? null;
+    const end = input?.selectionEnd ?? null;
+    setText((previous) => {
+      const from = start ?? previous.length;
+      const to = end ?? previous.length;
+      return `${previous.slice(0, from)}${emoji}${previous.slice(to)}`;
+    });
+    if (input && start !== null) {
+      const caret = start + emoji.length;
+      requestAnimationFrame(() => {
+        input.focus();
+        input.setSelectionRange(caret, caret);
+      });
+    }
+  }, []);
+
   const handleSelectFont = useCallback((nextFontId: string) => {
     setFontId(nextFontId);
   }, []);
@@ -1715,7 +1666,9 @@ export default function TextCardCreator({
         ? gradientSectionRef
         : category === "solids"
           ? solidSectionRef
-          : patternSectionRef;
+          : category === "textures"
+            ? textureSectionRef
+            : patternSectionRef;
     const scrollContainer = backgroundGalleryScrollRef.current;
     const stickyHeader = backgroundGalleryHeaderRef.current;
     const target = targetRef.current;
@@ -1745,6 +1698,7 @@ export default function TextCardCreator({
     }
 
     await drawBackground(ctx, effectiveBackground, EXPORT_SIZE);
+    await preloadEmojis(displayText);
 
     const maxTextWidth = Math.floor(EXPORT_SIZE * (1 - HORIZONTAL_PADDING * 2));
     const maxTextHeight = Math.floor(EXPORT_SIZE * (1 - VERTICAL_PADDING * 2));
@@ -2093,17 +2047,21 @@ export default function TextCardCreator({
               >
                 {t(locale, "textCard.inputLabel")}
               </label>
-              <button
-                type="button"
-                onClick={() => void handleTestTextModeration()}
-                disabled={isTextTesting || isPosting || isExporting}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isTextTesting ? t(locale, "textCard.testing") : t(locale, "textCard.testModeration")}
-              </button>
+              <div className="flex items-center gap-2">
+                <EmojiPickerButton onSelect={handleInsertEmoji} label={t(locale, "textCard.insertEmoji")} />
+                <button
+                  type="button"
+                  onClick={() => void handleTestTextModeration()}
+                  disabled={isTextTesting || isPosting || isExporting}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isTextTesting ? t(locale, "textCard.testing") : t(locale, "textCard.testModeration")}
+                </button>
+              </div>
             </div>
             <textarea
               id="text-card-input"
+              ref={textInputRef}
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder={t(locale, "textCard.placeholder")}
@@ -2163,7 +2121,7 @@ export default function TextCardCreator({
                     >
                       {previewLines.map((line, index) => (
                         <p key={`${index}-${line}`} className="m-0 [overflow-wrap:anywhere]">
-                          {line || "\u00A0"}
+                          <PreviewLine line={line} />
                         </p>
                       ))}
                     </div>
@@ -2191,7 +2149,7 @@ export default function TextCardCreator({
                 className="sticky top-0 z-10 mb-3 -mx-2 px-2 pb-2 pt-0.5 backdrop-blur-[1px]"
               >
                 <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/95 p-2">
-                  {(["gradients", "patterns", "solids"] as BackgroundCategory[]).map((category) => (
+                  {(["gradients", "patterns", "textures", "solids"] as BackgroundCategory[]).map((category) => (
                     <button
                       key={category}
                       type="button"
@@ -2202,7 +2160,9 @@ export default function TextCardCreator({
                         ? t(locale, "textCard.galleryTab.grad")
                         : category === "patterns"
                           ? t(locale, "textCard.galleryTab.pattern")
-                          : t(locale, "textCard.galleryTab.solid")}
+                          : category === "textures"
+                            ? t(locale, "textCard.galleryTab.texture")
+                            : t(locale, "textCard.galleryTab.solid")}
                     </button>
                   ))}
                 </div>
@@ -2221,6 +2181,12 @@ export default function TextCardCreator({
                     title: BACKGROUND_CATEGORY_LABELS.patterns,
                     items: galleryBackgroundsByCategory.patterns,
                     ref: patternSectionRef,
+                  },
+                  {
+                    category: "textures" as BackgroundCategory,
+                    title: BACKGROUND_CATEGORY_LABELS.textures,
+                    items: galleryBackgroundsByCategory.textures,
+                    ref: textureSectionRef,
                   },
                   {
                     category: "solids" as BackgroundCategory,
@@ -2430,7 +2396,7 @@ export default function TextCardCreator({
               >
                 {previewLines.map((line, index) => (
                   <p key={`${index}-${line}`} className="m-0 [overflow-wrap:anywhere]">
-                    {line || "\u00A0"}
+                    <PreviewLine line={line} />
                   </p>
                 ))}
               </div>
