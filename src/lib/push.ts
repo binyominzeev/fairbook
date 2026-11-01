@@ -9,6 +9,8 @@ import {
   NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
   NOTIFICATION_TYPE_GROUP_JOIN_REQUEST,
   NOTIFICATION_TYPE_GROUP_NEW_POST,
+  NOTIFICATION_TYPE_MODERATION_APPEAL_ACCEPTED,
+  NOTIFICATION_TYPE_MODERATION_APPEAL_REJECTED,
   NOTIFICATION_TYPE_POST_LIKE,
   NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT,
   NOTIFICATION_TYPE_REPLY,
@@ -131,6 +133,14 @@ function toNotificationBody(item: NotificationRow): string {
     return `${actor} followed you`;
   }
 
+  if (item.type === NOTIFICATION_TYPE_MODERATION_APPEAL_ACCEPTED) {
+    return "Your moderation appeal was accepted";
+  }
+
+  if (item.type === NOTIFICATION_TYPE_MODERATION_APPEAL_REJECTED) {
+    return "Your moderation appeal was rejected";
+  }
+
   return `${actor} sent an update`;
 }
 
@@ -168,6 +178,13 @@ function toNotificationContext(item: NotificationRow): string {
 
   if (item.type === NOTIFICATION_TYPE_USER_FOLLOWED_YOU) {
     return "Open profile";
+  }
+
+  if (
+    item.type === NOTIFICATION_TYPE_MODERATION_APPEAL_ACCEPTED ||
+    item.type === NOTIFICATION_TYPE_MODERATION_APPEAL_REJECTED
+  ) {
+    return "View the moderation appeal decision";
   }
 
   return "Open notification";

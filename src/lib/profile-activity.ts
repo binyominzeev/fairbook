@@ -1,3 +1,4 @@
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { Prisma } from "@/generated/prisma/client";
 import {
   buildPostInclude,
@@ -230,6 +231,7 @@ export async function getProfilePostsPage({
       ...communityVisibilityWhere,
       ...(trimmedQuery ? buildPostSearchWhere(trimmedQuery) : {}),
       ...(topicId ? { topicId } : {}),
+      ...(isOwnProfile ? {} : { AND: [buildPostAudienceWhere(viewerId)] }),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PROFILE_POST_PAGE_SIZE + 1,
@@ -292,6 +294,7 @@ export async function getProfileLikedPostsPage({
               {
                 OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
               },
+              buildPostAudienceWhere(viewerId),
               ...(trimmedQuery ? [buildPostSearchWhere(trimmedQuery)] : []),
             ],
           },
@@ -355,6 +358,7 @@ export async function getProfileCommentsPage({
                 {
                   OR: [{ moderationStatus: "visible" }, { authorId: viewerId }],
                 },
+                buildPostAudienceWhere(viewerId),
               ],
             },
           }),

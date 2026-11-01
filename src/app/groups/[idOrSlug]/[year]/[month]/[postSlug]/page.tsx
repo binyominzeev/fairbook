@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
+import LoginToViewGate from "@/components/LoginToViewGate";
+import { getRequestLocale } from "@/lib/request-locale";
+import { canViewerSeePostAudience } from "@/lib/post-visibility";
 import PublicNavbar from "@/components/PublicNavbar";
 import PostCard from "@/components/PostCard";
 import CommentCard from "@/components/CommentCard";
@@ -77,6 +80,7 @@ async function resolveMetadataPost(params: {
       createdAt: true,
       feedSourceId: true,
       moderationStatus: true,
+      visibility: true,
       content: true,
       sharedTitle: true,
       sharedDescription: true,
@@ -103,6 +107,7 @@ async function resolveMetadataPost(params: {
   }
 
   const isVisible =
+    (await canViewerSeePostAudience({ authorId: post.author.id, visibility: post.visibility }, params.viewerId)) &&
     (post.moderationStatus !== "author_only" || post.author.id === params.viewerId) &&
     canViewerAccessCommunity(post.community);
 
@@ -282,6 +287,12 @@ export default async function GroupPostPermalinkPage(props: {
   });
   if (!post) notFound();
   if (post.moderationStatus === "author_only" && post.author.id !== viewerId) {
+    notFound();
+  }
+  if (!(await canViewerSeePostAudience(post, session?.userId))) {
+    if (!session && post.visibility !== "friends") {
+      return <LoginToViewGate locale={await getRequestLocale()} />;
+    }
     notFound();
   }
   if (!canViewerAccessCommunity(post.community)) {

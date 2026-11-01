@@ -1,5 +1,6 @@
 "use client";
 
+import PostVisibilitySelect, { type PostVisibilityChoice } from "@/components/PostVisibilitySelect";
 import { useEffect, useRef, useState } from "react";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import TopicPicker from "@/components/TopicPicker";
@@ -35,7 +36,7 @@ type CreatePostPayload = {
   sharedTitle: string | null;
   sharedDescription: string | null;
   sharedSource: string | null;
-  visibility?: "public" | "private";
+  visibility?: PostVisibilityChoice;
   communityId?: string | null;
   topicId?: string | null;
   newTopicName?: string | null;
@@ -165,7 +166,7 @@ export default function PostComposerDialog({
   const [sharedDescription, setSharedDescription] = useState(initialSharedDescription);
   const [showLinkFields, setShowLinkFields] = useState(initialShowLinkFields);
   const [submitting, setSubmitting] = useState(false);
-  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [visibility, setVisibility] = useState<PostVisibilityChoice>("default");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState<{
     kind: "success" | "warning";
@@ -594,17 +595,11 @@ export default function PostComposerDialog({
           </button>
           <label className="flex items-center gap-2 text-xs text-slate-600">
             {t(locale, "composer.visibility")}
-            <select
+            <PostVisibilitySelect
               value={visibility}
-              onChange={(event) => {
-                const value = event.target.value;
-                setVisibility(value === "private" ? "private" : "public");
-              }}
+              onChange={setVisibility}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="public">{t(locale, "composer.visibilityPublic")}</option>
-              <option value="private">{t(locale, "composer.visibilityPrivate")}</option>
-            </select>
+            />
           </label>
           <div className={`grid w-full grid-cols-1 gap-2 sm:w-auto ${onOpenTextCardCreator ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             {onOpenTextCardCreator && (

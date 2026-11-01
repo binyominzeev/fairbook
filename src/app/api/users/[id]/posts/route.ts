@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { buildVisibleCommunityPostWhere } from "@/lib/community-visibility";
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -22,6 +23,7 @@ export async function GET(
             authorId: id,
             moderationStatus: "visible",
             ...communityVisibilityWhere,
+            AND: [buildPostAudienceWhere(session.userId)],
           },
     orderBy: { createdAt: "desc" },
     take: 20,

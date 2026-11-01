@@ -375,11 +375,13 @@ export interface CommentModerationInput {
   sharedContent?: string;
   parentComment?: string;
   commentContent: string;
+  moderationPrompt?: string;
 }
 
 export interface PostModerationInput {
   postContent?: string;
   sharedContent?: string;
+  moderationPrompt?: string;
 }
 
 export interface FeedArticleViolenceInput {
@@ -411,6 +413,7 @@ export async function moderateComment({
   sharedContent,
   parentComment,
   commentContent,
+  moderationPrompt: promptOverride,
 }: CommentModerationInput): Promise<CommentModerationResult> {
   if (isLinkOnlyComment(commentContent)) {
     return {
@@ -463,7 +466,7 @@ export async function moderateComment({
   ].filter(Boolean);
 
   try {
-    const moderationPrompt = await getPromptContent("comment_moderation");
+    const moderationPrompt = promptOverride ?? (await getPromptContent("comment_moderation"));
 
     const response = await getClient().chat.completions.create({
       model: "gpt-4o-mini",
@@ -514,12 +517,14 @@ export async function moderateComment({
 export async function moderatePost({
   postContent,
   sharedContent,
+  moderationPrompt,
 }: PostModerationInput): Promise<CommentModerationResult> {
   return moderateComment({
     postContent: undefined,
     sharedContent,
     parentComment: undefined,
     commentContent: postContent?.trim() || "[link-only post]",
+    moderationPrompt,
   });
 }
 

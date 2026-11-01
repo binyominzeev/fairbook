@@ -47,6 +47,7 @@ export interface SerializedPost {
   feedSourceId: string | null;
   authorIsFollowedByCurrentUser?: boolean;
   moderationStatus: string;
+  visibility: string;
   moderationReason: string | null;
   moderationExplanation: string | null;
   sharedUrl: string | null;
@@ -154,6 +155,7 @@ type PostForPresentation = {
   content: string | null;
   feedSourceId: string | null;
   moderationStatus: string;
+  visibility: string;
   moderationReason: string | null;
   moderationExplanation: string | null;
   sharedUrl: string | null;

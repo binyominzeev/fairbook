@@ -1,3 +1,4 @@
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -71,6 +72,7 @@ export async function GET(
           }
         : {}),
       OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+      AND: [buildPostAudienceWhere(session.userId)],
       hiddenBy: {
         none: {
           userId: session.userId,

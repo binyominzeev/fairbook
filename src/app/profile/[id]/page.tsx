@@ -20,6 +20,8 @@ import {
   getProfilePostsPage,
   type ProfileActivityViewMode,
 } from "@/lib/profile-activity";
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
+import DefaultPostVisibilitySelect from "@/components/DefaultPostVisibilitySelect";
 import Link from "next/link";
 import { buildProfilePath } from "@/lib/profile-path";
 import { resolveUserByProfileIdentifier } from "@/lib/user-slugs";
@@ -64,6 +66,7 @@ export default async function ProfilePage(props: {
           hideViolentFeed: true,
           profileActivityViewMode: true,
           locale: true,
+          defaultPostVisibility: true,
         },
       })
     : null;
@@ -73,6 +76,11 @@ export default async function ProfilePage(props: {
 
   const profileActivityViewMode: ProfileActivityViewMode =
     currentUser?.profileActivityViewMode === "reels" ? "reels" : "normal";
+
+  const defaultPostVisibility: "public" | "members" | "friends" =
+    currentUser?.defaultPostVisibility === "public" || currentUser?.defaultPostVisibility === "friends"
+      ? currentUser.defaultPostVisibility
+      : "members";
 
   const profileUser = await resolveUserByProfileIdentifier(id, {
     id: true,
@@ -169,6 +177,7 @@ export default async function ProfilePage(props: {
           authorId: profileUser.id,
           moderationStatus: "visible",
           ...buildVisibleCommunityPostWhere(viewerId),
+          AND: [buildPostAudienceWhere(viewerId)],
         },
       });
   const canUseHiddenTab = isOwnProfile;
@@ -492,9 +501,21 @@ export default async function ProfilePage(props: {
                 )}
               </div>
               {isOwnProfile && currentUser ? (
-                <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
+                <div className="flex flex-col items-end gap-2">
+                  <ProfileActivityViewModeSelect initialMode={profileActivityViewMode} />
+                  <DefaultPostVisibilitySelect initialValue={defaultPostVisibility} />
+                </div>
               ) : null}
             </div>
+
+            {!isLoggedIn && profileUser._count.posts > visiblePostCount && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <p>{t(locale, "profile.guestHiddenPosts")}</p>
+                <Link href="/login?mode=register" className="mt-1 inline-block font-medium underline">
+                  {t(locale, "gate.register")}
+                </Link>
+              </div>
+            )}
 
             {activeTab === "posts" && (
               <>

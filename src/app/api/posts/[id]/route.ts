@@ -1,3 +1,4 @@
+import { normalizePostVisibility } from "@/lib/post-visibility";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
@@ -241,6 +242,7 @@ export async function PATCH(
   const requestedTopicId =
     typeof payload?.topicId === "string" ? payload.topicId.trim() : "";
   const requestedNewTopicName = normalizeTopicName(payload?.newTopicName);
+  const requestedVisibility = normalizePostVisibility(payload?.visibility);
   const hasImageUrlsInPayload = Array.isArray(payload?.imageUrls);
   const moderationKey = buildPreModerationKey({
     content,
@@ -356,6 +358,7 @@ export async function PATCH(
       sharedTitle,
       sharedDescription,
       sharedSource,
+      ...(requestedVisibility ? { visibility: requestedVisibility } : {}),
       ...(hasTopicSelectionInPayload ? { topicId: resolvedTopicId } : {}),
       imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       moderationStatus: moderation.status,

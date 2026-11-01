@@ -31,6 +31,8 @@ model User {
   feedSortMode String @default("current")
   // App locale preference: "hu" | "en"
   locale       String @default("hu")
+  // Default visibility of new posts: "public" | "members" | "friends"
+  defaultPostVisibility String @default("members")
 
   managedBy          User?               @relation("ManagedPages", fields: [managedById], references: [id])
   managedPages       User[]              @relation("ManagedPages")
@@ -121,6 +123,8 @@ model Post {
   moderatedAt        DateTime?
   mayContainViolence Boolean  @default(false)
   isFeedVisible      Boolean  @default(true)
+  // "public" | "members" (logged-in only) | "friends" (mutual follow only)
+  visibility         String   @default("members")
   fetchedAt          DateTime @default(now())
   lastScoredAt       DateTime?
   createdAt          DateTime @default(now())

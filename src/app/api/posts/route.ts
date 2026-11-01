@@ -1,3 +1,4 @@
+import { resolveRequestedVisibility } from "@/lib/post-visibility";
 import { NextRequest } from "next/server";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
@@ -119,7 +120,14 @@ export async function POST(request: NextRequest) {
     preModeration,
   } =
     await request.json();
-  const forcedPrivate = visibility === "private";
+  const authorSettings = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { defaultPostVisibility: true },
+  });
+  const { visibility: resolvedVisibility, forcedPrivate } = resolveRequestedVisibility(
+    visibility,
+    authorSettings?.defaultPostVisibility
+  );
   const normalizedImageUrls = normalizeImageUrls(imageUrls);
 
   if (!content && !sharedUrl && normalizedImageUrls.length === 0) {
@@ -254,6 +262,7 @@ export async function POST(request: NextRequest) {
       sharedImageUrl,
       imageUrls: normalizedImageUrls.length > 0 ? JSON.stringify(normalizedImageUrls) : null,
       isTextCard: isTextCard === true,
+      visibility: resolvedVisibility,
       moderationStatus: finalModerationStatus,
       moderationReason: finalModerationReason,
       moderationExplanation: finalModerationExplanation,

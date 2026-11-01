@@ -8,6 +8,8 @@ import {
   NOTIFICATION_TYPE_GROUP_JOIN_APPROVED,
   NOTIFICATION_TYPE_GROUP_JOIN_REQUEST,
   NOTIFICATION_TYPE_GROUP_NEW_POST,
+  NOTIFICATION_TYPE_MODERATION_APPEAL_ACCEPTED,
+  NOTIFICATION_TYPE_MODERATION_APPEAL_REJECTED,
   NOTIFICATION_TYPE_POST_LIKE,
   NOTIFICATION_TYPE_POST_SUBSCRIBED_COMMENT,
   NOTIFICATION_TYPE_REPLY,
@@ -333,6 +335,50 @@ export async function createCommentLikeNotification(input: {
       actorId,
       postId,
       commentId,
+      isRead: false,
+      createdAt: new Date(),
+    },
+  });
+
+  await dispatchPushForNotificationIds([record.id]);
+}
+
+export async function createModerationAppealNotification(input: {
+  actorId: string;
+  recipientId: string;
+  appealId: string;
+  decision: "accepted" | "rejected";
+  postId: string;
+  commentId?: string | null;
+}) {
+  const { actorId, recipientId, appealId, decision, postId, commentId } = input;
+  if (!recipientId || actorId === recipientId) return;
+
+  const type =
+    decision === "accepted"
+      ? NOTIFICATION_TYPE_MODERATION_APPEAL_ACCEPTED
+      : NOTIFICATION_TYPE_MODERATION_APPEAL_REJECTED;
+  const record = await prisma.notification.upsert({
+    where: {
+      type_recipientId_targetKey: {
+        type,
+        recipientId,
+        targetKey: appealId,
+      },
+    },
+    create: {
+      recipientId,
+      actorId,
+      type,
+      targetKey: appealId,
+      postId,
+      commentId: commentId ?? null,
+      isRead: false,
+    },
+    update: {
+      actorId,
+      postId,
+      commentId: commentId ?? null,
       isRead: false,
       createdAt: new Date(),
     },

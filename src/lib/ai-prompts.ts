@@ -9,7 +9,7 @@ export type AiPromptKey =
 
 export const AI_PROMPT_LABELS: Record<AiPromptKey, string> = {
   discourse_analysis: "Discourse analysis",
-  comment_moderation: "Comment moderation",
+  comment_moderation: "Post & comment moderation",
   feed_violence: "Feed violence classifier",
   feed_tagging: "Feed tag classifier",
   thread_reflection: "Thread reflection",

@@ -43,6 +43,7 @@ export function isNotificationTargetVisibleToRecipient(
 
 type NotificationVisibilityBase = {
   id: string;
+  type: string;
   recipientId: string;
   commentId: string | null;
   comment: NotificationComment;
@@ -127,6 +128,14 @@ export async function partitionNotificationsByVisibility<T extends NotificationV
 
     if (!item.comment) {
       staleNotificationIds.push(item.id);
+      continue;
+    }
+
+    if (
+      (item.type === "moderation_appeal_accepted" || item.type === "moderation_appeal_rejected") &&
+      item.comment.authorId === item.recipientId
+    ) {
+      visibleItems.push(item);
       continue;
     }
 

@@ -1,3 +1,4 @@
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { createHash } from "crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { filterViolentFeedPostsForUser } from "@/lib/feed-content-filter";
@@ -327,6 +328,7 @@ export async function getFeedPage({
           },
         },
       },
+      buildPostAudienceWhere(viewerId),
     ],
   };
   const followingFeedWhere: Prisma.PostWhereInput = {
@@ -355,6 +357,7 @@ export async function getFeedPage({
           },
         },
       },
+      buildPostAudienceWhere(viewerId),
     ],
   };
   const groupedFeedWhere: Prisma.PostWhereInput = {
@@ -376,6 +379,7 @@ export async function getFeedPage({
           },
         },
       },
+      buildPostAudienceWhere(viewerId),
     ],
   };
   const postInclude = buildPostInclude(viewerId);

@@ -3,6 +3,7 @@ import { isAdminEmail } from "@/lib/admin";
 import {
   AI_PROMPT_KEYS,
   AI_PROMPT_LABELS,
+  getPromptContent,
   getPromptDefault,
   type AiPromptKey,
 } from "@/lib/ai-prompts";
@@ -55,10 +56,21 @@ export async function PATCH(request: Request) {
   const body = await request.json();
   const key = typeof body?.key === "string" ? body.key.trim() : "";
   const content = typeof body?.content === "string" ? body.content : "";
+  const expectedContent = typeof body?.expectedContent === "string" ? body.expectedContent : null;
   const resetToDefault = body?.resetToDefault === true;
 
   if (!isPromptKey(key)) {
     return Response.json({ error: "Unknown prompt key." }, { status: 400 });
+  }
+
+  if (expectedContent !== null) {
+    const currentContent = await getPromptContent(key);
+    if (currentContent !== expectedContent) {
+      return Response.json(
+        { error: "The prompt changed since this proposal was generated. Generate a fresh diff." },
+        { status: 409 }
+      );
+    }
   }
 
   if (resetToDefault) {
@@ -77,20 +89,46 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Prompt content is required." }, { status: 400 });
   }
 
-  const template = await prisma.aiPromptTemplate.upsert({
-    where: { key },
-    create: {
-      key,
-      label: AI_PROMPT_LABELS[key],
-      content,
-      updatedByEmail: session.email,
-    },
-    update: {
-      label: AI_PROMPT_LABELS[key],
-      content,
-      updatedByEmail: session.email,
-    },
-  });
+  const promptData = {
+    label: AI_PROMPT_LABELS[key],
+    content,
+    updatedByEmail: session.email,
+  };
+  const saveResult =
+    expectedContent === null
+      ? {
+          conflict: false as const,
+          template: await prisma.aiPromptTemplate.upsert({
+            where: { key },
+            create: { key, ...promptData },
+            update: promptData,
+          }),
+        }
+      : await prisma.$transaction(async (transaction) => {
+          const current = await transaction.aiPromptTemplate.findUnique({
+            where: { key },
+            select: { content: true },
+          });
+          if ((current?.content ?? getPromptDefault(key)) !== expectedContent) {
+            return { conflict: true as const };
+          }
+          return {
+            conflict: false as const,
+            template: await transaction.aiPromptTemplate.upsert({
+              where: { key },
+              create: { key, ...promptData },
+              update: promptData,
+            }),
+          };
+        });
+
+  if (saveResult.conflict) {
+    return Response.json(
+      { error: "The prompt changed since this proposal was generated. Generate a fresh diff." },
+      { status: 409 }
+    );
+  }
+  const template = saveResult.template;
 
   return Response.json({
     key,

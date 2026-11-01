@@ -15,6 +15,7 @@ export async function GET() {
     },
     select: {
       id: true,
+      type: true,
       recipientId: true,
       commentId: true,
       post: {

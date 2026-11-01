@@ -108,10 +108,22 @@ function buildLabel(item: NotificationItem, locale: "hu" | "en") {
     return tf(locale, "notifications.label.user_followed_you", { actorName: item.actor.name });
   }
 
+  if (item.type === "moderation_appeal_accepted") {
+    return t(locale, item.comment ? "notifications.label.appeal_accepted_comment" : "notifications.label.appeal_accepted_post");
+  }
+
+  if (item.type === "moderation_appeal_rejected") {
+    return t(locale, item.comment ? "notifications.label.appeal_rejected_comment" : "notifications.label.appeal_rejected_post");
+  }
+
   return tf(locale, "notifications.label.default", { actorName: item.actor.name });
 }
 
 function buildContext(item: NotificationItem, locale: "hu" | "en") {
+  if (item.type === "moderation_appeal_accepted" || item.type === "moderation_appeal_rejected") {
+    return item.comment?.content?.trim() || item.post?.previewText?.trim() || t(locale, "notifications.context.openGeneric");
+  }
+
   if (item.type === "post_liked") {
     return item.post?.previewText?.trim() || t(locale, "notifications.context.postLikedFallback");
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { createTwoFilesPatch } from "diff";
 import { useMemo, useState } from "react";
 
 type PromptItem = {
@@ -53,10 +54,28 @@ type ChatTurn = {
   content: string;
 };
 
+type PromptProposal = {
+  basePrompt: string;
+  proposedPrompt: string;
+  rationale: string;
+  humanArgument: string;
+  changeSummary: string;
+  riskNotes: string[];
+};
+
+type ModerationPreview = {
+  status: string;
+  category: string;
+  reasonShort: string;
+  explanation: string;
+  source: string;
+};
+
 export default function AdminDevSidebar() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [prompts, setPrompts] = useState<PromptItem[]>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState<string>("comment_moderation");
@@ -65,12 +84,16 @@ export default function AdminDevSidebar() {
   const [promptTestInput, setPromptTestInput] = useState("");
   const [promptTestOutput, setPromptTestOutput] = useState("");
   const [promptTestPending, setPromptTestPending] = useState(false);
+  const [promptProposal, setPromptProposal] = useState<PromptProposal | null>(null);
+  const [proposalSavePending, setProposalSavePending] = useState(false);
+  const [moderationPreview, setModerationPreview] = useState<ModerationPreview | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
 
   const [appeals, setAppeals] = useState<AppealItem[]>([]);
   const [selectedAppealKey, setSelectedAppealKey] = useState<string>("");
   const [ownBlockedItems, setOwnBlockedItems] = useState<OwnBlockedItem[]>([]);
   const [adminNote, setAdminNote] = useState("");
-  const [rerunPending, setRerunPending] = useState(false);
+  const [decisionPending, setDecisionPending] = useState<"accept" | "reject" | null>(null);
 
   const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -234,6 +257,8 @@ export default function AdminDevSidebar() {
         setChatHistory([]);
         setChatInput("");
         setAdminNote("");
+        setPromptProposal(null);
+        setModerationPreview(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load admin dev sidebar.");
@@ -278,6 +303,7 @@ export default function AdminDevSidebar() {
             : item
         )
       );
+      setSuccessMessage("Prompt saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save prompt.");
     } finally {
@@ -318,6 +344,7 @@ export default function AdminDevSidebar() {
             : item
         )
       );
+      setSuccessMessage("Prompt reset to default.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset prompt.");
     } finally {
@@ -346,6 +373,7 @@ export default function AdminDevSidebar() {
         throw new Error(data.error ?? "Prompt test failed.");
       }
       setPromptTestOutput(String(data.output ?? ""));
+      setSuccessMessage("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Prompt test failed.");
     } finally {
@@ -353,32 +381,120 @@ export default function AdminDevSidebar() {
     }
   };
 
-  const rerunAppealModeration = async () => {
-    if (!selectedAppeal) return;
-
-    setRerunPending(true);
+  const approvePromptProposal = async () => {
+    if (!promptProposal) return;
+    setProposalSavePending(true);
     setError("");
+    setSuccessMessage("");
+    try {
+      const response = await fetch("/api/admin/ai-prompts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "comment_moderation",
+          content: promptProposal.proposedPrompt,
+          expectedContent: promptProposal.basePrompt,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to approve prompt proposal.");
+      }
+
+      const savedContent = String(data.content ?? promptProposal.proposedPrompt);
+      setPrompts((current) =>
+        current.map((item) =>
+          item.key === "comment_moderation"
+            ? {
+                ...item,
+                content: savedContent,
+                isCustomized: true,
+                updatedAt: data.updatedAt ?? item.updatedAt,
+                updatedByEmail: data.updatedByEmail ?? item.updatedByEmail,
+              }
+            : item
+        )
+      );
+      setSelectedPromptKey("comment_moderation");
+      setPromptDraft(savedContent);
+      setPromptProposal(null);
+      setSuccessMessage("Approved prompt proposal and saved it globally.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve prompt proposal.");
+    } finally {
+      setProposalSavePending(false);
+    }
+  };
+
+  const runAppealPreview = async () => {
+    if (!selectedAppeal) return;
+    const prompt =
+      promptProposal?.proposedPrompt ??
+      (selectedPromptKey === "comment_moderation" ? promptDraft : "");
+    if (!prompt.trim()) {
+      setError("Select the moderation prompt or generate a proposal before previewing.");
+      return;
+    }
+
+    setPreviewPending(true);
+    setError("");
+    setSuccessMessage("");
     try {
       const endpoint =
         selectedAppeal.kind === "post"
-          ? `/api/admin/post-appeals/${selectedAppeal.id}/rerun`
-          : `/api/admin/comment-appeals/${selectedAppeal.id}/rerun`;
-      const res = await fetch(endpoint, {
+          ? `/api/admin/post-appeals/${selectedAppeal.id}/preview`
+          : `/api/admin/comment-appeals/${selectedAppeal.id}/preview`;
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminNote }),
+        body: JSON.stringify({ prompt }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to rerun moderation.");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to preview moderation.");
+      }
+
+      setModerationPreview(data.moderation ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to preview moderation.");
+    } finally {
+      setPreviewPending(false);
+    }
+  };
+
+  const decideAppeal = async (decision: "accept" | "reject") => {
+    if (!selectedAppeal) return;
+    setDecisionPending(decision);
+    setError("");
+    setSuccessMessage("");
+    try {
+      const endpoint =
+        selectedAppeal.kind === "post"
+          ? `/api/admin/post-appeals/${selectedAppeal.id}/decision`
+          : `/api/admin/comment-appeals/${selectedAppeal.id}/decision`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, adminNote }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to decide appeal.");
       }
 
       await refreshData();
+      setSuccessMessage(
+        decision === "accept"
+          ? "Appeal accepted. The author was notified and the content is visible."
+          : "Appeal rejected. The author was notified and the content remains author-only."
+      );
       setAdminNote("");
+      setModerationPreview(null);
+      setPromptProposal(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rerun moderation.");
+      setError(err instanceof Error ? err.message : "Failed to decide appeal.");
     } finally {
-      setRerunPending(false);
+      setDecisionPending(null);
     }
   };
 
@@ -437,16 +553,20 @@ export default function AdminDevSidebar() {
       }
 
       const reply = String(data.reply ?? "No response.");
-      const suggestedPromptPatch = String(data.suggestedPromptPatch ?? "");
+      const humanArgument = String(data.humanArgument ?? "");
+      const changeSummary = String(data.changeSummary ?? "");
+      const proposedPrompt = String(data.proposedPrompt ?? "");
+      const basePrompt = String(data.moderationPrompt ?? "");
       const riskNotes = Array.isArray(data.riskNotes)
         ? data.riskNotes.filter((note: unknown): note is string => typeof note === "string")
         : [];
 
       const fullReply =
-        suggestedPromptPatch || riskNotes.length > 0
+        humanArgument || changeSummary || riskNotes.length > 0
           ? [
               reply,
-              suggestedPromptPatch ? `\n\nSuggested prompt patch:\n${suggestedPromptPatch}` : "",
+              humanArgument ? `\n\nAuthor's argument:\n${humanArgument}` : "",
+              changeSummary ? `\n\nProposed prompt change:\n${changeSummary}` : "",
               riskNotes.length > 0 ? `\n\nRisk notes:\n- ${riskNotes.join("\n- ")}` : "",
             ]
               .filter(Boolean)
@@ -454,10 +574,19 @@ export default function AdminDevSidebar() {
           : reply;
 
       setChatHistory((current) => [...current, { role: "assistant", content: fullReply }]);
-
-      if (suggestedPromptPatch && selectedPromptKey === "comment_moderation") {
-        setPromptDraft(suggestedPromptPatch);
-      }
+      setPromptProposal(
+        proposedPrompt.trim() && proposedPrompt !== basePrompt
+          ? {
+              basePrompt,
+              proposedPrompt,
+              rationale: reply,
+              humanArgument,
+              changeSummary,
+              riskNotes,
+            }
+          : null
+      );
+      setModerationPreview(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Copilot discussion failed.");
     } finally {
@@ -499,6 +628,7 @@ export default function AdminDevSidebar() {
             </div>
             {loading && <p className="mt-2 text-xs text-slate-500">Loading…</p>}
             {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+            {successMessage && <p className="mt-2 text-xs text-emerald-700">{successMessage}</p>}
           </div>
 
           <div className="space-y-5 px-4 py-4">
@@ -586,15 +716,18 @@ export default function AdminDevSidebar() {
               ) : (
                 <ul className="space-y-2">
                   {appeals.map((appeal) => (
-                    <li key={`${appeal.kind}:${appeal.id}`}>
+                    <li key={`${appeal.kind}:${appeal.id}`} className="flex items-stretch gap-2">
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedAppealKey(`${appeal.kind}:${appeal.id}`);
                           setChatHistory([]);
                           setChatInput("");
+                          setPromptProposal(null);
+                          setModerationPreview(null);
+                          setAdminNote("");
                         }}
-                        className={`w-full rounded-md border px-2 py-2 text-left text-xs transition-colors ${
+                        className={`min-w-0 flex-1 rounded-md border px-2 py-2 text-left text-xs transition-colors ${
                           selectedAppealKey === `${appeal.kind}:${appeal.id}`
                             ? "border-blue-300 bg-blue-50"
                             : "border-slate-200 bg-white hover:bg-slate-50"
@@ -605,6 +738,9 @@ export default function AdminDevSidebar() {
                             {appeal.kind}
                           </span>
                           {appeal.requester.name} ({appeal.requester.email})
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {new Date(appeal.createdAt).toLocaleString()}
                         </p>
                         <p className="mt-1 line-clamp-2 text-slate-600">{appeal.content}</p>
                       </button>
@@ -645,14 +781,46 @@ export default function AdminDevSidebar() {
                     placeholder="Optional admin note for audit log"
                     className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
                   />
-                  <button
-                    type="button"
-                    onClick={() => void rerunAppealModeration()}
-                    disabled={rerunPending}
-                    className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
-                  >
-                    {rerunPending ? "Running…" : "Re-run moderation with current prompt"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void runAppealPreview()}
+                      disabled={previewPending || decisionPending !== null}
+                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 disabled:opacity-60"
+                    >
+                      {previewPending ? "Previewing…" : "Preview moderation"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void decideAppeal("accept")}
+                      disabled={decisionPending !== null || previewPending}
+                      className="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+                    >
+                      {decisionPending === "accept" ? "Accepting…" : "Accept appeal"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void decideAppeal("reject")}
+                      disabled={decisionPending !== null || previewPending}
+                      className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-60"
+                    >
+                      {decisionPending === "reject" ? "Rejecting…" : "Reject appeal"}
+                    </button>
+                  </div>
+                  {moderationPreview && (
+                    <div className="rounded-md border border-slate-200 bg-white p-2 text-[11px]">
+                      <p className={`font-semibold ${moderationPreview.status === "visible" ? "text-emerald-700" : "text-amber-800"}`}>
+                        Preview: {moderationPreview.status} · {moderationPreview.category} · {moderationPreview.source}
+                      </p>
+                      <p className="mt-1 text-slate-700">{moderationPreview.reasonShort}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-slate-600">{moderationPreview.explanation}</p>
+                      {moderationPreview.status === "author_only" && moderationPreview.source === "rules" && (
+                        <p className="mt-1 text-amber-800">
+                          This result came from a deterministic rule; changing the AI prompt will not change it.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -696,6 +864,76 @@ export default function AdminDevSidebar() {
                   >
                     {chatPending ? "Sending…" : "Send"}
                   </button>
+                  {promptProposal && (
+                    <div className="space-y-2 rounded-md border border-blue-200 bg-white p-2">
+                      <p className="text-xs font-semibold text-slate-800">Proposed moderation prompt change</p>
+                      {promptProposal.humanArgument && (
+                        <p className="text-[11px] text-slate-700">
+                          <span className="font-semibold">Author&apos;s argument: </span>
+                          {promptProposal.humanArgument}
+                        </p>
+                      )}
+                      {promptProposal.changeSummary && (
+                        <p className="text-[11px] text-slate-700">
+                          <span className="font-semibold">Change: </span>
+                          {promptProposal.changeSummary}
+                        </p>
+                      )}
+                      <pre className="max-h-72 overflow-auto rounded border border-slate-200 bg-slate-50 p-2 text-[10px] leading-4">
+                        {createTwoFilesPatch(
+                          "moderation-prompt/current",
+                          "moderation-prompt/proposed",
+                          promptProposal.basePrompt,
+                          promptProposal.proposedPrompt,
+                          "Current",
+                          "Proposed"
+                        )
+                          .split("\n")
+                          .map((line, index) => (
+                            <span
+                              key={`${index}-${line}`}
+                              className={`block ${line.startsWith("+") && !line.startsWith("+++") ? "bg-emerald-100 text-emerald-900" : line.startsWith("-") && !line.startsWith("---") ? "bg-red-100 text-red-900" : line.startsWith("@@") ? "text-blue-800" : "text-slate-600"}`}
+                            >
+                              {line || " "}
+                            </span>
+                          ))}
+                      </pre>
+                      {promptProposal.riskNotes.length > 0 && (
+                        <div className="text-[11px] text-amber-900">
+                          <p className="font-semibold">Risks and regression cases</p>
+                          <ul className="list-disc pl-4">
+                            {promptProposal.riskNotes.map((note, index) => <li key={`${index}-${note}`}>{note}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void runAppealPreview()}
+                          disabled={previewPending || proposalSavePending || decisionPending !== null}
+                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-700 disabled:opacity-60"
+                        >
+                          {previewPending ? "Previewing…" : "Preview proposed prompt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void approvePromptProposal()}
+                          disabled={proposalSavePending || previewPending || decisionPending !== null}
+                          className="rounded-md bg-blue-700 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-60"
+                        >
+                          {proposalSavePending ? "Saving…" : "Approve and save prompt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPromptProposal(null)}
+                          disabled={proposalSavePending}
+                          className="rounded-md border border-slate-200 px-2.5 py-1 text-xs text-slate-600 disabled:opacity-60"
+                        >
+                          Dismiss proposal
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import PostVisibilitySelect, { normalizeVisibilityChoice, type PostVisibilityChoice } from "@/components/PostVisibilitySelect";
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import FollowButton from "@/components/FollowButton";
@@ -93,6 +94,7 @@ interface PostData {
   content?: string | null;
   feedSourceId?: string | null;
   moderationStatus: string;
+  visibility?: string;
   moderationReason?: string | null;
   moderationExplanation?: string | null;
   sharedUrl?: string | null;
@@ -420,7 +422,7 @@ export default function PostCard({
   const [shareDestinations, setShareDestinations] = useState<ShareDestination[]>([]);
   const [loadingShareDestinations, setLoadingShareDestinations] = useState(false);
   const [shareCommunityId, setShareCommunityId] = useState<string>(defaultShareCommunityId ?? "");
-  const [shareVisibility, setShareVisibility] = useState<"public" | "private">("public");
+  const [shareVisibility, setShareVisibility] = useState<PostVisibilityChoice>("default");
   const [pendingAction, setPendingAction] = useState<"like" | "bookmark" | "share" | null>(null);
   const [shareTesting, setShareTesting] = useState(false);
   const [lastShareTestContent, setLastShareTestContent] = useState<string | null>(null);
@@ -440,6 +442,9 @@ export default function PostCard({
   const [editComposerOpen, setEditComposerOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [editContent, setEditContent] = useState(post.content ?? "");
+  const [editVisibility, setEditVisibility] = useState<PostVisibilityChoice>(
+    normalizeVisibilityChoice(post.visibility ?? "members")
+  );
   const [editSharedUrl, setEditSharedUrl] = useState(post.sharedUrl ?? "");
   const [editSharedTitle, setEditSharedTitle] = useState(post.sharedTitle ?? "");
   const [editSharedDescription, setEditSharedDescription] = useState(post.sharedDescription ?? "");
@@ -956,6 +961,7 @@ export default function PostCard({
 
   const openEditComposer = () => {
     setEditContent(post.content ?? "");
+    setEditVisibility(normalizeVisibilityChoice(post.visibility ?? "members"));
     setEditSharedUrl(post.sharedUrl ?? "");
     setEditSharedTitle(post.sharedTitle ?? "");
     setEditSharedDescription(post.sharedDescription ?? "");
@@ -1217,6 +1223,7 @@ export default function PostCard({
         sharedTitle: hasLinkFields ? normalizedSharedTitle || null : null,
         sharedDescription: hasLinkFields ? normalizedSharedDescription || null : null,
         sharedSource: hasLinkFields ? normalizedSharedSource || null : null,
+        visibility: editVisibility === "private" ? undefined : editVisibility,
         topicId: resolvedNextTopicId,
         newTopicName: nextTopicSelection === "__new__" ? nextTopicName : null,
         imageUrls: finalImageUrls,
@@ -1489,17 +1496,11 @@ export default function PostCard({
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   {t(locale, "postCard.shareComposer.visibilityLabel")}
                 </p>
-                <select
+                <PostVisibilitySelect
                   value={shareVisibility}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setShareVisibility(value === "private" ? "private" : "public");
-                  }}
+                  onChange={setShareVisibility}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="public">{t(locale, "composer.visibilityPublic")}</option>
-                  <option value="private">{t(locale, "composer.visibilityPrivate")}</option>
-                </select>
+                />
               </div>
 
               <TopicPicker
@@ -1691,6 +1692,17 @@ export default function PostCard({
                   }
                 }}
               />
+
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                {t(locale, "composer.visibility")}
+                <PostVisibilitySelect
+                  value={editVisibility}
+                  onChange={setEditVisibility}
+                  includeDefault={false}
+                  includePrivate={false}
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
 
               <AutoResizeTextarea
                 value={editContent}

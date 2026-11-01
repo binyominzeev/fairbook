@@ -1,3 +1,4 @@
+import { resolveRequestedVisibility } from "@/lib/post-visibility";
 import { calculatePostScore } from "@/lib/feed-ranking";
 import { getSession } from "@/lib/auth";
 import { moderatePost } from "@/lib/ai";
@@ -46,7 +47,14 @@ export async function POST(
     typeof payload?.communityId === "string" && payload.communityId.trim().length > 0
       ? payload.communityId.trim()
       : null;
-  const forcedPrivate = payload?.visibility === "private";
+  const authorSettings = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { defaultPostVisibility: true },
+  });
+  const { visibility: resolvedVisibility, forcedPrivate } = resolveRequestedVisibility(
+    payload?.visibility,
+    authorSettings?.defaultPostVisibility
+  );
 
   const { id } = await ctx.params;
   const sourcePost = await prisma.post.findUnique({
@@ -247,6 +255,7 @@ export async function POST(
       content: shareContent || null,
       sharedPostId: id,
       topicId: resolvedTopicId,
+      visibility: resolvedVisibility,
       moderationStatus: finalModerationStatus,
       moderationReason: finalModerationReason,
       moderationExplanation: finalModerationExplanation,
