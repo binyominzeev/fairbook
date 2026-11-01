@@ -1170,6 +1170,8 @@ export default function PostCard({
     const topicUnchanged =
       nextTopicSelection !== "__new__" &&
       (post.topic?.id ?? null) === resolvedNextTopicId;
+    const visibilityUnchanged =
+      editVisibility === normalizeVisibilityChoice(post.visibility ?? "members");
     const imageOrderUnchanged =
       localImages.length === 0 &&
       existingImageUrls.length === remoteImageUrls.length &&
@@ -1182,6 +1184,7 @@ export default function PostCard({
       sharedDescriptionUnchanged &&
       sharedSourceUnchanged &&
       topicUnchanged &&
+      visibilityUnchanged &&
       imageOrderUnchanged
     ) {
       closeEditComposer();
