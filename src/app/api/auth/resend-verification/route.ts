@@ -4,7 +4,7 @@ import { normalizeEmail, sendVerificationEmail } from "@/lib/auth-email";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { email, returnTo } = await request.json();
 
     if (!email) {
       return Response.json({ error: "Email is required." }, { status: 400 });
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (user && !user.emailVerifiedAt) {
-      await sendVerificationEmail(user.id, user.email, user.name);
+      await sendVerificationEmail(user.id, user.email, user.name, returnTo);
     }
 
     return Response.json({

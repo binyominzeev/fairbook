@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeAppLocale, t } from "@/lib/i18n";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { loginHref } from "@/lib/auth-redirect";
 
 const PAGE_SIZE = 20;
 
@@ -39,9 +40,10 @@ export default async function GroupDetailPage(props: {
   params: Promise<{ idOrSlug: string }>;
   searchParams: Promise<{ q?: string; settings?: string }>;
 }) {
+  const { idOrSlug } = await props.params;
   const session = await getSession();
   if (!session) {
-    redirect("/login");
+    redirect(loginHref(`/groups/${encodeURIComponent(idOrSlug)}`));
   }
   const isAdmin = isAdminEmail(session.email);
 
@@ -50,11 +52,10 @@ export default async function GroupDetailPage(props: {
     select: { id: true, slug: true, name: true, avatarUrl: true, locale: true },
   });
   if (!user) {
-    redirect("/login");
+    redirect(loginHref(`/groups/${encodeURIComponent(idOrSlug)}`));
   }
   const locale = normalizeAppLocale(user.locale);
 
-  const { idOrSlug } = await props.params;
   const { q, settings } = await props.searchParams;
   const query = (q ?? "").trim();
   const showSettings = settings === "1";
@@ -77,6 +78,11 @@ export default async function GroupDetailPage(props: {
           inviteeId: session.userId,
           status: "pending",
         },
+        select: { id: true },
+        take: 1,
+      },
+      joinRequests: {
+        where: { requesterId: session.userId, status: "pending" },
         select: { id: true },
         take: 1,
       },
@@ -193,6 +199,7 @@ export default async function GroupDetailPage(props: {
                   initiallyMember={isMember}
                   isPrivate={community.isPrivate}
                   initiallyInvited={hasPendingInvite}
+                  initiallyRequested={community.joinRequests.length > 0}
                 />
                 {isMember && (
                   <GroupNotificationToggle
@@ -253,7 +260,7 @@ export default async function GroupDetailPage(props: {
               </form>
             ) : community.isPrivate ? (
               <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                This group is closed. You can join only with an invite.
+                {t(locale, "groups.join.closedDescription")}
               </p>
             ) : (
               <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">

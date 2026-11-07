@@ -81,6 +81,11 @@ export default async function GroupsPage(props: {
         select: { id: true },
         take: 1,
       },
+      joinRequests: {
+        where: { requesterId: session.userId, status: "pending" },
+        select: { id: true },
+        take: 1,
+      },
       _count: { select: { members: true, posts: true } },
     },
     take: 100,
@@ -183,6 +188,7 @@ export default async function GroupsPage(props: {
                         initiallyMember={isMember}
                         isPrivate={community.isPrivate}
                         initiallyInvited={hasPendingInvite}
+                        initiallyRequested={community.joinRequests.length > 0}
                       />
                     </div>
                   </li>

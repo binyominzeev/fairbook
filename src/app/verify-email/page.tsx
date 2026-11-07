@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { verifyEmailWithToken } from "@/lib/auth-email";
+import { loginHref } from "@/lib/auth-redirect";
 
 export default async function VerifyEmailPage(props: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; returnTo?: string }>;
 }) {
-  const { token } = await props.searchParams;
+  const { token, returnTo } = await props.searchParams;
 
   if (!token) {
     return (
@@ -15,7 +16,7 @@ export default async function VerifyEmailPage(props: {
             This verification link is missing a token.
           </p>
           <Link
-            href="/login"
+            href={loginHref(returnTo)}
             className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             Go to login
@@ -37,7 +38,7 @@ export default async function VerifyEmailPage(props: {
               Your account is now active. You can sign in.
             </p>
             <Link
-              href="/login"
+              href={loginHref(returnTo)}
               className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Continue to login
@@ -50,7 +51,7 @@ export default async function VerifyEmailPage(props: {
               This link is invalid or has expired. Request a new verification email from the login page.
             </p>
             <Link
-              href="/login"
+              href={loginHref(returnTo)}
               className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Go to login

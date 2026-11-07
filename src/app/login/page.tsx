@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect } from "react";
+import { safeReturnTo } from "@/lib/auth-redirect";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, returnTo: safeReturnTo(new URLSearchParams(window.location.search).get("returnTo")) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -62,8 +63,9 @@ export default function LoginPage() {
     setLoading(true);
 
     const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+    const returnTo = safeReturnTo(new URLSearchParams(window.location.search).get("returnTo"));
     const body =
-      mode === "login" ? { email, password } : { name, email, password };
+      mode === "login" ? { email, password } : { name, email, password, returnTo };
 
     try {
       const res = await fetch(endpoint, {
@@ -82,7 +84,7 @@ export default function LoginPage() {
         setMode("login");
         setNeedsVerification(true);
       } else {
-        router.push("/feed");
+        router.push(returnTo ?? "/feed");
         router.refresh();
       }
     } catch {

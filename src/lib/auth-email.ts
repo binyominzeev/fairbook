@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/mailer";
+import { safeReturnTo } from "@/lib/auth-redirect";
 
 export const AUTH_EMAIL_TOKEN_VERIFY = "verify_email";
 export const AUTH_EMAIL_TOKEN_RESET = "reset_password";
@@ -48,9 +49,12 @@ async function createEmailToken(userId: string, type: string, ttlMinutes: number
   return rawToken;
 }
 
-export async function sendVerificationEmail(userId: string, email: string, name: string): Promise<void> {
+export async function sendVerificationEmail(userId: string, email: string, name: string, returnTo?: unknown): Promise<void> {
   const token = await createEmailToken(userId, AUTH_EMAIL_TOKEN_VERIFY, VERIFY_TTL_MINUTES);
-  const verifyUrl = buildAbsoluteUrl(`/verify-email?token=${encodeURIComponent(token)}`);
+  const params = new URLSearchParams({ token });
+  const safePath = safeReturnTo(returnTo);
+  if (safePath) params.set("returnTo", safePath);
+  const verifyUrl = buildAbsoluteUrl(`/verify-email?${params}`);
 
   await sendEmail({
     to: email,

@@ -24,6 +24,7 @@ import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { serializePost } from "@/lib/post-presentation";
 import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
 import { t } from "@/lib/i18n";
+import { loginHref } from "@/lib/auth-redirect";
 
 async function resolveMetadataPost(params: {
   idOrSlug: string;
@@ -175,6 +176,7 @@ export default async function GroupPostPermalinkPage(props: {
   const { idOrSlug, year, month, postSlug } = await props.params;
   const session = await getSession();
   const viewerId = session?.userId ?? "__guest__";
+  const requestedPath = `/groups/${encodeURIComponent(idOrSlug)}/${encodeURIComponent(year)}/${encodeURIComponent(month)}/${encodeURIComponent(postSlug)}`;
 
   const user = session
     ? await prisma.user.findUnique({
@@ -300,12 +302,12 @@ export default async function GroupPostPermalinkPage(props: {
   const isCommunityMember = canViewerAccessCommunity(post.community);
   const isUnlistedPrivatePost = post.community?.isPrivate === true && post.visibility === "unlisted";
   if (!canViewerAccessCommunityPost(post.community, post.visibility)) {
-    if (!session) redirect("/login");
+    if (!session) redirect(loginHref(requestedPath));
     redirect(`/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}`);
   }
   if (!isUnlistedPrivatePost && !(await canViewerSeePostAudience(post, session?.userId))) {
     if (!session && post.visibility !== "friends") {
-      return <LoginToViewGate locale={await getRequestLocale()} />;
+      return <LoginToViewGate locale={await getRequestLocale()} returnTo={requestedPath} />;
     }
     notFound();
   }
@@ -316,7 +318,6 @@ export default async function GroupPostPermalinkPage(props: {
     slug: post.permalinkSlug,
     postId: post.id,
   });
-  const requestedPath = `/groups/${idOrSlug}/${year}/${month}/${postSlug}`;
   if (requestedPath !== canonicalPath) {
     redirect(canonicalPath);
   }
@@ -446,7 +447,7 @@ export default async function GroupPostPermalinkPage(props: {
 
   return (
     <>
-      {user ? <Navbar user={user} /> : <PublicNavbar />}
+      {user ? <Navbar user={user} /> : <PublicNavbar returnTo={canonicalPath} />}
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         <PostCard
           post={postForCard}
@@ -508,7 +509,7 @@ export default async function GroupPostPermalinkPage(props: {
         ) : !isCommunityMember ? (
           <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
             <p>{t(await getRequestLocale(), isLoggedIn ? "groupPost.joinToComment" : "groupPost.loginToComment")}</p>
-            <Link href={`/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}`} className="mt-2 inline-block font-medium text-blue-600">
+            <Link href={isLoggedIn ? `/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}` : loginHref(canonicalPath)} className="mt-2 inline-block font-medium text-blue-600">
               {t(await getRequestLocale(), "groupPost.viewGroup")}
             </Link>
           </div>

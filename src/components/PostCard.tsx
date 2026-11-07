@@ -1,6 +1,7 @@
 "use client";
 
 import PostVisibilitySelect, { normalizeVisibilityChoice, type PostVisibilityChoice } from "@/components/PostVisibilitySelect";
+import { loginHref } from "@/lib/auth-redirect";
 import Avatar from "@/components/Avatar";
 import AutoResizeTextarea from "@/components/AutoResizeTextarea";
 import FollowButton from "@/components/FollowButton";
@@ -1926,7 +1927,7 @@ export default function PostCard({
                 {t(locale, "postCard.auth.close")}
               </button>
               <Link
-                href="/login?mode=register"
+                href={loginHref(post.permalinkPath, true)}
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
                 {t(locale, "postCard.auth.openRegistration")}
