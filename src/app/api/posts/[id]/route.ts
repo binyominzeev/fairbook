@@ -257,10 +257,20 @@ export async function PATCH(
     select: {
       id: true,
       authorId: true,
+      visibility: true,
+      community: {
+        select: {
+          isPrivate: true,
+          members: { where: { userId: session.userId }, select: { id: true }, take: 1 },
+        },
+      },
       imageUrls: true,
       sharedImageUrl: true,
       sharedPost: {
         select: {
+          visibility: true,
+          moderationStatus: true,
+          community: { select: { isPrivate: true } },
           content: true,
           sharedTitle: true,
           sharedDescription: true,
@@ -277,6 +287,16 @@ export async function PATCH(
 
   if (post.authorId !== session.userId) {
     return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  if (requestedVisibility === "unlisted") {
+    if (!post.community || post.community.members.length === 0 ||
+        (!post.community.isPrivate && post.visibility !== "unlisted")) {
+      return Response.json({ error: "Unlisted visibility is only available to private group members." }, { status: 400 });
+    }
+    if (post.sharedPost && (post.sharedPost.community?.isPrivate || post.sharedPost.visibility !== "public" || post.sharedPost.moderationStatus !== "visible")) {
+      return Response.json({ error: "Only public posts can be shared as unlisted." }, { status: 400 });
+    }
   }
 
   if (hasTopicSelectionInPayload && requestedTopicId && requestedNewTopicName) {

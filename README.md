@@ -20,6 +20,8 @@ fairbook is a Facebook-like social network built around a single mission: meanin
 | **Communities** | Public or invite-only groups |
 | **Connections** | Follow people to see their posts |
 
+Private-group post authors can choose **Unlisted (public with link)** when creating or editing a post. Anyone with the direct link can view that post, but commenting requires joining the group. Other private-group posts remain restricted to members; unlisted is not a default visibility. Only publicly accessible posts may be shared as unlisted, and their previews are hidden from non-members if the original later becomes restricted. If a group becomes public, its existing unlisted posts no longer grant link access outside the group.
+
 ### AI Discourse Signals
 
 **Positive:** `answered_question`, `acknowledged_valid_point`, `accurately_represented_opponent`, `constructive_contribution`

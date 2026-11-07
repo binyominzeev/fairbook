@@ -8,9 +8,11 @@ import { useAppLocale } from "@/components/AppLocaleProvider";
 
 export default function CreatePostForm({
   communityId = null,
+  isPrivateCommunity = false,
   returnToPath = null,
 }: {
   communityId?: string | null;
+  isPrivateCommunity?: boolean;
   returnToPath?: string | null;
 } = {}) {
   const router = useRouter();
@@ -59,6 +61,7 @@ export default function CreatePostForm({
           onClose={() => setIsComposerOpen(false)}
           onOpenTextCardCreator={openTextCardCreator}
           communityId={communityId}
+          isPrivateCommunity={isPrivateCommunity}
           onSuccess={(result) => {
             setNotice({
               kind: result.moderation?.status === "author_only" ? "warning" : "success",

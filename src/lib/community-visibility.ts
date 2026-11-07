@@ -1,4 +1,4 @@
-import { Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 type CommunityAccessRecord =
   | {
@@ -14,6 +14,16 @@ export function canViewerAccessCommunity(community: CommunityAccessRecord) {
   }
 
   return Array.isArray(community.members) && community.members.length > 0;
+}
+
+export function canViewerAccessCommunityPost(
+  community: CommunityAccessRecord,
+  visibility: string
+) {
+  if (visibility === "unlisted" && community) {
+    return community.isPrivate || (Array.isArray(community.members) && community.members.length > 0);
+  }
+  return canViewerAccessCommunity(community);
 }
 
 export function buildVisibleCommunityPostWhere(viewerId: string): Prisma.PostWhereInput {

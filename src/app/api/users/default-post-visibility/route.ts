@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const visibility = normalizePostVisibility((body as { visibility?: unknown }).visibility);
-  if (!visibility) {
+  if (!visibility || visibility === "unlisted") {
     return Response.json({ error: "Invalid visibility." }, { status: 400 });
   }
 

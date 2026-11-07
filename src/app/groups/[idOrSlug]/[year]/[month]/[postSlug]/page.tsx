@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import LoginToViewGate from "@/components/LoginToViewGate";
@@ -16,12 +17,13 @@ import CommentForm from "@/components/CommentForm";
 import AdminDevSidebar from "@/components/AdminDevSidebar";
 import type { DiscourseSignal } from "@/lib/ai";
 import { isAdminEmail } from "@/lib/admin";
-import { canViewerAccessCommunity } from "@/lib/community-visibility";
+import { canViewerAccessCommunity, canViewerAccessCommunityPost } from "@/lib/community-visibility";
 import { buildPostPermalinkPath } from "@/lib/post-permalink";
 import { buildPostPermalinkMetadata } from "@/lib/post-metadata";
 import { getCommentInsightsEnabled } from "@/lib/app-config";
 import { serializePost } from "@/lib/post-presentation";
 import { applyAuthorTopicColors } from "@/lib/topic-color-resolution";
+import { t } from "@/lib/i18n";
 
 async function resolveMetadataPost(params: {
   idOrSlug: string;
@@ -45,7 +47,7 @@ async function resolveMetadataPost(params: {
       },
     },
   });
-  if (!community || !canViewerAccessCommunity(community)) {
+  if (!community) {
     return null;
   }
 
@@ -107,9 +109,10 @@ async function resolveMetadataPost(params: {
   }
 
   const isVisible =
-    (await canViewerSeePostAudience({ authorId: post.author.id, visibility: post.visibility }, params.viewerId)) &&
+    (post.community?.isPrivate && post.visibility === "unlisted" ||
+      await canViewerSeePostAudience({ authorId: post.author.id, visibility: post.visibility }, params.viewerId)) &&
     (post.moderationStatus !== "author_only" || post.author.id === params.viewerId) &&
-    canViewerAccessCommunity(post.community);
+    canViewerAccessCommunityPost(post.community, post.visibility);
 
   const canonicalPath = buildPostPermalinkPath({
     author: post.author,
@@ -144,7 +147,7 @@ export async function generateMetadata(props: {
     };
   }
 
-  return buildPostPermalinkMetadata({
+  const metadata = buildPostPermalinkMetadata({
     canonicalPath: resolved.canonicalPath,
     isVisible: resolved.isVisible,
     isUserGenerated: resolved.post.feedSourceId === null,
@@ -161,6 +164,9 @@ export async function generateMetadata(props: {
       },
     },
   });
+  return resolved.post.community?.isPrivate
+    ? { ...metadata, robots: { index: false, follow: false } }
+    : metadata;
 }
 
 export default async function GroupPostPermalinkPage(props: {
@@ -196,7 +202,6 @@ export default async function GroupPostPermalinkPage(props: {
     },
   });
   if (!community) notFound();
-  if (!canViewerAccessCommunity(community)) notFound();
 
   const parsedYear = Number(year);
   const parsedMonth = Number(month);
@@ -248,8 +253,11 @@ export default async function GroupPostPermalinkPage(props: {
           sharedImageUrl: true,
           imageUrls: true,
           createdAt: true,
+          visibility: true,
+          moderationStatus: true,
+          communityId: true,
           author: { select: { id: true, slug: true, name: true, avatarUrl: true } },
-          community: { select: { id: true, permalinkSlug: true, name: true } },
+          community: { select: { id: true, permalinkSlug: true, name: true, isPrivate: true } },
         },
       },
       likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
@@ -289,16 +297,18 @@ export default async function GroupPostPermalinkPage(props: {
   if (post.moderationStatus === "author_only" && post.author.id !== viewerId) {
     notFound();
   }
-  if (!(await canViewerSeePostAudience(post, session?.userId))) {
+  const isCommunityMember = canViewerAccessCommunity(post.community);
+  const isUnlistedPrivatePost = post.community?.isPrivate === true && post.visibility === "unlisted";
+  if (!canViewerAccessCommunityPost(post.community, post.visibility)) {
+    if (!session) redirect("/login");
+    redirect(`/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}`);
+  }
+  if (!isUnlistedPrivatePost && !(await canViewerSeePostAudience(post, session?.userId))) {
     if (!session && post.visibility !== "friends") {
       return <LoginToViewGate locale={await getRequestLocale()} />;
     }
     notFound();
   }
-  if (!canViewerAccessCommunity(post.community)) {
-    notFound();
-  }
-
   const canonicalPath = buildPostPermalinkPath({
     author: post.author,
     community: post.community,
@@ -311,7 +321,7 @@ export default async function GroupPostPermalinkPage(props: {
     redirect(canonicalPath);
   }
 
-  const rawComments = isLoggedIn
+  const rawComments = isLoggedIn && isCommunityMember
     ? await prisma.comment.findMany({
         where: {
           postId: post.id,
@@ -407,7 +417,14 @@ export default async function GroupPostPermalinkPage(props: {
     }
   };
 
-  const serializedBasePost = serializePost(post as Parameters<typeof serializePost>[0]);
+  const sharedPostIsPublic = post.sharedPost &&
+    !post.sharedPost.community?.isPrivate &&
+    post.sharedPost.visibility === "public" &&
+    post.sharedPost.moderationStatus === "visible";
+  const serializedBasePost = serializePost({
+    ...post,
+    sharedPost: isCommunityMember || sharedPostIsPublic ? post.sharedPost : null,
+  });
   const [postWithTopicColors] = await applyAuthorTopicColors([
     {
       ...serializedBasePost,
@@ -443,9 +460,10 @@ export default async function GroupPostPermalinkPage(props: {
               : null
           }
           requireAuthForInteractions={!isLoggedIn}
+          hideInteractions={isLoggedIn && !isCommunityMember}
         />
 
-        {isLoggedIn ? (
+        {isLoggedIn && isCommunityMember ? (
           <>
             {commentInsightsEnabled &&
               (latestReflection ? (
@@ -487,6 +505,13 @@ export default async function GroupPostPermalinkPage(props: {
               </div>
             </div>
           </>
+        ) : !isCommunityMember ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+            <p>{t(await getRequestLocale(), isLoggedIn ? "groupPost.joinToComment" : "groupPost.loginToComment")}</p>
+            <Link href={`/groups/${encodeURIComponent(community.permalinkSlug ?? community.id)}`} className="mt-2 inline-block font-medium text-blue-600">
+              {t(await getRequestLocale(), "groupPost.viewGroup")}
+            </Link>
+          </div>
         ) : null}
 
         {isAdmin && <AdminDevSidebar />}

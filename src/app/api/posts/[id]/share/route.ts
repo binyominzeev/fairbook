@@ -68,6 +68,7 @@ export async function POST(
       sharedSource: true,
       sharedUrl: true,
       moderationStatus: true,
+      visibility: true,
       community: {
         select: {
           isPrivate: true,
@@ -115,14 +116,25 @@ export async function POST(
           userId: session.userId,
         },
       },
-      select: { id: true },
+      select: { id: true, community: { select: { isPrivate: true } } },
     });
 
     if (!targetMembership) {
       return Response.json({ error: "Join the selected group before sharing there." }, { status: 403 });
     }
 
+    if (resolvedVisibility === "unlisted" && !targetMembership.community.isPrivate) {
+      return Response.json({ error: "Unlisted visibility is only available in private groups." }, { status: 400 });
+    }
     targetCommunityId = requestedCommunityId;
+  }
+  if (resolvedVisibility === "unlisted") {
+    if (!targetCommunityId) {
+      return Response.json({ error: "Unlisted visibility is only available in private groups." }, { status: 400 });
+    }
+    if (sourcePost.community?.isPrivate || sourcePost.visibility !== "public" || sourcePost.moderationStatus !== "visible") {
+      return Response.json({ error: "Only public posts can be shared as unlisted." }, { status: 400 });
+    }
   }
 
   if (sourcePost.community?.isPrivate && !targetCommunityId) {

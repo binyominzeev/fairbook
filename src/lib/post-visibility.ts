@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export const POST_VISIBILITIES = ["public", "members", "friends"] as const;
+export const POST_VISIBILITIES = ["public", "members", "friends", "unlisted"] as const;
 export type PostVisibility = (typeof POST_VISIBILITIES)[number];
 
 export function normalizePostVisibility(value: unknown): PostVisibility | null {
@@ -20,6 +20,10 @@ export function buildPostAudienceWhere(viewerId: string | null | undefined): Pri
     OR: [
       { authorId: viewerId },
       { visibility: { in: ["public", "members"] } },
+      {
+        visibility: "unlisted",
+        community: { is: { members: { some: { userId: viewerId } } } },
+      },
       {
         visibility: "friends",
         author: {

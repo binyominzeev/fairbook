@@ -23,6 +23,27 @@ export default async function PostPage(props: {
 }) {
   const { id } = await props.params;
   const session = await getSession();
+  const linkedPost = await prisma.post.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      visibility: true,
+      moderationStatus: true,
+      permalinkSlug: true,
+      createdAt: true,
+      author: { select: { id: true, slug: true } },
+      community: { select: { id: true, permalinkSlug: true, isPrivate: true } },
+    },
+  });
+  if (linkedPost?.community?.isPrivate && linkedPost.visibility === "unlisted" && linkedPost.moderationStatus === "visible") {
+    redirect(buildPostPermalinkPath({
+      author: linkedPost.author,
+      community: linkedPost.community,
+      createdAt: linkedPost.createdAt,
+      slug: linkedPost.permalinkSlug,
+      postId: linkedPost.id,
+    }));
+  }
   if (!session) redirect("/login");
 
   const user = await prisma.user.findUnique({
@@ -102,7 +123,7 @@ export default async function PostPage(props: {
     notFound();
   }
   if (post.community?.isPrivate && post.community.members.length === 0) {
-    notFound();
+    redirect(`/groups/${encodeURIComponent(post.community.permalinkSlug ?? post.community.id)}`);
   }
 
   const rawComments = await prisma.comment.findMany({

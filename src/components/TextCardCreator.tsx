@@ -813,6 +813,7 @@ type TextCardCreatorProps = {
   isAdmin?: boolean;
   initialHiddenFontIds?: string[];
   communityId?: string | null;
+  isPrivateCommunity?: boolean;
   returnToPath?: string | null;
 };
 
@@ -1418,6 +1419,7 @@ export default function TextCardCreator({
   isAdmin = false,
   initialHiddenFontIds = [],
   communityId = null,
+  isPrivateCommunity = false,
   returnToPath = null,
 }: TextCardCreatorProps) {
   const router = useRouter();
@@ -2464,6 +2466,7 @@ export default function TextCardCreator({
           initialImageUrls={pendingComposerImageUrl ? [pendingComposerImageUrl] : []}
           textCardImageUrl={pendingComposerImageUrl}
           communityId={communityId}
+          isPrivateCommunity={isPrivateCommunity}
           onSuccess={(result: PostComposerSuccessResult) => {
             const params = new URLSearchParams({
               notice: result.message ?? t(locale, "textCard.posted"),

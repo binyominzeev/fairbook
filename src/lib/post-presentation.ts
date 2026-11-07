@@ -14,6 +14,7 @@ export interface SerializedCommunity {
   id: string;
   permalinkSlug: string | null;
   name: string;
+  isPrivate?: boolean;
 }
 
 export interface SerializedSharedPost {
@@ -261,6 +262,7 @@ export function serializePost(post: PostForPresentation): SerializedPost {
           id: post.community.id,
           permalinkSlug: post.community.permalinkSlug,
           name: post.community.name,
+          isPrivate: post.community.isPrivate,
         }
       : null,
     sharedPost: post.sharedPost

@@ -3,12 +3,13 @@
 import { t } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
 
-export type PostVisibilityChoice = "default" | "public" | "members" | "friends" | "private";
+export type PostVisibilityChoice = "default" | "public" | "members" | "friends" | "unlisted" | "private";
 
 export function normalizeVisibilityChoice(value: string): PostVisibilityChoice {
   return value === "public" ||
     value === "members" ||
     value === "friends" ||
+    value === "unlisted" ||
     value === "private"
     ? value
     : "default";
@@ -20,12 +21,14 @@ export default function PostVisibilitySelect({
   className,
   includeDefault = true,
   includePrivate = true,
+  includeUnlisted = false,
 }: {
   value: PostVisibilityChoice;
   onChange: (value: PostVisibilityChoice) => void;
   className?: string;
   includeDefault?: boolean;
   includePrivate?: boolean;
+  includeUnlisted?: boolean;
 }) {
   const locale = useAppLocale();
   return (
@@ -38,6 +41,7 @@ export default function PostVisibilitySelect({
       <option value="public">{t(locale, "composer.visibilityPublic")}</option>
       <option value="members">{t(locale, "composer.visibilityMembers")}</option>
       <option value="friends">{t(locale, "composer.visibilityFriends")}</option>
+      {includeUnlisted && <option value="unlisted">{t(locale, "composer.visibilityUnlisted")}</option>}
       {includePrivate && <option value="private">{t(locale, "composer.visibilityPrivate")}</option>}
     </select>
   );

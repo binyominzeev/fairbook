@@ -15,6 +15,7 @@ import AdminDevSidebar from "@/components/AdminDevSidebar";
 import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { buildPostInclude, serializePost } from "@/lib/post-presentation";
+import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { prisma } from "@/lib/prisma";
 import { normalizeAppLocale, t } from "@/lib/i18n";
 import Link from "next/link";
@@ -130,6 +131,7 @@ export default async function GroupDetailPage(props: {
             }
           : {}),
         OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
+        AND: [buildPostAudienceWhere(session.userId)],
         hiddenBy: { none: { userId: session.userId } },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -285,6 +287,7 @@ export default async function GroupDetailPage(props: {
           {isMember && (
             <CreatePostForm
               communityId={community.id}
+              isPrivateCommunity={community.isPrivate}
               returnToPath={`/groups/${encodeURIComponent(canonicalSlug)}`}
             />
           )}

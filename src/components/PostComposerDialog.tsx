@@ -63,6 +63,7 @@ type PostComposerDialogProps = {
   submitLabel?: string;
   textCardImageUrl?: string | null;
   communityId?: string | null;
+  isPrivateCommunity?: boolean;
 };
 
 type ComposerTopic = {
@@ -157,6 +158,7 @@ export default function PostComposerDialog({
   submitLabel,
   textCardImageUrl = null,
   communityId = null,
+  isPrivateCommunity = false,
 }: PostComposerDialogProps) {
   const locale = useAppLocale();
   const [content, setContent] = useState(initialContent);
@@ -597,6 +599,7 @@ export default function PostComposerDialog({
             {t(locale, "composer.visibility")}
             <PostVisibilitySelect
               value={visibility}
+              includeUnlisted={isPrivateCommunity}
               onChange={setVisibility}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />

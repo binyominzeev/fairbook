@@ -36,6 +36,7 @@ interface Community {
   id: string;
   permalinkSlug?: string | null;
   name: string;
+  isPrivate?: boolean;
 }
 
 interface SharedPostData {
@@ -64,6 +65,7 @@ type ShareTestResult = {
 type ShareDestination = {
   id: string;
   name: string;
+  isPrivate: boolean;
 };
 
 type LocalEditImage = {
@@ -139,6 +141,7 @@ interface Props {
   shareRedirectPath?: string | null;
   showCommunityHeader?: boolean;
   requireAuthForInteractions?: boolean;
+  hideInteractions?: boolean;
   showUniqueViewerCount?: boolean;
   topicBaseProfilePath?: string | null;
 }
@@ -392,6 +395,7 @@ export default function PostCard({
   shareRedirectPath = null,
   showCommunityHeader = true,
   requireAuthForInteractions = false,
+  hideInteractions = false,
   showUniqueViewerCount = false,
   topicBaseProfilePath = null,
 }: Props) {
@@ -853,11 +857,11 @@ export default function PostCard({
 
       const destinations: ShareDestination[] = Array.isArray(data.communities)
         ? data.communities
-            .map((community: { id?: unknown; name?: unknown }) => {
-              if (typeof community.id !== "string" || typeof community.name !== "string") {
+            .map((community: { id?: unknown; name?: unknown; isPrivate?: unknown }) => {
+              if (typeof community.id !== "string" || typeof community.name !== "string" || typeof community.isPrivate !== "boolean") {
                 return null;
               }
-              return { id: community.id, name: community.name };
+              return { id: community.id, name: community.name, isPrivate: community.isPrivate };
             })
             .filter((item: ShareDestination | null): item is ShareDestination => Boolean(item))
         : [];
@@ -1480,7 +1484,10 @@ export default function PostCard({
                 </p>
                 <select
                   value={shareCommunityId}
-                  onChange={(event) => setShareCommunityId(event.target.value)}
+                  onChange={(event) => {
+                    setShareCommunityId(event.target.value);
+                    if (shareVisibility === "unlisted") setShareVisibility("public");
+                  }}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">{t(locale, "postCard.shareComposer.destinationMyFeed")}</option>
@@ -1502,6 +1509,7 @@ export default function PostCard({
                 <PostVisibilitySelect
                   value={shareVisibility}
                   onChange={setShareVisibility}
+                  includeUnlisted={shareDestinations.some((destination) => destination.id === shareCommunityId && destination.isPrivate)}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1703,6 +1711,7 @@ export default function PostCard({
                   onChange={setEditVisibility}
                   includeDefault={false}
                   includePrivate={false}
+                  includeUnlisted={post.community?.isPrivate === true || post.visibility === "unlisted"}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>
@@ -2296,7 +2305,7 @@ export default function PostCard({
       )}
 
       {/* Actions */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
+      {!hideInteractions && <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-1">
         {needsAuthForInteractions ? (
           <button
             type="button"
@@ -2383,7 +2392,7 @@ export default function PostCard({
             </span>
           </span>
         )}
-      </div>
+      </div>}
       {actionError && (
         <p className="mt-2 text-xs text-red-600">{actionError}</p>
       )}

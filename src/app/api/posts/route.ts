@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
           userId: session.userId,
         },
       },
-      select: { id: true },
+      select: { id: true, community: { select: { isPrivate: true } } },
     });
 
     if (!membership) {
@@ -200,7 +200,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (resolvedVisibility === "unlisted" && !membership.community.isPrivate) {
+      return Response.json({ error: "Unlisted visibility is only available in private groups." }, { status: 400 });
+    }
     resolvedCommunityId = communityId;
+  }
+  if (resolvedVisibility === "unlisted" && !resolvedCommunityId) {
+    return Response.json({ error: "Unlisted visibility is only available in private groups." }, { status: 400 });
   }
 
   let resolvedTopicId: string | null = null;
