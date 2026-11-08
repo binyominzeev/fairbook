@@ -266,12 +266,12 @@ function getSharedOriginHref(sharedPost: SharedPostData) {
 
 function YouTubeEmbed({ url }: { url: string }) {
   return (
-    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-black shadow-sm">
-      <div className="aspect-video">
+    <div className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-black shadow-sm">
+      <div className="aspect-video w-full min-w-0 max-w-full">
         <iframe
           src={url}
           title="YouTube video embed"
-          className="h-full w-full"
+          className="h-full w-full min-w-0 max-w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
@@ -348,10 +348,10 @@ function SinglePostImage({
   const [isNearSquare, setIsNearSquare] = useState(false);
   const imageClass =
     isTextCard
-      ? "h-full w-full object-contain"
+      ? "h-full w-full max-w-full object-contain"
       : isNearSquare
-      ? "w-full h-auto object-contain"
-      : "h-80 w-full object-cover";
+      ? "h-auto w-full max-w-full object-contain"
+      : "h-80 w-full max-w-full object-cover";
 
   const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
@@ -1313,9 +1313,9 @@ export default function PostCard({
     const renderImage = (url: string, index: number, className: string) => {
       if (!canOpenLightbox) {
         return (
-          <div className="block h-full w-full">
+          <div className="block h-full w-full min-w-0 max-w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Post image ${index + 1}`} className={className} />
+            <img src={url} alt={`Post image ${index + 1}`} className={`${className} max-w-full`} />
           </div>
         );
       }
@@ -1324,18 +1324,18 @@ export default function PostCard({
         <button
           type="button"
           onClick={() => openLightbox(imageUrls, index)}
-          className="block h-full w-full"
+          className="block h-full w-full min-w-0 max-w-full"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={`Post image ${index + 1}`} className={className} />
+          <img src={url} alt={`Post image ${index + 1}`} className={`${className} max-w-full`} />
         </button>
       );
     };
 
     if (imageUrls.length === 1) {
       const containerClass = isTextCard
-        ? "mb-3 aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-        : "mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100";
+        ? "mb-3 aspect-square w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+        : "mb-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100";
 
       return (
         <div className={containerClass}>
@@ -1352,9 +1352,9 @@ export default function PostCard({
 
     if (imageUrls.length === 2) {
       return (
-        <div className="mb-3 grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
+        <div className="mb-3 grid w-full min-w-0 max-w-full grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
           {imageUrls.map((url, index) => (
-            <div key={`${url}:${index}`} className="border border-slate-200 bg-slate-100">
+            <div key={`${url}:${index}`} className="min-w-0 max-w-full border border-slate-200 bg-slate-100">
               {renderImage(url, index, "h-56 w-full object-cover")}
             </div>
           ))}
@@ -1366,11 +1366,11 @@ export default function PostCard({
     const remainingCount = imageUrls.length - visibleImages.length;
 
     return (
-      <div className="mb-3 grid grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
+      <div className="mb-3 grid w-full min-w-0 max-w-full grid-cols-2 gap-1.5 overflow-hidden rounded-xl">
         {visibleImages.map((url, index) => {
           const shouldShowOverlay = index === 3 && remainingCount > 0;
           return (
-            <div key={`${url}:${index}`} className="relative border border-slate-200 bg-slate-100">
+            <div key={`${url}:${index}`} className="relative min-w-0 max-w-full border border-slate-200 bg-slate-100">
               {renderImage(url, index, "h-44 w-full object-cover sm:h-48")}
               {canOpenLightbox && shouldShowOverlay && (
                 <button
