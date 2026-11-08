@@ -267,11 +267,11 @@ function getSharedOriginHref(sharedPost: SharedPostData) {
 function YouTubeEmbed({ url }: { url: string }) {
   return (
     <div className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-black shadow-sm">
-      <div className="aspect-video w-full min-w-0 max-w-full">
+      <div className="relative aspect-video w-full min-w-0 max-w-full">
         <iframe
           src={url}
           title="YouTube video embed"
-          className="h-full w-full min-w-0 max-w-full"
+          className="absolute inset-0 block h-full w-full min-w-0 max-w-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin"
           allowFullScreen
@@ -294,12 +294,12 @@ function PostTextContent({
   const youtubeEmbedUrls = findYouTubeEmbedUrls(text);
 
   return (
-    <>
+    <div className="w-full min-w-0 max-w-full overflow-x-clip">
       {renderTextWithLinks(text, className, query)}
       {youtubeEmbedUrls.map((url) => (
         <YouTubeEmbed key={url} url={url} />
       ))}
-    </>
+    </div>
   );
 }
 

@@ -175,8 +175,8 @@ export default async function GroupDetailPage(props: {
   return (
     <>
       <Navbar user={user} />
-      <div className="mx-auto max-w-5xl gap-4 px-4 py-6 md:grid md:grid-cols-[2fr_1fr]">
-        <div className="space-y-4">
+      <div className="mx-auto w-full max-w-5xl gap-4 px-4 py-6 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-4">
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">

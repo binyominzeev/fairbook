@@ -90,7 +90,7 @@ export default function GroupPostsInfiniteList({
   }
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <PostCardList
         posts={items}
         renderPost={(post) => (
