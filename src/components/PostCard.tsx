@@ -9,7 +9,7 @@ import HighlightedText from "@/components/HighlightedText";
 import LikersListTrigger from "@/components/LikersListTrigger";
 import TopicPicker from "@/components/TopicPicker";
 import { buildProfilePath } from "@/lib/profile-path";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buildGlobalTopicPath, buildProfileTopicPath } from "@/lib/topic-path";
@@ -232,24 +232,29 @@ function extractYouTubeVideoId(url: string) {
   }
 }
 
-function getYouTubeEmbedUrl(url: string) {
+function getYouTubeEmbed(url: string) {
   const videoId = extractYouTubeVideoId(url);
-  return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}?rel=0` : null;
+  return videoId
+    ? {
+        videoId,
+        url: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0`,
+      }
+    : null;
 }
 
 function findYouTubeEmbedUrls(text: string) {
   const seen = new Set<string>();
-  const embedUrls: string[] = [];
+  const embeds: { videoId: string; url: string }[] = [];
 
   for (const rawUrl of text.match(URL_PATTERN) ?? []) {
-    const embedUrl = getYouTubeEmbedUrl(rawUrl);
-    if (embedUrl && !seen.has(embedUrl)) {
-      seen.add(embedUrl);
-      embedUrls.push(embedUrl);
+    const embed = getYouTubeEmbed(rawUrl);
+    if (embed && !seen.has(embed.videoId)) {
+      seen.add(embed.videoId);
+      embeds.push(embed);
     }
   }
 
-  return embedUrls;
+  return embeds;
 }
 
 function getSharedOriginLabel(sharedPost: SharedPostData) {
@@ -264,10 +269,51 @@ function getSharedOriginHref(sharedPost: SharedPostData) {
   return buildProfilePath(sharedPost.author);
 }
 
-function YouTubeEmbed({ url }: { url: string }) {
+function YouTubeEmbed({ videoId, url }: { videoId: string; url: string }) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/youtube/oembed?id=${encodeURIComponent(videoId)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`YouTube dimensions request failed with status ${response.status}.`);
+        }
+
+        const dimensions = (await response.json()) as { width: number; height: number };
+        if (
+          !Number.isFinite(dimensions.width) ||
+          !Number.isFinite(dimensions.height) ||
+          dimensions.width <= 0 ||
+          dimensions.height <= 0
+        ) {
+          throw new Error("YouTube returned invalid video dimensions.");
+        }
+
+        setAspectRatio(dimensions.width / dimensions.height);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error("Could not determine YouTube video orientation.", error);
+        }
+      });
+
+    return () => controller.abort();
+  }, [videoId]);
+
   return (
     <div className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-slate-200 bg-black shadow-sm">
-      <div className="relative aspect-video w-full min-w-0 max-w-full">
+      <div
+        className="youtube-embed-frame relative w-full min-w-0 max-w-full"
+        style={
+          aspectRatio
+            ? ({ "--youtube-video-aspect-ratio": aspectRatio } as CSSProperties)
+            : undefined
+        }
+      >
         <iframe
           src={url}
           title="YouTube video embed"
@@ -296,8 +342,8 @@ function PostTextContent({
   return (
     <div className="w-full min-w-0 max-w-full overflow-x-clip">
       {renderTextWithLinks(text, className, query)}
-      {youtubeEmbedUrls.map((url) => (
-        <YouTubeEmbed key={url} url={url} />
+      {youtubeEmbedUrls.map((embed) => (
+        <YouTubeEmbed key={embed.videoId} videoId={embed.videoId} url={embed.url} />
       ))}
     </div>
   );

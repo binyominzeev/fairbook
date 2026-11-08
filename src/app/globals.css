@@ -17,3 +17,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.youtube-embed-frame {
+  aspect-ratio: var(--youtube-video-aspect-ratio, 16 / 9);
+}
+
+@media (min-width: 640px) {
+  .youtube-embed-frame {
+    aspect-ratio: 16 / 9;
+  }
+}
