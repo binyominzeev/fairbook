@@ -12,7 +12,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Invalid YouTube video ID." }, { status: 400 });
   }
 
-  const videoUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+  // The watch URL can report a landscape player for portrait videos.
+  const videoUrl = `https://www.youtube.com/shorts/${encodeURIComponent(videoId)}`;
   const oEmbedUrl = new URL(OEMBED_ENDPOINT);
   oEmbedUrl.searchParams.set("url", videoUrl);
   oEmbedUrl.searchParams.set("format", "json");
