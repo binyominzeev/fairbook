@@ -57,6 +57,7 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [invitedIds, setInvitedIds] = useState<string[]>([]);
+  const [memberIds, setMemberIds] = useState<string[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInviteEntry[]>([]);
 
   useEffect(() => {
@@ -88,9 +89,13 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
           ? (invitesData.invites as PendingInvite[])
           : [];
 
-        const pendingInviteeIds = parsedInvites
-          .map((invite) => invite.invitee?.id)
-          .filter((id): id is string => typeof id === "string" && id.length > 0);
+        const pendingInviteeIds = Array.isArray(invitesData.pendingInviteeIds)
+          ? invitesData.pendingInviteeIds.filter(
+              (id: unknown): id is string => typeof id === "string" && id.length > 0
+            )
+          : parsedInvites
+              .map((invite) => invite.invitee?.id)
+              .filter((id): id is string => typeof id === "string" && id.length > 0);
 
         const pendingEntries = parsedInvites
           .map((invite) => {
@@ -121,6 +126,13 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
           .filter((invite): invite is PendingInviteEntry => Boolean(invite));
 
         setInvitedIds(pendingInviteeIds);
+        setMemberIds(
+          Array.isArray(invitesData.memberIds)
+            ? invitesData.memberIds.filter(
+                (id: unknown): id is string => typeof id === "string" && id.length > 0
+              )
+            : []
+        );
         setPendingInvites(pendingEntries);
       } finally {
         setLoadingFollowedUsers(false);
@@ -198,11 +210,12 @@ export default function GroupInvitePanel({ groupIdOrSlug }: { groupIdOrSlug: str
     }
   };
 
-  const filteredUsers = query.trim()
-    ? followedUsers.filter((user) =>
-        user.name.toLowerCase().includes(query.trim().toLowerCase())
-      )
-    : followedUsers;
+  const filteredUsers = followedUsers.filter(
+    (user) =>
+      !memberIds.includes(user.id) &&
+      !invitedIds.includes(user.id) &&
+      (!query.trim() || user.name.toLowerCase().includes(query.trim().toLowerCase()))
+  );
 
   return (
     <div className="w-full max-w-full rounded-xl border border-slate-200 bg-white p-4 md:max-w-[22rem]">

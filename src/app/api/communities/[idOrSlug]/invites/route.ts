@@ -35,24 +35,36 @@ export async function GET(
     return Response.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  const invites = await prisma.communityInvite.findMany({
-    where: {
-      communityId: community.id,
-      status: "pending",
-    },
-    include: {
-      invitee: {
-        select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
+  const [invites, members, pendingInvitees] = await Promise.all([
+    prisma.communityInvite.findMany({
+      where: {
+        communityId: community.id,
+        status: "pending",
       },
-      inviter: {
-        select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
+      include: {
+        invitee: {
+          select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
+        },
+        inviter: {
+          select: { id: true, slug: true, name: true, email: true, avatarUrl: true },
+        },
       },
-    },
-    orderBy: [{ createdAt: "desc" }],
-    take: 50,
-  });
+      orderBy: [{ createdAt: "desc" }],
+      take: 50,
+    }),
+    prisma.communityMember.findMany({
+      where: { communityId: community.id },
+      select: { userId: true },
+    }),
+    prisma.communityInvite.findMany({
+      where: { communityId: community.id, status: "pending" },
+      select: { inviteeId: true },
+    }),
+  ]);
 
   return Response.json({
+    memberIds: members.map((member) => member.userId),
+    pendingInviteeIds: pendingInvitees.map((invite) => invite.inviteeId),
     invites: invites.map((invite) => ({
       id: invite.id,
       status: invite.status,
