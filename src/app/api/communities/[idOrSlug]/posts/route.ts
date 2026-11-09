@@ -1,5 +1,5 @@
 import { buildPostAudienceWhere } from "@/lib/post-visibility";
-import { buildPostInclude, serializePost } from "@/lib/post-presentation";
+import { buildGroupPostInclude, serializeGroupPost } from "@/lib/group-post-presentation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -10,9 +10,7 @@ export async function GET(
   ctx: RouteContext<"/api/communities/[idOrSlug]/posts">
 ) {
   const session = await getSession();
-  if (!session) {
-    return Response.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const viewerId = session?.userId ?? "__guest__";
 
   const { idOrSlug } = await ctx.params;
   const { searchParams } = new URL(request.url);
@@ -25,7 +23,7 @@ export async function GET(
     },
     include: {
       members: {
-        where: { userId: session.userId },
+        where: { userId: viewerId },
         select: { role: true },
         take: 1,
       },
@@ -34,6 +32,9 @@ export async function GET(
 
   if (!community) {
     return Response.json({ error: "Group not found." }, { status: 404 });
+  }
+  if (!session && (community.isPrivate || !community.allowGuestView)) {
+    return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
   const isMember = community.members.length > 0;
@@ -71,16 +72,16 @@ export async function GET(
             ],
           }
         : {}),
-      OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-      AND: [buildPostAudienceWhere(session.userId)],
-      hiddenBy: {
+      ...(session ? { OR: [{ moderationStatus: "visible" }, { authorId: viewerId }] } : { moderationStatus: "visible" }),
+      AND: [buildPostAudienceWhere(session?.userId)],
+      ...(session ? { hiddenBy: {
         none: {
-          userId: session.userId,
+          userId: viewerId,
         },
-      },
+      } } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    include: buildPostInclude(session.userId),
+    include: buildGroupPostInclude(viewerId),
     take: PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
@@ -89,7 +90,7 @@ export async function GET(
   const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
 
   return Response.json({
-    posts: items.map((row) => serializePost(row)),
+    posts: items.map((row) => serializeGroupPost(row, !session)),
     nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
   });
 }

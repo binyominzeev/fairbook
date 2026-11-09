@@ -102,6 +102,7 @@ export default function GroupPostsInfiniteList({
             defaultShareCommunityId={groupId}
             shareRedirectPath={groupPath}
             showCommunityHeader={false}
+            requireAuthForInteractions={!currentUserId}
           />
         )}
       />

@@ -24,7 +24,7 @@ export default async function TextCardsPage(props: {
   const membership = typeof communityId === "string" && communityId.trim()
     ? await prisma.communityMember.findUnique({
         where: { communityId_userId: { communityId, userId: user.id } },
-        select: { community: { select: { isPrivate: true } } },
+        select: { community: { select: { isPrivate: true, defaultPostVisibility: true } } },
       })
     : null;
 
@@ -36,6 +36,7 @@ export default async function TextCardsPage(props: {
           initialText={typeof text === "string" ? text.slice(0, 4000) : ""}
           communityId={typeof communityId === "string" && communityId.trim() ? communityId : null}
           isPrivateCommunity={membership?.community.isPrivate === true}
+          groupDefaultVisibility={membership?.community.defaultPostVisibility}
           returnToPath={
             typeof returnTo === "string" && returnTo.startsWith("/") ? returnTo : null
           }

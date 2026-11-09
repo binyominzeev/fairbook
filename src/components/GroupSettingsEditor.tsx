@@ -4,17 +4,22 @@ import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t } from "@/lib/i18n";
 import { useAppLocale } from "@/components/AppLocaleProvider";
+import PostVisibilitySelect, { type PostVisibilityChoice } from "@/components/PostVisibilitySelect";
 
 export default function GroupSettingsEditor({
   groupIdOrSlug,
   initialSlug,
   initialDescription,
   initialIsPrivate,
+  initialAllowGuestView,
+  initialDefaultPostVisibility,
 }: {
   groupIdOrSlug: string;
   initialSlug: string | null;
   initialDescription: string | null;
   initialIsPrivate: boolean;
+  initialAllowGuestView: boolean;
+  initialDefaultPostVisibility: string | null;
 }) {
   const router = useRouter();
   const locale = useAppLocale();
@@ -25,6 +30,12 @@ export default function GroupSettingsEditor({
     initialIsPrivate ? "closed" : "public"
   );
   const [saving, setSaving] = useState(false);
+  const [allowGuestView, setAllowGuestView] = useState(initialAllowGuestView);
+  const [postVisibility, setPostVisibility] = useState<PostVisibilityChoice>(
+    initialDefaultPostVisibility === "public" || initialDefaultPostVisibility === "members" ||
+    initialDefaultPostVisibility === "friends" || initialDefaultPostVisibility === "unlisted"
+      ? initialDefaultPostVisibility : "default"
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,14 +71,16 @@ export default function GroupSettingsEditor({
 
       if (
         description !== (initialDescription ?? "") ||
-        visibility !== (initialIsPrivate ? "closed" : "public")
+        visibility !== (initialIsPrivate ? "closed" : "public") ||
+        allowGuestView !== initialAllowGuestView ||
+        (postVisibility === "default" ? null : postVisibility) !== initialDefaultPostVisibility
       ) {
         const descRes = await fetch(
           `/api/communities/${encodeURIComponent(currentIdentifier)}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ description, visibility }),
+            body: JSON.stringify({ description, visibility, allowGuestView, defaultPostVisibility: postVisibility === "default" ? null : postVisibility }),
           }
         );
         const descData = await descRes.json();
@@ -134,7 +147,10 @@ export default function GroupSettingsEditor({
                 name="visibility"
                 value="public"
                 checked={visibility === "public"}
-                onChange={() => setVisibility("public")}
+                onChange={() => {
+                  setVisibility("public");
+                  if (postVisibility === "unlisted") setPostVisibility("default");
+                }}
               />
               {t(locale, "groupSettings.visibility.public")}
             </label>
@@ -150,6 +166,23 @@ export default function GroupSettingsEditor({
             </label>
           </div>
         </div>
+
+        {visibility === "public" && (
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={allowGuestView} onChange={(event) => setAllowGuestView(event.target.checked)} />
+            {t(locale, "groupSettings.allowGuestView")}
+          </label>
+        )}
+        <label className="block text-xs font-medium uppercase tracking-wide text-slate-500">
+          {t(locale, "groupSettings.defaultPostVisibility")}
+          <PostVisibilitySelect
+            value={postVisibility}
+            onChange={setPostVisibility}
+            includePrivate={false}
+            includeUnlisted={visibility === "closed"}
+            className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm normal-case text-slate-900"
+          />
+        </label>
 
         {message && <p className="text-xs text-emerald-700">{message}</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}

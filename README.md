@@ -20,7 +20,9 @@ fairbook is a Facebook-like social network built around a single mission: meanin
 | **Communities** | Public or invite-only groups |
 | **Connections** | Follow people to see their posts |
 
-Private-group post authors can choose **Unlisted (public with link)** when creating or editing a post. Anyone with the direct link can view that post, but commenting requires joining the group. Other private-group posts remain restricted to members; unlisted is not a default visibility. Only publicly accessible posts may be shared as unlisted, and their previews are hidden from non-members if the original later becomes restricted. If a group becomes public, its existing unlisted posts no longer grant link access outside the group.
+Private-group post authors can choose **Unlisted (public with link)** when creating or editing a post. Anyone with the direct link can view that post, but commenting requires joining the group. Other private-group posts remain restricted to members; unlisted is not the initial default. Only publicly accessible posts may be shared as unlisted, and their previews are hidden from non-members if the original later becomes restricted. If a group becomes public, its existing unlisted posts no longer grant link access outside the group.
+
+Group moderators can enable guest access to a public group's page; it is disabled by default, and only public posts are shown to guests. This setting does not change individual post permalinks. Moderators can also set a default audience for new group posts and shares; authors can override it, and existing posts are unchanged. Without a group default, the author's profile default remains in effect. Private groups can also use unlisted as their group default.
 
 Visitors can request to join a private group from its group page; an administrator or moderator must approve the request. Sign-in and email verification retain the original post link when entered from an unlisted post.
 

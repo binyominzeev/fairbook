@@ -424,7 +424,7 @@ export default async function GroupPostPermalinkPage(props: {
     post.sharedPost.moderationStatus === "visible";
   const serializedBasePost = serializePost({
     ...post,
-    sharedPost: isCommunityMember || sharedPostIsPublic ? post.sharedPost : null,
+    sharedPost: (isLoggedIn && isCommunityMember) || sharedPostIsPublic ? post.sharedPost : null,
   });
   const [postWithTopicColors] = await applyAuthorTopicColors([
     {

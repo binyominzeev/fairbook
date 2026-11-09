@@ -64,6 +64,7 @@ type PostComposerDialogProps = {
   textCardImageUrl?: string | null;
   communityId?: string | null;
   isPrivateCommunity?: boolean;
+  groupDefaultVisibility?: string | null;
 };
 
 type ComposerTopic = {
@@ -159,6 +160,7 @@ export default function PostComposerDialog({
   textCardImageUrl = null,
   communityId = null,
   isPrivateCommunity = false,
+  groupDefaultVisibility = null,
 }: PostComposerDialogProps) {
   const locale = useAppLocale();
   const [content, setContent] = useState(initialContent);
@@ -600,6 +602,7 @@ export default function PostComposerDialog({
             <PostVisibilitySelect
               value={visibility}
               includeUnlisted={isPrivateCommunity}
+              groupDefaultVisibility={groupDefaultVisibility}
               onChange={setVisibility}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />

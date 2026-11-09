@@ -10,17 +10,20 @@ import GroupMembersPanel from "@/components/GroupMembersPanel";
 import GroupPostsInfiniteList from "@/components/GroupPostsInfiniteList";
 import QuerySyncSearchInput from "@/components/QuerySyncSearchInput";
 import Navbar from "@/components/Navbar";
+import PublicNavbar from "@/components/PublicNavbar";
 import Avatar from "@/components/Avatar";
 import AdminDevSidebar from "@/components/AdminDevSidebar";
 import { getSession } from "@/lib/auth";
 import { isAdminEmail } from "@/lib/admin";
-import { buildPostInclude, serializePost } from "@/lib/post-presentation";
+import { serializePost } from "@/lib/post-presentation";
+import { buildGroupPostInclude, serializeGroupPost } from "@/lib/group-post-presentation";
 import { buildPostAudienceWhere } from "@/lib/post-visibility";
 import { prisma } from "@/lib/prisma";
 import { normalizeAppLocale, t } from "@/lib/i18n";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { loginHref } from "@/lib/auth-redirect";
+import { getRequestLocale } from "@/lib/request-locale";
 
 const PAGE_SIZE = 20;
 
@@ -42,19 +45,17 @@ export default async function GroupDetailPage(props: {
 }) {
   const { idOrSlug } = await props.params;
   const session = await getSession();
-  if (!session) {
-    redirect(loginHref(`/groups/${encodeURIComponent(idOrSlug)}`));
-  }
-  const isAdmin = isAdminEmail(session.email);
+  const isAdmin = session ? isAdminEmail(session.email) : false;
 
-  const user = await prisma.user.findUnique({
+  const user = session ? await prisma.user.findUnique({
     where: { id: session.userId },
     select: { id: true, slug: true, name: true, avatarUrl: true, locale: true },
-  });
-  if (!user) {
+  }) : null;
+  if (session && !user) {
     redirect(loginHref(`/groups/${encodeURIComponent(idOrSlug)}`));
   }
-  const locale = normalizeAppLocale(user.locale);
+  const viewerId = user?.id ?? "__guest__";
+  const locale = user ? normalizeAppLocale(user.locale) : await getRequestLocale();
 
   const { q, settings } = await props.searchParams;
   const query = (q ?? "").trim();
@@ -69,20 +70,20 @@ export default async function GroupDetailPage(props: {
         select: { id: true, slug: true, name: true, avatarUrl: true },
       },
       members: {
-        where: { userId: session.userId },
+        where: { userId: viewerId },
         select: { role: true },
         take: 1,
       },
       invites: {
         where: {
-          inviteeId: session.userId,
+          inviteeId: viewerId,
           status: "pending",
         },
         select: { id: true },
         take: 1,
       },
       joinRequests: {
-        where: { requesterId: session.userId, status: "pending" },
+        where: { requesterId: viewerId, status: "pending" },
         select: { id: true },
         take: 1,
       },
@@ -93,20 +94,23 @@ export default async function GroupDetailPage(props: {
   if (!community) {
     redirect("/groups");
   }
+  if (!user && (community.isPrivate || !community.allowGuestView)) {
+    redirect(loginHref(`/groups/${encodeURIComponent(idOrSlug)}`));
+  }
 
   const membershipRole = community.members[0]?.role ?? null;
   const isMember = Boolean(membershipRole);
   const hasPendingInvite = community.invites.length > 0;
   const canViewPosts = !community.isPrivate || isMember;
   const isModerator = membershipRole === "admin" || membershipRole === "moderator";
-  const isOwner = community.owner.id === session.userId;
+  const isOwner = community.owner.id === viewerId;
 
   const notificationPreference = isMember
     ? await prisma.communityNotificationPreference.findUnique({
         where: {
           communityId_userId: {
             communityId: community.id,
-            userId: session.userId,
+            userId: viewerId,
           },
         },
         select: { isSubscribed: true },
@@ -136,18 +140,18 @@ export default async function GroupDetailPage(props: {
               ],
             }
           : {}),
-        OR: [{ moderationStatus: "visible" }, { authorId: session.userId }],
-        AND: [buildPostAudienceWhere(session.userId)],
-        hiddenBy: { none: { userId: session.userId } },
+        ...(user ? { OR: [{ moderationStatus: "visible" }, { authorId: viewerId }] } : { moderationStatus: "visible" }),
+        AND: [buildPostAudienceWhere(user?.id)],
+        ...(user ? { hiddenBy: { none: { userId: viewerId } } } : {}),
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      include: buildPostInclude(session.userId),
+      include: buildGroupPostInclude(viewerId),
       take: PAGE_SIZE + 1,
     });
 
     const hasMore = initialPostRows.length > PAGE_SIZE;
     const pageRows = hasMore ? initialPostRows.slice(0, PAGE_SIZE) : initialPostRows;
-    initialItems = pageRows.map((row) => serializePost(row));
+    initialItems = pageRows.map((row) => serializeGroupPost(row, !user));
     initialNextCursor = hasMore ? pageRows[pageRows.length - 1]?.id ?? null : null;
   }
 
@@ -174,7 +178,7 @@ export default async function GroupDetailPage(props: {
 
   return (
     <>
-      <Navbar user={user} />
+      {user ? <Navbar user={user} /> : <PublicNavbar returnTo={`/groups/${encodeURIComponent(canonicalSlug)}`} />}
       <div className="mx-auto w-full max-w-5xl gap-4 px-4 py-6 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-4">
           <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -194,13 +198,13 @@ export default async function GroupDetailPage(props: {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <GroupJoinButton
+                {user ? <GroupJoinButton
                   groupIdOrSlug={canonicalSlug}
                   initiallyMember={isMember}
                   isPrivate={community.isPrivate}
                   initiallyInvited={hasPendingInvite}
                   initiallyRequested={community.joinRequests.length > 0}
-                />
+                /> : <Link href={loginHref(`/groups/${encodeURIComponent(canonicalSlug)}`)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">{t(locale, "groups.join.join")}</Link>}
                 {isMember && (
                   <GroupNotificationToggle
                     groupIdOrSlug={canonicalSlug}
@@ -281,6 +285,8 @@ export default async function GroupDetailPage(props: {
                 initialSlug={community.permalinkSlug}
                 initialDescription={community.description}
                 initialIsPrivate={community.isPrivate}
+                initialAllowGuestView={community.allowGuestView}
+                initialDefaultPostVisibility={community.defaultPostVisibility}
               />
               {isOwner && (
                 <GroupDeleteButton
@@ -295,13 +301,14 @@ export default async function GroupDetailPage(props: {
             <CreatePostForm
               communityId={community.id}
               isPrivateCommunity={community.isPrivate}
+              groupDefaultVisibility={community.defaultPostVisibility}
               returnToPath={`/groups/${encodeURIComponent(canonicalSlug)}`}
             />
           )}
 
           {canViewPosts ? (
             <GroupPostsInfiniteList
-              currentUserId={user.id}
+              currentUserId={viewerId === "__guest__" ? "" : viewerId}
               groupIdOrSlug={canonicalSlug}
               groupId={community.id}
               groupPath={`/groups/${encodeURIComponent(canonicalSlug)}`}

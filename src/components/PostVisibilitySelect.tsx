@@ -22,6 +22,8 @@ export default function PostVisibilitySelect({
   includeDefault = true,
   includePrivate = true,
   includeUnlisted = false,
+  defaultLabel,
+  groupDefaultVisibility,
 }: {
   value: PostVisibilityChoice;
   onChange: (value: PostVisibilityChoice) => void;
@@ -29,15 +31,24 @@ export default function PostVisibilitySelect({
   includeDefault?: boolean;
   includePrivate?: boolean;
   includeUnlisted?: boolean;
+  defaultLabel?: string;
+  groupDefaultVisibility?: string | null;
 }) {
   const locale = useAppLocale();
+  const groupDefaultKey = groupDefaultVisibility === "public" ? "composer.visibilityPublic"
+    : groupDefaultVisibility === "members" ? "composer.visibilityMembers"
+    : groupDefaultVisibility === "friends" ? "composer.visibilityFriends"
+    : groupDefaultVisibility === "unlisted" ? "composer.visibilityUnlisted"
+    : null;
   return (
     <select
       value={value}
       onChange={(event) => onChange(normalizeVisibilityChoice(event.target.value))}
       className={className}
     >
-      {includeDefault && <option value="default">{t(locale, "composer.visibilityDefault")}</option>}
+      {includeDefault && <option value="default">{groupDefaultKey
+        ? `${t(locale, "composer.groupVisibilityDefault")} — ${t(locale, groupDefaultKey)}`
+        : defaultLabel ?? t(locale, "composer.visibilityDefault")}</option>}
       <option value="public">{t(locale, "composer.visibilityPublic")}</option>
       <option value="members">{t(locale, "composer.visibilityMembers")}</option>
       <option value="friends">{t(locale, "composer.visibilityFriends")}</option>

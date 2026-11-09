@@ -97,6 +97,7 @@ export async function GET(request: Request) {
       description: community.description,
       avatarUrl: community.avatarUrl,
       isPrivate: community.isPrivate,
+      defaultPostVisibility: community.defaultPostVisibility,
       createdAt: community.createdAt.toISOString(),
       owner: community.owner,
       membershipRole: community.members[0]?.role ?? null,

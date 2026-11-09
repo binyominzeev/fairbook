@@ -124,9 +124,19 @@ export async function POST(request: NextRequest) {
     where: { id: session.userId },
     select: { defaultPostVisibility: true },
   });
+  const membership = typeof communityId === "string" && communityId.trim()
+    ? await prisma.communityMember.findUnique({
+        where: { communityId_userId: { communityId, userId: session.userId } },
+        select: { id: true, community: { select: { isPrivate: true, defaultPostVisibility: true } } },
+      })
+    : null;
+  if (typeof communityId === "string" && communityId.trim() && !membership) {
+    return Response.json({ error: "You must join the group before posting there." }, { status: 403 });
+  }
   const { visibility: resolvedVisibility, forcedPrivate } = resolveRequestedVisibility(
     visibility,
-    authorSettings?.defaultPostVisibility
+    authorSettings?.defaultPostVisibility,
+    membership?.community.defaultPostVisibility
   );
   const normalizedImageUrls = normalizeImageUrls(imageUrls);
 
@@ -183,16 +193,6 @@ export async function POST(request: NextRequest) {
 
   let resolvedCommunityId: string | null = null;
   if (typeof communityId === "string" && communityId.trim()) {
-    const membership = await prisma.communityMember.findUnique({
-      where: {
-        communityId_userId: {
-          communityId,
-          userId: session.userId,
-        },
-      },
-      select: { id: true, community: { select: { isPrivate: true } } },
-    });
-
     if (!membership) {
       return Response.json(
         { error: "You must join the group before posting there." },

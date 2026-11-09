@@ -8,6 +8,7 @@ import {
   slugifyCommunityPermalink,
 } from "@/lib/communities";
 import { prisma } from "@/lib/prisma";
+import { normalizePostVisibility } from "@/lib/post-visibility";
 
 async function findCommunity(idOrSlug: string, viewerId: string) {
   return prisma.community.findFirst({
@@ -70,6 +71,8 @@ export async function GET(
       description: community.description,
       avatarUrl: community.avatarUrl,
       isPrivate: community.isPrivate,
+      allowGuestView: community.allowGuestView,
+      defaultPostVisibility: community.defaultPostVisibility,
       createdAt: community.createdAt.toISOString(),
       owner: community.owner,
       membershipRole: community.members[0]?.role ?? null,
@@ -138,6 +141,23 @@ export async function PATCH(
       : community.isPrivate
         ? "closed"
         : "public";
+  if (visibility !== "public" && visibility !== "closed") {
+    return Response.json({ error: "Invalid group visibility." }, { status: 400 });
+  }
+  const hasGuestSetting = typeof body === "object" && body !== null && "allowGuestView" in body;
+  const guestSetting = hasGuestSetting ? (body as { allowGuestView?: unknown }).allowGuestView : community.allowGuestView;
+  if (typeof guestSetting !== "boolean") {
+    return Response.json({ error: "Invalid guest visibility." }, { status: 400 });
+  }
+  const hasDefault = typeof body === "object" && body !== null && "defaultPostVisibility" in body;
+  const requestedDefault = hasDefault ? (body as { defaultPostVisibility?: unknown }).defaultPostVisibility : community.defaultPostVisibility;
+  const defaultVisibility = requestedDefault === null ? null : normalizePostVisibility(requestedDefault);
+  if (requestedDefault !== null && !defaultVisibility) {
+    return Response.json({ error: "Invalid default post visibility." }, { status: 400 });
+  }
+  if (visibility === "public" && defaultVisibility === "unlisted") {
+    return Response.json({ error: "Unlisted is only available in private groups." }, { status: 400 });
+  }
   const shouldUpdateAvatar =
     typeof body === "object" && body !== null && "avatarUrl" in body;
 
@@ -193,6 +213,8 @@ export async function PATCH(
       ...(shouldUpdateAvatar ? { avatarUrl } : {}),
       ...(shouldUpdateSlug ? { permalinkSlug } : {}),
       isPrivate: visibility === "closed",
+      allowGuestView: visibility === "public" && guestSetting,
+      defaultPostVisibility: defaultVisibility,
     },
     select: {
       id: true,
@@ -200,6 +222,8 @@ export async function PATCH(
       description: true,
       avatarUrl: true,
       isPrivate: true,
+      allowGuestView: true,
+      defaultPostVisibility: true,
       permalinkSlug: true,
     },
   });

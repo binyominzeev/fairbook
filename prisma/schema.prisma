@@ -489,6 +489,8 @@ model Community {
   description String?
   avatarUrl   String?
   isPrivate   Boolean  @default(false)
+  allowGuestView Boolean @default(false)
+  defaultPostVisibility String?
   ownerId     String
   createdAt   DateTime @default(now())
 

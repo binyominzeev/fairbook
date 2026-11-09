@@ -814,6 +814,7 @@ type TextCardCreatorProps = {
   initialHiddenFontIds?: string[];
   communityId?: string | null;
   isPrivateCommunity?: boolean;
+  groupDefaultVisibility?: string | null;
   returnToPath?: string | null;
 };
 
@@ -1420,6 +1421,7 @@ export default function TextCardCreator({
   initialHiddenFontIds = [],
   communityId = null,
   isPrivateCommunity = false,
+  groupDefaultVisibility = null,
   returnToPath = null,
 }: TextCardCreatorProps) {
   const router = useRouter();
@@ -2467,6 +2469,7 @@ export default function TextCardCreator({
           textCardImageUrl={pendingComposerImageUrl}
           communityId={communityId}
           isPrivateCommunity={isPrivateCommunity}
+          groupDefaultVisibility={groupDefaultVisibility}
           onSuccess={(result: PostComposerSuccessResult) => {
             const params = new URLSearchParams({
               notice: result.message ?? t(locale, "textCard.posted"),

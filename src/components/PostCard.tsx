@@ -67,6 +67,7 @@ type ShareDestination = {
   id: string;
   name: string;
   isPrivate: boolean;
+  defaultPostVisibility: string | null;
 };
 
 type LocalEditImage = {
@@ -891,6 +892,7 @@ export default function PostCard({
     setActionError("");
     setShareComposerOpen(true);
     setShareVisibility("public");
+    setShareCommunityId("");
     setShareSelectedTopicId("");
     setShareNewTopicName("");
     setLoadingShareDestinations(true);
@@ -904,11 +906,11 @@ export default function PostCard({
 
       const destinations: ShareDestination[] = Array.isArray(data.communities)
         ? data.communities
-            .map((community: { id?: unknown; name?: unknown; isPrivate?: unknown }) => {
+            .map((community: { id?: unknown; name?: unknown; isPrivate?: unknown; defaultPostVisibility?: unknown }) => {
               if (typeof community.id !== "string" || typeof community.name !== "string" || typeof community.isPrivate !== "boolean") {
                 return null;
               }
-              return { id: community.id, name: community.name, isPrivate: community.isPrivate };
+              return { id: community.id, name: community.name, isPrivate: community.isPrivate, defaultPostVisibility: typeof community.defaultPostVisibility === "string" ? community.defaultPostVisibility : null };
             })
             .filter((item: ShareDestination | null): item is ShareDestination => Boolean(item))
         : [];
@@ -919,6 +921,9 @@ export default function PostCard({
         destinations.some((destination) => destination.id === defaultShareCommunityId)
       ) {
         setShareCommunityId(defaultShareCommunityId);
+        if (destinations.some((destination) => destination.id === defaultShareCommunityId && destination.defaultPostVisibility)) {
+          setShareVisibility("default");
+        }
       }
     } finally {
       setLoadingShareDestinations(false);
@@ -1533,7 +1538,7 @@ export default function PostCard({
                   value={shareCommunityId}
                   onChange={(event) => {
                     setShareCommunityId(event.target.value);
-                    if (shareVisibility === "unlisted") setShareVisibility("public");
+                    setShareVisibility(shareDestinations.some((destination) => destination.id === event.target.value && destination.defaultPostVisibility) ? "default" : "public");
                   }}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -1557,6 +1562,7 @@ export default function PostCard({
                   value={shareVisibility}
                   onChange={setShareVisibility}
                   includeUnlisted={shareDestinations.some((destination) => destination.id === shareCommunityId && destination.isPrivate)}
+                  groupDefaultVisibility={shareDestinations.find((destination) => destination.id === shareCommunityId)?.defaultPostVisibility}
                   className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

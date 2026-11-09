@@ -1,14 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export const POST_VISIBILITIES = ["public", "members", "friends", "unlisted"] as const;
-export type PostVisibility = (typeof POST_VISIBILITIES)[number];
-
-export function normalizePostVisibility(value: unknown): PostVisibility | null {
-  return typeof value === "string" && (POST_VISIBILITIES as readonly string[]).includes(value)
-    ? (value as PostVisibility)
-    : null;
-}
+export { POST_VISIBILITIES, normalizePostVisibility, resolveRequestedVisibility } from "@/lib/post-visibility-values";
+export type { PostVisibility } from "@/lib/post-visibility-values";
 
 /** Prisma filter selecting the posts a viewer (null = not logged in) may see. */
 export function buildPostAudienceWhere(viewerId: string | null | undefined): Prisma.PostWhereInput {
@@ -57,18 +51,4 @@ export async function canViewerSeePostAudience(
     }),
   ]);
   return Boolean(following && followedBy);
-}
-
-/** Resolves the client-requested visibility ("private" = author-only moderation state). */
-export function resolveRequestedVisibility(
-  requested: unknown,
-  userDefault: string | null | undefined
-): { visibility: PostVisibility; forcedPrivate: boolean } {
-  if (requested === "private") {
-    return { visibility: normalizePostVisibility(userDefault) ?? "members", forcedPrivate: true };
-  }
-  return {
-    visibility: normalizePostVisibility(requested) ?? normalizePostVisibility(userDefault) ?? "members",
-    forcedPrivate: false,
-  };
 }

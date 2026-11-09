@@ -51,9 +51,19 @@ export async function POST(
     where: { id: session.userId },
     select: { defaultPostVisibility: true },
   });
+  const targetMembership = requestedCommunityId
+    ? await prisma.communityMember.findUnique({
+        where: { communityId_userId: { communityId: requestedCommunityId, userId: session.userId } },
+        select: { id: true, community: { select: { isPrivate: true, defaultPostVisibility: true } } },
+      })
+    : null;
+  if (requestedCommunityId && !targetMembership) {
+    return Response.json({ error: "Join the selected group before sharing there." }, { status: 403 });
+  }
   const { visibility: resolvedVisibility, forcedPrivate } = resolveRequestedVisibility(
     payload?.visibility,
-    authorSettings?.defaultPostVisibility
+    authorSettings?.defaultPostVisibility,
+    targetMembership?.community.defaultPostVisibility
   );
 
   const { id } = await ctx.params;
@@ -109,16 +119,6 @@ export async function POST(
 
   let targetCommunityId: string | null = null;
   if (requestedCommunityId) {
-    const targetMembership = await prisma.communityMember.findUnique({
-      where: {
-        communityId_userId: {
-          communityId: requestedCommunityId,
-          userId: session.userId,
-        },
-      },
-      select: { id: true, community: { select: { isPrivate: true } } },
-    });
-
     if (!targetMembership) {
       return Response.json({ error: "Join the selected group before sharing there." }, { status: 403 });
     }
